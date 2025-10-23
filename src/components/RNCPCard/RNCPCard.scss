@@ -1,0 +1,98 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+.rncp-card {
+  @include card;
+  overflow: hidden;
+  transition: all 0.3s ease;
+
+  &--validated {
+    border-color: var(--success);
+    background: linear-gradient(135deg, rgba(var(--success-rgb), 0.05) 0%, transparent 100%);
+  }
+
+  &__requirements {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 1.5rem;
+    background-color: rgba(var(--text-rgb), 0.02);
+    border-bottom: 1px solid rgba(var(--text-rgb), 0.1);
+    gap: 2rem;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      gap: 1rem;
+    }
+  }
+
+  &__requirement-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    @media (max-width: 768px) {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+
+  &__requirement-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    border: 2px solid rgba(var(--text-rgb), 0.3);
+    font-size: 0.875rem;
+    color: rgba(var(--text-rgb), 0.5);
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+
+    &.validated {
+      border-color: var(--success);
+      background: var(--success);
+      color: white;
+    }
+  }
+
+  &__requirement-label {
+    font-size: 0.875rem;
+    color: rgba(var(--text-rgb), 0.7);
+    font-weight: 500;
+  }
+
+  &__requirement-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+
+    .validated {
+      color: var(--success);
+    }
+  }
+
+  &__categories {
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+
+    @media (max-width: 1200px) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .rncp-card {
+    &__requirements {
+      padding: 1rem;
+    }
+
+    &__categories {
+      padding: 1rem;
+    }
+  }
+}
