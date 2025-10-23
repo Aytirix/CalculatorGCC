@@ -18,6 +18,21 @@ Avoir un menu deroulant en haut a droite qui permet d'aller sur une page paramet
 
 ETAPE 2 :
 
+l'api de 42 https://api.intra.42.fr/apidoc
+
+Je veux un visualiseur qui affiche pour chaque RNCP
+Le level minimum, le nombre d'event minimum, et d'expercience professionel minimum.
+biensur faut regarder l'api de 42 pour recupere ces informations pour montrer a l'utilisateur si il a atteint l'objectif ou non.
+
+et dans chaque RNCP il peut avoir plusieurs categorie donc :
+le nombre de projet minimum, l'experience minimum
+et afficher la liste les un en dessous des autres les projets avec l'xp qui donne
+sur chaque projet, il faut le selectionner automatiquement si la personne a deja fait le projet. donc l'afficher en vert
+Il peut aussi cliquer sur un projet qui n'a pas encore ete fait et sa simule les points d'xp sur son level de base.
+
+dans le dossier public/level.json
+tu as le level et l'xp requis pour etre de se level.
+
 Voici les infos des 4 rncp :
 
 RNCP 6 Développement web et mobile :
