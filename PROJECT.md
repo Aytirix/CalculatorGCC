@@ -25,7 +25,7 @@ level requis : 17
 Evenements requis : 10
 Experience professionnel requis : 2
 
-Projet Web :
+Web :
 Requis 2
 Experience requis : 15K XP
 camagru : 4200XP
@@ -35,6 +35,18 @@ darkly : 6300XP
 red-tetris : 15750XP
 h42n42 : 9450XP
 Piscine PHP Symfony 9450XP
+    - Day 00
+    - Day 01
+    - Day 02
+    - Day 03
+    - Day 04
+    - Day 05
+    - Day 06
+    - Day 07
+    - Day 08
+    - Day 09
+    - Rush 00
+    - Rush 01
     - Day 00
     - Day 01
     - Day 02
@@ -74,7 +86,7 @@ Pisicne Django
     - Django - 3 - Final : 3475XP
 Tokenizer : 9450XP
 
-Projet Mobile :
+Mobile :
 ft_hangouts : 4200XP
 switfy-companion : 4200XP
 switfy-proteins : 15750XP
@@ -86,7 +98,7 @@ Mobile
     - Mobile - 4 - Auth and dataBase : 2000XP
     - Mobile - 5 - Manage data and display : 3000XP
 
-Projet Suite :
+Suite :
 humangl : 4200XP
 kfs-2 : 15750XP
 pestillence : 15750XP
@@ -101,6 +113,179 @@ level requis : 17
 Evenements requis : 10
 Experience professionnel requis : 2
 
-Projet Programmation fonctionnel
+Functional programming :
 ft_turing 9450XP
-ft_ality
+ft_ality 4200XP
+h42n42n 9450XP
+
+Imperative programming :
+libasm966 XP
+taskmaster 9450XP
+strace 9450XP
+snow-crash 9450XP
+darkly 6300XP
+gbmu3 1500XP
+ft_linux 4200XP
+little-penguin-1 9450XP
+rainfall2 5200XP
+woody-woodpacker 9450XP
+matt-daemon 9450XP
+kfs-21 5750XP
+kfs-11 5750XP
+famine 9450XP
+pestilence1 5750XP
+boot2root1 1500XP
+ft_shield1 5750XP
+override3 5700XP
+ft_ssl_md5 9450XP
+zappy2 5200XP
+lem-ipc 9450XP
+nm 9450XP
+malloc 9450XP
+ft_malcolm 6000XP
+
+Suite :
+humangl 4200XP
+kfs-21 5750XP
+pestilence1 5750XP
+override3 5700XP
+doom-nukem1 5750XP
+total-perspective-vortex 9450XP
+42sh1 5750XP
+rt2 0750XP
+Inception-of-Things2 5450XP
+Bgp At Doors of Autonomous Systems is Simple2 2450XP
+
+RNCP 7 Système d'information et réseaux :
+level requis : 21
+Evenements requis : 15
+Experience professionnel requis : 2
+
+System Administration :
+taskmaster 9450XP
+ft_ping 4200XP
+ft_traceroute 4200XP
+ft_nmap1 5750XP
+cloud-1 9450XP
+Inception-of-Things2 5450XP
+Bgp At Doors of Autonomous Systems is Simple2 2450XP
+ActiveDiscovery1 5750XP
+AutomaticDirectory 9450XP
+AdministrativeDirectory 9450XP
+AccessibleDirectory 9450XP
+
+Security :
+snow-crash 9450XP
+darkly 6300XP
+rainfall2 5200XP
+woody-woodpacker 9450XP
+famine 9450XP
+pestilence1 5750XP
+boot2root1 1500XP
+ft_shield1 5750XP
+override3 5700XP
+ft_ssl_md5 9450XP
+ft_malcolm 6000XP
+Cybersecurity
+UnleashTheBox1 5750XP
+ActiveConnect1 5750XP
+MicroForensX 9450XP
+ActiveTechTales1 5750XP
+
+Suite :
+humangl 4200XP
+kfs-21 5750XP
+pestilence1 5750XP
+override3 5700XP
+doom-nukem1 5750XP
+total-perspective-vortex 9450XP
+42sh1 5750XP
+rt2 0750XP
+Inception-of-Things2 5450XP
+Bgp At Doors of Autonomous Systems is Simple2 2450XP
+
+RNCP 7 Architecture des bases de donnees et data :
+level requis : 21
+Evenements requis : 15
+Experience professionnel requis : 2
+
+Web - Database :
+camagru 4200XP
+matcha 9450XP
+hypertube1 5750XP
+darkly 6300XP
+red-tetris1 5750XP
+h42n42 9450XP
+Piscine PHP Symfony 9450XP
+    - Day 00
+    - Day 01
+    - Day 02
+    - Day 03
+    - Day 04
+    - Day 05
+    - Day 06
+    - Day 07
+    - Day 08
+    - Day 09
+    - Rush 00
+    - Rush 01
+Piscine Ruby on Rails 9450XP
+    - Day 00
+    - Day 01
+    - Day 02
+    - Day 03
+    - Day 04
+    - Day 05
+    - Day 06
+    - Day 07
+    - Day 08
+    - Day 09
+    - Rush 00
+    - Rush 01
+Piscine Django
+    - Django - 0 - Initiation
+    - Django - 0 - Starting
+    - Django - 0 - Oob : 1500XP
+    - Django - 1 - Lib
+    - Django - 1 - Base Django : 3475XP
+    - Django - 2 - SQL : 1000XP
+    - Django - 3 : Sessions
+    - Django - 3 : Advanced
+    - Django - 3 - Final : 3475XP
+Tokenizer 9450XP
+
+Artificial Intelligence :
+gomoku25 200 XP
+expert-system9 450 XP
+ft_linear_regression4 200 XP125
+krpsim9 450 XP
+dslr6 000 XP
+multilayer-perceptron9 450 XP
+total-perspective-vortex9 450 XP
+ready set boole7 000 XP
+matrix7 000 XP
+Python for Data Science
+    - Python - 0 - Starting 545Xp
+    - Python - 1 - Array 545Xp
+    - Python - 2 - Data Table 545Xp
+    - Python - 3 - OOP 545Xp
+    - Python - 4 - Dod 2545Xp
+Piscine Data Science
+    - Data Science - 0 545Xp
+    - Data Science - 1 545Xp
+    - Data Science - 2 545Xp
+    - Data Science - 3 545Xp
+    - Data Science - 4 2545Xp
+Leaffliction15 750 XP
+
+Suite :
+humangl 4200XP
+kfs-21 5750XP
+pestilence1 5750XP
+override3 5700XP
+doom-nukem1 5750XP
+total-perspective-vortex 9450XP
+42sh1 5750XP
+rt2 0750XP
+Inception-of-Things2 5450XP
+ Bgp At Doors of Autonomous Systems is Simple2 2450XP
