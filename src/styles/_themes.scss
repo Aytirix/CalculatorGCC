@@ -1,0 +1,40 @@
+@use './variables' as *;
+
+// Light theme
+.light {
+  --bg-primary: #{$light-background};
+  --fg-primary: #{$light-foreground};
+  --bg-card: #{$light-card};
+  --border-card: #{$light-card-border};
+  --color-primary: #{$light-primary};
+  --color-primary-hover: #{$light-primary-hover};
+  --color-secondary: #{$light-secondary};
+  --bg-accent: #{$light-accent};
+  --text-primary: #{$light-text};
+  --text-muted: #{$light-text-muted};
+  --border-color: #{$light-border};
+  --shadow-color: #{$light-shadow};
+}
+
+// Dark theme
+.dark {
+  --bg-primary: #{$dark-background};
+  --fg-primary: #{$dark-foreground};
+  --bg-card: #{$dark-card};
+  --border-card: #{$dark-card-border};
+  --color-primary: #{$dark-primary};
+  --color-primary-hover: #{$dark-primary-hover};
+  --color-secondary: #{$dark-secondary};
+  --bg-accent: #{$dark-accent};
+  --text-primary: #{$dark-text};
+  --text-muted: #{$dark-text-muted};
+  --border-color: #{$dark-border};
+  --shadow-color: #{$dark-shadow};
+}
+
+// Base theme styles
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color $transition-normal, color $transition-normal;
+}

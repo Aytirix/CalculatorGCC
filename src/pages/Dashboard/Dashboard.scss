@@ -1,0 +1,67 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.dashboard-page {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: $spacing-xl $spacing-md;
+
+  @include respond-to(md) {
+    padding: $spacing-2xl $spacing-lg;
+  }
+}
+
+.welcome-section {
+  margin-bottom: $spacing-2xl;
+
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: $spacing-md;
+    color: var(--text-primary);
+    font-weight: 700;
+
+    @include respond-to(md) {
+      font-size: 3rem;
+    }
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+  }
+}
+
+.dashboard-content {
+  .info-card {
+    @include card;
+
+    h2 {
+      font-size: 1.8rem;
+      margin-bottom: $spacing-lg;
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    p {
+      color: var(--text-primary);
+      margin-bottom: $spacing-md;
+      line-height: 1.6;
+    }
+
+    ul {
+      margin-top: $spacing-lg;
+      padding-left: $spacing-xl;
+      
+      li {
+        color: var(--text-primary);
+        margin-bottom: $spacing-sm;
+        line-height: 1.6;
+      }
+    }
+  }
+}
