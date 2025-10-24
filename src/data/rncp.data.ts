@@ -1,17 +1,23 @@
-import type { RNCP, ProjectCategory } from '@/types/rncp.types';
+import type { RNCP } from '@/types/rncp.types';
 import { RNCP6_WEB_MOBILE } from './rncp6_web_mobile.ts';
 import { RNCP6_APPLICATIF } from './rncp6_applicatif.ts';
 import { RNCP7_SYSTEM_NETWORK } from './rncp7_system_network.ts';
 import { RNCP7_DATABASE_DATA } from './rncp7_database_data.ts';
 
-// Catégories globales pour tous les RNCPs
-export const GLOBAL_CATEGORIES: ProjectCategory[] = [
-  {
-    id: 'group-projects',
-    name: 'Projets de groupe',
-    requiredCount: 2,
-    requiredXP: 0,
-    projects: [
+// RNCP Global contenant les catégories communes à tous les RNCPs
+const RNCP_GLOBAL: RNCP = {
+  id: 'rncp-global',
+  name: 'Global',
+  level: 0,
+  requiredEvents: 0,
+  requiredProfessionalExperience: 0,
+  categories: [
+    {
+      id: 'group-projects',
+      name: 'Projets de groupe',
+      requiredCount: 2,
+      requiredXP: 0,
+      projects: [
       // Projects sorted by XP descending
       { id: 'war', name: 'war', xp: 35700, slug: 'war' },
       { id: 'death', name: 'death', xp: 35700, slug: 'death' },
@@ -99,11 +105,13 @@ export const GLOBAL_CATEGORIES: ProjectCategory[] = [
       { id: 'humangl', name: 'humangl', xp: 4200, slug: 'humangl' },
     ],
   },
-];
+  ],
+};
 
 export const RNCP_DATA: RNCP[] = [
   RNCP6_WEB_MOBILE,
   RNCP6_APPLICATIF,
   RNCP7_SYSTEM_NETWORK,
   RNCP7_DATABASE_DATA,
+  RNCP_GLOBAL,
 ];

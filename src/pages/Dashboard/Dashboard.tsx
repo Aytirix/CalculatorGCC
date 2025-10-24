@@ -359,7 +359,6 @@ const Dashboard: React.FC = () => {
                   {validation.overallValid && <span className="rncp-tab__check">✓</span>}
                   <div className="rncp-tab__info">
                     <h3 className="rncp-tab__title">{rncp.name}</h3>
-                    <p className="rncp-tab__level">Niveau {rncp.level} requis</p>
                   </div>
                 </div>
               </button>
