@@ -1,0 +1,215 @@
+tout les evenements valider seulement si il on se tag :
+piscine
+meet_up
+conference
+exam
+challenge
+hackathon
+pedago
+event
+rush
+workshop
+partnership
+speed_working
+meet
+other
+
+RNCP 6 - Développement Applicatif
+
+lvl mimimum 17
+10 events
+2 experience professionel
+
+Suite:
+rt
+42sh
+kfs-2
+HumanGL
+Override
+Pestilence
+doom-nukem
+Inception-of-Things
+total-perspective-vortex
+Bgp At Doors of Autonomous Systems is Simple
+
+2 projet de groupe minimum parmis cette liste
+rt
+xv
+war
+gbmu
+kfs-1
+kfs-2
+kfs-3
+kfs-4
+kfs-5
+kfs-6
+kfs-7
+kfs-8
+kfs-9
+kfs-x
+mod1
+dslr
+guimp
+zappy
+rubik
+death
+famine
+darkly
+matcha
+lem_in
+gomoku
+ft_vox
+krpsim
+cloud-1
+Old-IRC
+corewar
+humangl
+nibbler
+Vic-2-l
+ft_nmap
+override
+ft_ality
+rainfall
+n-puzzle
+hypertube
+boot2root
+ft_turing
+ft_newton
+ft_kalman
+ft_shield
+bomberman
+snow-crash
+music-room
+Pestilence
+taskmaster
+red-tetris
+filesystem
+doom-nukem
+matt-daemon
+shaderpixel
+ft_minecraft
+tinky-winkey
+Leaffliction
+Open Project
+Cow-Neck-TID
+expert-system
+Electronics-Old
+woody-woodpacker
+freddie-mercury
+swifty-proteins
+roger-skyline-2
+AutomaticDirectory
+Inception-of-Things
+userspace_digressions
+AdministrativeDirectory
+Bgp At Doors of Autonomous Systems is Simple
+
+Projets de programmation orientée objet :
+minimum 2 parmis cette liste
+10000 XP mimimum
+swingy
+darkly
+camagru
+hypertube
+red-tetris
+ft_hangouts
+fix-me
+h42n42
+swifty-proteins
+avaj-launcher
+bomberman
+nibbler
+swifty-companion
+matcha
+Piscine Mobile :
+Mobile - 0 - Basic of the mobile application
+Mobile - 1 - Structure and logic
+Mobile - 2 - API and data
+Mobile - 3 - Design
+Mobile - 4 - Auth and dataBase
+Mobile - 5 - Manage data and display
+Piscine Object :
+Piscine Object - Module 00 - Encapsulation
+Piscine Object - Module 01 - Relationship
+Piscine Object - Module 02 - UML
+Piscine Object - Module 03 - SOLID
+Piscine Object - Module 04 - Design Pattern
+Piscine Object - Module 05 - Practical work
+Piscine Django :
+Django - 0 - Starting
+Django - 0 - Initiation
+Django - 0 - Oob
+Django - 1 - Base Django
+Django - 1 - Lib
+Django - 2 - SQL
+Django - 3 - Sessions
+Django - 3 - Advanced
+Django - 3 - Final
+Piscine Ruby on Rails
+RoR - 2 - SQL
+RoR - 0 - Starting
+RoR - 0 - Initiation
+RoR - 0 - Oob
+RoR - 1 - Base Rails
+RoR - 1 - Gems
+RoR - 3 - Sessions
+RoR - 3 - Advanced
+RoR - 3 - Final
+Piscine Symfony :
+Symfony - 0 - Starting
+Symfony - 0 - Initiation
+Symfony - 0 - Oob
+Symfony - 1 - Base Symfony
+Symfony - 1 - Composer
+Symfony - 2 - SQL
+Symfony - 3 - Sessions
+Symfony - 3 - Advanced
+Symfony - 3 - Final
+
+projets de programmation fonctionnelle :
+minimum 2 parmis cette liste
+10000 xp minimum
+h42n42
+ft_turing
+ft_ality
+OCAML - Basic syntax and semantics - 0
+OCAML - Pattern Matching and Data Types - 0
+OCAML - Recursion and higher-order functions - 0
+OCAML - Functor - 1
+OCAML - OCaml’s modules language - 1
+OCAML - Object Oriented Programming - 1
+OCAML - Imperative features - 1
+OCAML - Object Oriented Programming - 2
+OCAML - Monoids and Monads - 3
+
+
+Programmation impérative :
+minimum 2 parmis cette liste
+10000 XP mimimum
+override
+gbmu
+ft_ssl_md5
+rainfall
+taskmaster
+ft_linux
+woody-woodpacker
+ft_script
+nm
+Old-LibftASM
+little-penguin-1
+lem-ipc
+zappy
+pestilence
+strace
+malloc
+kfs-2
+snow-crash
+ft_shield
+famine
+ft_select
+libasm
+ft_malcolm
+darkly
+matt-daemon
+boot2root
+kfs-1

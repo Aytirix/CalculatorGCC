@@ -1,0 +1,167 @@
+tout les evenements valider seulement si il on se tag :
+piscine
+meet_up
+conference
+exam
+challenge
+hackathon
+pedago
+event
+rush
+workshop
+partnership
+speed_working
+meet
+other
+
+RNCP 6 - Développement Applicatif
+
+lvl mimimum 21
+15 events
+2 experience professionel
+
+Suite:
+minimum 1 projet parmis cette liste :
+rt
+42sh
+kfs-2
+HumanGL
+Override
+Pestilence
+doom-nukem
+Inception-of-Things
+total-perspective-vortex
+Bgp At Doors of Autonomous Systems is Simple
+
+2 projet de groupe minimum parmis cette liste
+rt
+xv
+war
+gbmu
+kfs-1
+kfs-2
+kfs-3
+kfs-4
+kfs-5
+kfs-6
+kfs-7
+kfs-8
+kfs-9
+kfs-x
+mod1
+dslr
+guimp
+zappy
+rubik
+death
+famine
+darkly
+matcha
+lem_in
+gomoku
+ft_vox
+krpsim
+cloud-1
+Old-IRC
+corewar
+humangl
+nibbler
+Vic-2-l
+ft_nmap
+override
+ft_ality
+rainfall
+n-puzzle
+hypertube
+boot2root
+ft_turing
+ft_newton
+ft_kalman
+ft_shield
+bomberman
+snow-crash
+music-room
+Pestilence
+taskmaster
+red-tetris
+filesystem
+doom-nukem
+matt-daemon
+shaderpixel
+ft_minecraft
+tinky-winkey
+Leaffliction
+Open Project
+Cow-Neck-TID
+expert-system
+Electronics-Old
+woody-woodpacker
+freddie-mercury
+swifty-proteins
+roger-skyline-2
+AutomaticDirectory
+Inception-of-Things
+userspace_digressions
+AdministrativeDirectory
+Bgp At Doors of Autonomous Systems is Simple
+
+Unix/Kernel Projects:
+minimum 2 projet
+minimum 30K xp
+nm
+gbmu
+kfs-1
+kfs-2
+kfs-3
+kfs-4
+kfs-5
+kfs-6
+kfs-8
+kfs-9
+kfs-x
+zappy
+libasm
+malloc
+strace
+lem-ipc
+ft_linux
+ft_script
+ft_select
+taskmaster
+matt-daemon
+little-penguin-1
+
+Projets d'administration système :
+minimum 3 projet
+minimum 50K xp
+ft_nmap
+ft_ping
+cloud-1
+taskmaster
+ft_traceroute
+ActiveDiscovery
+Inception-of-Things
+AutomaticDirectory
+AccessibleDirectory
+AdministrativeDirectory
+Bgp At Doors of Autonomous Systems is Simple
+
+Projets de sécurité :
+minimum 3 projet
+minimum 50K xp
+famine
+darkly
+boot2root
+override
+rainfall
+snow-crash
+ft_shield
+pestilence
+ActiveConnect
+ActiveTechTales
+ft_malcolm
+ft_ssl_md5
+woody-woodpacker
+MicroForensX
+UnleashTheBox
+Cybersecurity - Vaccine - Web

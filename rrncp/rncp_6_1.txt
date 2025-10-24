@@ -1,0 +1,166 @@
+tout les evenements valider seulement si il on se tag :
+piscine
+meet_up
+conference
+exam
+challenge
+hackathon
+pedago
+event
+rush
+workshop
+partnership
+speed_working
+meet
+other
+
+RNCP 6 - Développement Web et Mobile
+
+lvl mimimum 17
+10 events
+2 experience professionel
+
+Projet web :
+minimum 2 dans cette liste
+Parmis cette liste je dois faire au minimum 15000 XP
+darkly
+matcha
+h42n42
+camagru
+hypertube
+Tokenizer
+music-room
+red-tetris
+TokenizeArt
+Piscine Ruby on Rails
+RoR - 2 - SQL
+RoR - 0 - Starting
+RoR - 0 - Initiation
+RoR - 0 - Oob
+RoR - 1 - Base Rails
+RoR - 1 - Gems
+RoR - 3 - Sessions
+RoR - 3 - Advanced
+RoR - 3 - Final
+Piscine Django :
+Django - 0 - Starting
+Django - 0 - Initiation
+Django - 0 - Oob
+Django - 1 - Base Django
+Django - 1 - Lib
+Django - 2 - SQL
+Django - 3 - Sessions
+Django - 3 - Advanced
+Django - 3 - Final
+Piscine Symfony :
+Symfony - 0 - Starting
+Symfony - 0 - Initiation
+Symfony - 0 - Oob
+Symfony - 1 - Base Symfony
+Symfony - 1 - Composer
+Symfony - 2 - SQL
+Symfony - 3 - Sessions
+Symfony - 3 - Advanced
+Symfony - 3 - Final
+
+
+Projet mobile :
+minimum 2 dans cette liste
+Parmis cette liste je dois faire au minimum 10000 XP
+ft_hangouts
+Peace_Break
+swifty-proteins
+swifty-companion
+Piscine Mobile :
+Mobile - 0 - Basic of the mobile application
+Mobile - 1 - Structure and logic
+Mobile - 2 - API and data
+Mobile - 3 - Design
+Mobile - 4 - Auth and dataBase
+Mobile - 5 - Manage data and display
+
+Suite:
+minimum 1 dans cette liste
+rt
+42sh
+kfs-2
+HumanGL
+Override
+Pestilence
+doom-nukem
+Inception-of-Things
+total-perspective-vortex
+Bgp At Doors of Autonomous Systems is Simple
+
+Projet de groupe :
+Valider 2 projet de groupe parmis cette liste
+rt
+xv
+war
+gbmu
+kfs-1
+kfs-2
+kfs-3
+kfs-4
+kfs-5
+kfs-6
+kfs-7
+kfs-8
+kfs-9
+kfs-x
+mod1
+dslr
+guimp
+zappy
+rubik
+death
+famine
+darkly
+matcha
+lem_in
+gomoku
+ft_vox
+krpsim
+cloud-1
+Old-IRC
+corewar
+humangl
+nibbler
+Vic-2-l
+ft_nmap
+override
+ft_ality
+rainfall
+n-puzzle
+hypertube
+boot2root
+ft_turing
+ft_newton
+ft_kalman
+ft_shield
+bomberman
+snow-crash
+music-room
+Pestilence
+taskmaster
+red-tetris
+filesystem
+doom-nukem
+matt-daemon
+shaderpixel
+ft_minecraft
+tinky-winkey
+Leaffliction
+Open Project
+Cow-Neck-TID
+expert-system
+Electronics-Old
+woody-woodpacker
+freddie-mercury
+swifty-proteins
+roger-skyline-2
+AutomaticDirectory
+Inception-of-Things
+userspace_digressions
+AdministrativeDirectory
+Bgp At Doors of Autonomous Systems is Simple
