@@ -122,23 +122,33 @@ const Dashboard: React.FC = () => {
     // Calculer l'XP total de tous les projets (complétés + simulés)
     let totalXP = userProgress.currentXP;
     
+    // Utiliser un Set pour tracker les projets déjà comptés (éviter les doublons)
+    const countedProjects = new Set<string>();
+    
     // Pour chaque projet simulé sans sous-projets, ajouter son XP
     simulatedProjects.forEach(projectSlug => {
-      // Trouver le projet dans les données RNCP
-      RNCP_DATA.forEach(rncp => {
-        rncp.categories.forEach(category => {
+      // Trouver le projet dans les données RNCP (on s'arrête dès qu'on le trouve)
+      for (const rncp of RNCP_DATA) {
+        for (const category of rncp.categories) {
           const project = category.projects.find(p => p.slug === projectSlug || p.id === projectSlug);
-          if (project && !project.subProjects) {
+          if (project && !project.subProjects && !countedProjects.has(project.id)) {
             totalXP += project.xp;
+            countedProjects.add(project.id);
+            console.log(`✅ Projet: ${project.name} +${project.xp} XP`);
+            break; // On sort de la boucle des catégories
           }
-        });
-      });
+        }
+        if (countedProjects.has(projectSlug)) break; // On sort de la boucle des RNCPs
+      }
     });
 
     // Pour les projets avec sous-projets, calculer l'XP en fonction des sous-projets validés
     Object.entries(simulatedSubProjects).forEach(([projectId, subProjectIds]) => {
-      RNCP_DATA.forEach(rncp => {
-        rncp.categories.forEach(category => {
+      // On compte ce projet seulement s'il n'a pas déjà été compté
+      if (countedProjects.has(projectId)) return;
+      
+      for (const rncp of RNCP_DATA) {
+        for (const category of rncp.categories) {
           const project = category.projects.find(p => p.id === projectId);
           if (project && project.subProjects) {
             // Vérifier si tous les sous-projets sont validés
@@ -160,9 +170,13 @@ const Dashboard: React.FC = () => {
                 totalXP += subProject.xp;
               }
             });
+            
+            countedProjects.add(projectId);
+            break; // On sort de la boucle des catégories
           }
-        });
-      });
+        }
+        if (countedProjects.has(projectId)) break; // On sort de la boucle des RNCPs
+      }
     });
 
     console.log(`💡 XP Total calculé: ${totalXP}`);
