@@ -13,34 +13,15 @@ export const RNCP6_WEB_MOBILE: RNCP = {
       requiredCount: 2,
       requiredXP: 15000,
       projects: [
-        // Projects sorted by XP descending
-        { id: 'music-room', name: 'music-room', xp: 25200, slug: 'music-room' },
-        { id: 'hypertube', name: 'hypertube', xp: 15750, slug: 'hypertube' },
-        { id: 'red-tetris', name: 'red-tetris', xp: 15750, slug: 'red-tetris' },
-        { id: 'matcha', name: 'matcha', xp: 9450, slug: 'matcha' },
-        { id: 'h42n42', name: 'h42n42', xp: 9450, slug: 'h42n42' },
-        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer' },
-        { id: 'tokenize-art', name: 'TokenizeArt', xp: 9450, slug: 'tokenize-art' },
-        { id: 'darkly', name: 'darkly', xp: 6300, slug: 'darkly' },
         { id: 'camagru', name: 'camagru', xp: 4200, slug: 'camagru' },
-        // Piscines last
-        {
-          id: 'piscine-ror',
-          name: 'Piscine RoR',
-          xp: 9450,
-          slug: 'piscine-ror',
-          subProjects: [
-            { id: 'ror-0-starting', name: 'RoR - 0 - Starting', xp: 0 },
-            { id: 'ror-0-initiation', name: 'RoR - 0 - Initiation', xp: 0 },
-            { id: 'ror-0-oob', name: 'RoR - 0 - Oob', xp: 1500 },
-            { id: 'ror-1-base-rails', name: 'RoR - 1 - Base Rails', xp: 1500 },
-            { id: 'ror-1-gems', name: 'RoR - 1 - Gems', xp: 0 },
-            { id: 'ror-2-sql', name: 'RoR - 2 - SQL', xp: 1000 },
-            { id: 'ror-3-sessions', name: 'RoR - 3 - Sessions', xp: 0 },
-            { id: 'ror-3-advanced', name: 'RoR - 3 - Advanced', xp: 0 },
-            { id: 'ror-3-final', name: 'RoR - 3 - Final', xp: 3475 },
-          ],
-        },
+        { id: 'darkly', name: 'darkly', xp: 6300, slug: 'darkly' },
+        { id: 'h42n42', name: 'h42n42', xp: 9450, slug: 'h42n42' },
+        { id: 'hypertube', name: 'hypertube', xp: 15750, slug: 'hypertube' },
+        { id: 'matcha', name: 'matcha', xp: 9450, slug: 'matcha' },
+        { id: 'music-room', name: 'music-room', xp: 25200, slug: 'music-room' },
+        { id: 'red-tetris', name: 'red-tetris', xp: 15750, slug: 'red-tetris' },
+        { id: 'tokenize-art', name: 'TokenizeArt', xp: 9450, slug: 'tokenize-art' },
+        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer' },
         {
           id: 'piscine-django',
           name: 'Piscine Django',
@@ -56,6 +37,23 @@ export const RNCP6_WEB_MOBILE: RNCP = {
             { id: 'django-3-sessions', name: 'Django - 3 : Sessions', xp: 0 },
             { id: 'django-3-advanced', name: 'Django - 3 : Advanced', xp: 0 },
             { id: 'django-3-final', name: 'Django - 3 - Final', xp: 3475 },
+          ],
+        },
+        {
+          id: 'piscine-ror',
+          name: 'Piscine RoR',
+          xp: 9450,
+          slug: 'piscine-ror',
+          subProjects: [
+            { id: 'ror-0-starting', name: 'RoR - 0 - Starting', xp: 0 },
+            { id: 'ror-0-initiation', name: 'RoR - 0 - Initiation', xp: 0 },
+            { id: 'ror-0-oob', name: 'RoR - 0 - Oob', xp: 1500 },
+            { id: 'ror-1-base-rails', name: 'RoR - 1 - Base Rails', xp: 1500 },
+            { id: 'ror-1-gems', name: 'RoR - 1 - Gems', xp: 0 },
+            { id: 'ror-2-sql', name: 'RoR - 2 - SQL', xp: 1000 },
+            { id: 'ror-3-sessions', name: 'RoR - 3 - Sessions', xp: 0 },
+            { id: 'ror-3-advanced', name: 'RoR - 3 - Advanced', xp: 0 },
+            { id: 'ror-3-final', name: 'RoR - 3 - Final', xp: 3475 },
           ],
         },
         {
@@ -83,12 +81,10 @@ export const RNCP6_WEB_MOBILE: RNCP = {
       requiredCount: 2,
       requiredXP: 10000,
       projects: [
-        // Projects sorted by XP descending
-        { id: 'swifty-proteins', name: 'swifty-proteins', xp: 15750, slug: 'swifty-proteins' },
-        { id: 'peace-break', name: 'Peace_Break', xp: 9000, slug: 'peace-break' },
         { id: 'ft-hangouts', name: 'ft_hangouts', xp: 4200, slug: 'ft-hangouts' },
+        { id: 'peace-break', name: 'Peace_Break', xp: 9000, slug: 'peace-break' },
         { id: 'swifty-companion', name: 'swifty-companion', xp: 4200, slug: 'swifty-companion' },
-        // Piscines last
+        { id: 'swifty-proteins', name: 'swifty-proteins', xp: 15750, slug: 'swifty-proteins' },
         {
           id: 'piscine-mobile',
           name: 'Piscine Mobile',

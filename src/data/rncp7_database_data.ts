@@ -13,17 +13,15 @@ export const RNCP7_DATABASE_DATA: RNCP = {
       requiredCount: 2,
       requiredXP: 50000,
       projects: [
-        // Projects sorted by XP descending
-        { id: 'music-room', name: 'music-room', xp: 25200, slug: 'music-room' },
-        { id: 'hypertube', name: 'hypertube', xp: 15750, slug: 'hypertube' },
-        { id: 'red-tetris', name: 'red-tetris', xp: 15750, slug: 'red-tetris' },
-        { id: 'matcha', name: 'matcha', xp: 9450, slug: 'matcha' },
-        { id: 'h42n42', name: 'h42n42', xp: 9450, slug: 'h42n42' },
-        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer' },
-        { id: 'tokenize-art', name: 'TokenizeArt', xp: 9450, slug: 'tokenize-art' },
-        { id: 'darkly', name: 'darkly', xp: 6300, slug: 'darkly' },
         { id: 'camagru', name: 'camagru', xp: 4200, slug: 'camagru' },
-        // Piscines last
+        { id: 'darkly', name: 'darkly', xp: 6300, slug: 'darkly' },
+        { id: 'h42n42', name: 'h42n42', xp: 9450, slug: 'h42n42' },
+        { id: 'hypertube', name: 'hypertube', xp: 15750, slug: 'hypertube' },
+        { id: 'matcha', name: 'matcha', xp: 9450, slug: 'matcha' },
+        { id: 'music-room', name: 'music-room', xp: 25200, slug: 'music-room' },
+        { id: 'red-tetris', name: 'red-tetris', xp: 15750, slug: 'red-tetris' },
+        { id: 'tokenize-art', name: 'TokenizeArt', xp: 9450, slug: 'tokenize-art' },
+        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer' },
         {
           id: 'piscine-ror',
           name: 'Piscine RoR',
@@ -83,18 +81,16 @@ export const RNCP7_DATABASE_DATA: RNCP = {
       requiredCount: 3,
       requiredXP: 70000,
       projects: [
-        // Projects sorted by XP descending
-        { id: 'gomoku', name: 'gomoku', xp: 25200, slug: 'gomoku' },
-        { id: 'leaffliction', name: 'Leaffliction', xp: 15750, slug: 'leaffliction' },
         { id: 'dslr', name: 'dslr', xp: 9450, slug: 'dslr' },
-        { id: 'krpsim', name: 'krpsim', xp: 9450, slug: 'krpsim' },
         { id: 'expert-system', name: 'expert-system', xp: 9450, slug: 'expert-system' },
+        { id: 'gomoku', name: 'gomoku', xp: 25200, slug: 'gomoku' },
+        { id: 'krpsim', name: 'krpsim', xp: 9450, slug: 'krpsim' },
+        { id: 'leaffliction', name: 'Leaffliction', xp: 15750, slug: 'leaffliction' },
         { id: 'learn2slither', name: 'Learn2Slither', xp: 9450, slug: 'learn2slither' },
-        { id: 'multilayer-perceptron', name: 'multilayer-perceptron', xp: 9450, slug: 'multilayer-perceptron' },
-        { id: 'total-perspective-vortex', name: 'total-perspective-vortex', xp: 9450, slug: 'total-perspective-vortex' },
         { id: 'matrix', name: 'matrix', xp: 7000, slug: 'matrix' },
+        { id: 'multilayer-perceptron', name: 'multilayer-perceptron', xp: 9450, slug: 'multilayer-perceptron' },
         { id: 'ready-set-boole', name: 'ready set boole', xp: 7000, slug: 'ready-set-boole' },
-        // Piscines last
+        { id: 'total-perspective-vortex', name: 'total-perspective-vortex', xp: 9450, slug: 'total-perspective-vortex' },
         {
           id: 'piscine-data-science',
           name: 'Piscine Data Science',
