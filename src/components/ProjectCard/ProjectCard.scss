@@ -5,15 +5,19 @@
   background-color: var(--bg-card);
   border: 2px solid var(--border-color);
   border-radius: $radius-md;
-  padding: $spacing-sm $spacing-md;
-  cursor: pointer;
   transition: all $transition-fast;
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: $spacing-md;
-  min-height: 50px;
+
+  .project-main {
+    padding: $spacing-sm $spacing-md;
+    cursor: pointer;
+    transition: all $transition-fast;
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    min-height: 50px;
+  }
 
   &::before {
     content: '';
@@ -81,6 +85,19 @@
     font-size: 1.25rem;
     line-height: 1;
     flex-shrink: 0;
+    transition: transform $transition-fast;
+
+    &.clickable {
+      cursor: pointer;
+      
+      &:hover {
+        transform: scale(1.2);
+      }
+      
+      &:active {
+        transform: scale(0.9);
+      }
+    }
   }
 
   .project-info {
@@ -148,5 +165,89 @@
       color: white;
       font-weight: 600;
     }
+  }
+
+  .expand-icon {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform $transition-fast;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .sub-projects-expanded {
+    border-top: 1px solid var(--border-color);
+    background-color: rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+
+    [data-theme='dark'] & {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+  }
+
+  .sub-projects-list-expanded {
+    padding: $spacing-sm;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+  }
+
+  .sub-project-item {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    padding: $spacing-xs $spacing-sm;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    transition: all $transition-fast;
+    background-color: var(--bg-card);
+    border: 1px solid transparent;
+
+    &:hover {
+      background-color: var(--bg-accent);
+      border-color: var(--border-color);
+    }
+
+    &.simulated {
+      background-color: rgba(59, 130, 246, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+
+      .sub-project-name {
+        color: #2563eb;
+        font-weight: 500;
+      }
+    }
+  }
+
+  .sub-project-checkbox {
+    font-size: 1rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .sub-project-name {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .sub-project-xp {
+    font-size: 0.75rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    background-color: rgba(59, 130, 246, 0.1);
+    padding: 2px 6px;
+    border-radius: $radius-sm;
+    flex-shrink: 0;
+  }
+
+  .sub-projects-summary {
+    padding: $spacing-xs $spacing-sm;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-accent);
+    font-weight: 500;
   }
 }

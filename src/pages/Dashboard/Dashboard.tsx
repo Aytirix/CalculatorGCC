@@ -14,6 +14,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
   const [simulatedProjects, setSimulatedProjects] = useState<string[]>([]);
+  const [simulatedSubProjects, setSimulatedSubProjects] = useState<Record<string, string[]>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
 
@@ -28,6 +29,16 @@ const Dashboard: React.FC = () => {
         console.error('Erreur lors du chargement des projets simulés:', err);
       }
     }
+
+    const savedSubProjects = localStorage.getItem('simulated_sub_projects');
+    if (savedSubProjects) {
+      try {
+        const parsed = JSON.parse(savedSubProjects);
+        setSimulatedSubProjects(parsed);
+      } catch (err) {
+        console.error('Erreur lors du chargement des sous-projets simulés:', err);
+      }
+    }
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -38,6 +49,15 @@ const Dashboard: React.FC = () => {
       localStorage.removeItem('simulated_projects');
     }
   }, [simulatedProjects]);
+
+  // Sauvegarder les sous-projets simulés dans localStorage
+  useEffect(() => {
+    if (Object.keys(simulatedSubProjects).length > 0) {
+      localStorage.setItem('simulated_sub_projects', JSON.stringify(simulatedSubProjects));
+    } else {
+      localStorage.removeItem('simulated_sub_projects');
+    }
+  }, [simulatedSubProjects]);
 
   const loadUserData = async (forceRefresh = false) => {
     try {
@@ -102,22 +122,54 @@ const Dashboard: React.FC = () => {
     // Calculer l'XP total de tous les projets (complétés + simulés)
     let totalXP = userProgress.currentXP;
     
-    // Pour chaque projet simulé, ajouter son XP
+    // Pour chaque projet simulé sans sous-projets, ajouter son XP
     simulatedProjects.forEach(projectSlug => {
       // Trouver le projet dans les données RNCP
       RNCP_DATA.forEach(rncp => {
         rncp.categories.forEach(category => {
           const project = category.projects.find(p => p.slug === projectSlug || p.id === projectSlug);
-          if (project) {
+          if (project && !project.subProjects) {
             totalXP += project.xp;
           }
         });
       });
     });
 
+    // Pour les projets avec sous-projets, calculer l'XP en fonction des sous-projets validés
+    Object.entries(simulatedSubProjects).forEach(([projectId, subProjectIds]) => {
+      RNCP_DATA.forEach(rncp => {
+        rncp.categories.forEach(category => {
+          const project = category.projects.find(p => p.id === projectId);
+          if (project && project.subProjects) {
+            // Vérifier si tous les sous-projets sont validés
+            const allSubProjectsValidated = project.subProjects.every(sub => 
+              subProjectIds.includes(sub.id)
+            );
+
+            if (allSubProjectsValidated) {
+              // Si tous les sous-projets sont validés, ajouter l'XP du projet principal
+              console.log(`✅ Piscine complète: ${project.name} +${project.xp} XP`);
+              totalXP += project.xp;
+            }
+
+            // Ajouter l'XP de chaque sous-projet validé individuellement
+            subProjectIds.forEach(subId => {
+              const subProject = project.subProjects?.find(s => s.id === subId);
+              if (subProject && subProject.xp > 0) {
+                console.log(`  📚 Sous-projet: ${subProject.name} +${subProject.xp} XP`);
+                totalXP += subProject.xp;
+              }
+            });
+          }
+        });
+      });
+    });
+
+    console.log(`💡 XP Total calculé: ${totalXP}`);
     const newLevel = xpService.getLevelFromXP(totalXP);
+    console.log(`📊 Niveau projeté: ${newLevel}`);
     setProjectedLevel(newLevel);
-  }, [simulatedProjects, userProgress]);
+  }, [simulatedProjects, simulatedSubProjects, userProgress]);
 
   const handleToggleSimulation = (projectId: string) => {
     setSimulatedProjects(prev => {
@@ -127,6 +179,34 @@ const Dashboard: React.FC = () => {
       } else {
         // Ajouter le projet à la simulation
         return [...prev, projectId];
+      }
+    });
+  };
+
+  const handleToggleSubProject = (projectId: string, subProjectId: string) => {
+    setSimulatedSubProjects(prev => {
+      const currentSubProjects = prev[projectId] || [];
+      
+      if (currentSubProjects.includes(subProjectId)) {
+        // Retirer le sous-projet
+        const newSubProjects = currentSubProjects.filter(id => id !== subProjectId);
+        
+        // Si plus aucun sous-projet n'est simulé, retirer l'entrée du projet
+        if (newSubProjects.length === 0) {
+          const { [projectId]: _, ...rest } = prev;
+          return rest;
+        }
+        
+        return {
+          ...prev,
+          [projectId]: newSubProjects,
+        };
+      } else {
+        // Ajouter le sous-projet
+        return {
+          ...prev,
+          [projectId]: [...currentSubProjects, subProjectId],
+        };
       }
     });
   };
@@ -234,7 +314,7 @@ const Dashboard: React.FC = () => {
                   <span className="label">Niveau actuel</span>
                   <span className="value">{userProgress.currentLevel.toFixed(2)}</span>
                 </div>
-                {simulatedProjects.length > 0 && (
+                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
                   <>
                     <span className="arrow">→</span>
                     <div className="level-projected">
@@ -244,9 +324,9 @@ const Dashboard: React.FC = () => {
                   </>
                 )}
               </div>
-              {simulatedProjects.length > 0 && (
+              {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
                 <p className="simulation-info">
-                  {simulatedProjects.length} projet{simulatedProjects.length > 1 ? 's' : ''} simulé{simulatedProjects.length > 1 ? 's' : ''}
+                  {simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
                 </p>
               )}
             </div>
@@ -307,6 +387,8 @@ const Dashboard: React.FC = () => {
             completedProjects={completedProjects}
             simulatedProjects={simulatedProjectsDetails}
             onToggleSimulation={handleToggleSimulation}
+            simulatedSubProjects={simulatedSubProjects}
+            onToggleSubProject={handleToggleSubProject}
           />
         </motion.div>
       </div>

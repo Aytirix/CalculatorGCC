@@ -13,9 +13,20 @@ interface RNCPCardProps {
   completedProjects: SimulatorProject[];
   simulatedProjects: SimulatorProject[];
   onToggleSimulation: (projectId: string) => void;
+  simulatedSubProjects?: Record<string, string[]>;
+  onToggleSubProject?: (projectId: string, subProjectId: string) => void;
 }
 
-const RNCPCard = ({ rncp, validation, userProgress, completedProjects, simulatedProjects, onToggleSimulation }: RNCPCardProps) => {
+const RNCPCard = ({ 
+  rncp, 
+  validation, 
+  userProgress, 
+  completedProjects, 
+  simulatedProjects, 
+  onToggleSimulation,
+  simulatedSubProjects = {},
+  onToggleSubProject
+}: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
   const hasLevelRequirement = validation.isLevelValid;
   const hasEventsRequirement = validation.isEventsValid;
@@ -89,6 +100,8 @@ const RNCPCard = ({ rncp, validation, userProgress, completedProjects, simulated
               completedProjects={completedProjectSlugs}
               simulatedProjects={simulatedProjectSlugs}
               onToggleSimulation={onToggleSimulation}
+              simulatedSubProjects={simulatedSubProjects}
+              onToggleSubProject={onToggleSubProject}
             />
           );
         })}

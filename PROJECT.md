@@ -116,12 +116,15 @@ Mobile
 Suite :
 humangl : 4200XP
 kfs-2 : 15750XP
-pestillence : 15750XP
+pestilence : 15750XP
 override : 35750XP
 doom-nukem : 15750XP
+total-perspective-vortex 9450XP
 42sh : 15750XP
 rt : 20750XP
 Inception-of-Things : 25450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
+
 
 RNCP 6 Développement applicatif :
 level requis : 17
@@ -134,26 +137,26 @@ ft_ality 4200XP
 h42n42n 9450XP
 
 Imperative programming :
-libasm966 XP
+libasm 966XP
 taskmaster 9450XP
 strace 9450XP
 snow-crash 9450XP
 darkly 6300XP
-gbmu3 1500XP
+gbmu 31500XP
 ft_linux 4200XP
 little-penguin-1 9450XP
-rainfall2 5200XP
+rainfall 25200XP
 woody-woodpacker 9450XP
 matt-daemon 9450XP
-kfs-21 5750XP
-kfs-11 5750XP
+kfs-1 5750XP
+kfs-2 5750XP
 famine 9450XP
-pestilence1 5750XP
-boot2root1 1500XP
-ft_shield1 5750XP
-override3 5700XP
-ft_ssl_md5 9450XP
-zappy2 5200XP
+pestilence 15750XP
+boot2root 11500XP
+ft_shield 15750XP
+override 35700XP
+ft_ssl_md 59450XP
+zappy 25200XP
 lem-ipc 9450XP
 nm 9450XP
 malloc 9450XP
@@ -161,15 +164,15 @@ ft_malcolm 6000XP
 
 Suite :
 humangl 4200XP
-kfs-21 5750XP
-pestilence1 5750XP
-override3 5700XP
-doom-nukem1 5750XP
+kfs-2 15750XP
+pestilence 15750XP
+override 35700XP
+doom-nukem 15750XP
 total-perspective-vortex 9450XP
-42sh1 5750XP
-rt2 0750XP
-Inception-of-Things2 5450XP
-Bgp At Doors of Autonomous Systems is Simple2 2450XP
+42sh 15750XP
+rt 20750XP
+Inception-of-Things 25450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
 
 RNCP 7 Système d'information et réseaux :
 level requis : 21
@@ -180,11 +183,11 @@ System Administration :
 taskmaster 9450XP
 ft_ping 4200XP
 ft_traceroute 4200XP
-ft_nmap1 5750XP
+ft_nmap 15750XP
 cloud-1 9450XP
-Inception-of-Things2 5450XP
-Bgp At Doors of Autonomous Systems is Simple2 2450XP
-ActiveDiscovery1 5750XP
+Inception-of-Things 25450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
+ActiveDiscovery 15750XP
 AutomaticDirectory 9450XP
 AdministrativeDirectory 9450XP
 AccessibleDirectory 9450XP
@@ -195,29 +198,29 @@ darkly 6300XP
 rainfall2 5200XP
 woody-woodpacker 9450XP
 famine 9450XP
-pestilence1 5750XP
-boot2root1 1500XP
-ft_shield1 5750XP
-override3 5700XP
-ft_ssl_md5 9450XP
+pestilence 15750XP
+boot2root 11500XP
+ft_shield 15750XP
+override 35700XP
+ft_ssl_md 59450XP
 ft_malcolm 6000XP
 Cybersecurity
-UnleashTheBox1 5750XP
-ActiveConnect1 5750XP
+UnleashTheBox 15750XP
+ActiveConnect 15750XP
 MicroForensX 9450XP
-ActiveTechTales1 5750XP
+ActiveTechTales 15750XP
 
 Suite :
 humangl 4200XP
-kfs-21 5750XP
-pestilence1 5750XP
-override3 5700XP
-doom-nukem1 5750XP
+kfs-2 5750XP
+pestilence 15750XP
+override 35700XP
+doom-nukem 15750XP
 total-perspective-vortex 9450XP
-42sh1 5750XP
-rt2 0750XP
-Inception-of-Things2 5450XP
-Bgp At Doors of Autonomous Systems is Simple2 2450XP
+42sh 15750XP
+rt 20750XP
+Inception-of-Things 25450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
 
 RNCP 7 Architecture des bases de donnees et data :
 level requis : 21
@@ -227,9 +230,9 @@ Experience professionnel requis : 2
 Web - Database :
 camagru 4200XP
 matcha 9450XP
-hypertube1 5750XP
+hypertube 15750XP
 darkly 6300XP
-red-tetris1 5750XP
+red-tetris 15750XP
 h42n42 9450XP
 Piscine PHP Symfony 9450XP
     - Day 00
@@ -270,15 +273,15 @@ Piscine Django
 Tokenizer 9450XP
 
 Artificial Intelligence :
-gomoku25 200 XP
-expert-system9 450 XP
-ft_linear_regression4 200 XP125
-krpsim9 450 XP
-dslr6 000 XP
-multilayer-perceptron9 450 XP
-total-perspective-vortex9 450 XP
-ready set boole7 000 XP
-matrix7 000 XP
+gomoku 25200XP
+expert-system 9450XP
+ft_linear_regression 4200XP
+krpsim 9450XP
+dslr 6000XP
+multilayer-perceptron 9450XP
+total-perspective-vortex 9450XP
+ready set boole 7000XP
+matrix 7000XP
 Python for Data Science
     - Python - 0 - Starting 545Xp
     - Python - 1 - Array 545Xp
@@ -291,16 +294,16 @@ Piscine Data Science
     - Data Science - 2 545Xp
     - Data Science - 3 545Xp
     - Data Science - 4 2545Xp
-Leaffliction15 750 XP
+Leaffliction 15750 XP
 
 Suite :
 humangl 4200XP
-kfs-21 5750XP
-pestilence1 5750XP
-override3 5700XP
-doom-nukem1 5750XP
+kfs-2 15750XP
+pestilence 15750XP
+override 35700XP
+doom-nukem 15750XP
 total-perspective-vortex 9450XP
-42sh1 5750XP
-rt2 0750XP
-Inception-of-Things2 5450XP
- Bgp At Doors of Autonomous Systems is Simple2 2450XP
+42sh 15750XP
+rt 20750XP
+Inception-of-Things 25450XP
+ Bgp At Doors of Autonomous Systems is Simple 22450XP
