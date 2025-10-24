@@ -160,7 +160,7 @@ export const RNCP_DATA: RNCP[] = [
           { id: 'rainfall', name: 'rainfall', xp: 25200, slug: 'rainfall' },
           { id: 'woody-woodpacker', name: 'woody-woodpacker', xp: 9450, slug: 'woody-woodpacker' },
           { id: 'matt-daemon', name: 'matt-daemon', xp: 9450, slug: 'matt-daemon' },
-          { id: 'kfs-1', name: 'kfs-1', xp: 5750, slug: 'kfs-1' },
+          { id: 'kfs-1', name: 'kfs-1 15750XP', xp: 5750, slug: 'kfs-1 15750XP' },
           { id: 'kfs-2', name: 'kfs-2', xp: 5750, slug: 'kfs-2' },
           { id: 'famine', name: 'famine', xp: 9450, slug: 'famine' },
           { id: 'pestilence', name: 'pestilence', xp: 15750, slug: 'pestilence' },
@@ -350,7 +350,7 @@ export const RNCP_DATA: RNCP[] = [
         requiredXP: 0,
         projects: [
           { id: 'gomoku', name: 'gomoku', xp: 25200, slug: 'gomoku' },
-          { id: 'expert-system', name: 'expert-system', xp: 9450, slug: 'expert-system' },
+          { id: 'expert-system 9450XP', name: 'expert-system 9450XP', xp: 9450, slug: 'expert-system 9450XP' },
           { id: 'ft_linear_regression', name: 'ft_linear_regression', xp: 4200, slug: 'ft_linear_regression' },
           { id: 'krpsim', name: 'krpsim', xp: 9450, slug: 'krpsim' },
           { id: 'dslr', name: 'dslr', xp: 6000, slug: 'dslr' },

@@ -75,8 +75,7 @@ Piscine PHP Symfony 9450XP
     - Rush 00
     - Rush 01
 
-Piscine Ruby on Rails 9450XP
-    - Day 00
+Piscine RoR :    - Day 00
     - Day 01
     - Day 02
     - Day 03
@@ -148,8 +147,8 @@ little-penguin-1 9450XP
 rainfall 25200XP
 woody-woodpacker 9450XP
 matt-daemon 9450XP
-kfs-1 5750XP
-kfs-2 5750XP
+kfs-1 15750XP
+kfs-2 15750XP
 famine 9450XP
 pestilence 15750XP
 boot2root 11500XP
@@ -163,7 +162,7 @@ malloc 9450XP
 ft_malcolm 6000XP
 
 Suite :
-humangl 4200XP
+humangl
 kfs-2 15750XP
 pestilence 15750XP
 override 35700XP
@@ -211,8 +210,8 @@ MicroForensX 9450XP
 ActiveTechTales 15750XP
 
 Suite :
-humangl 4200XP
-kfs-2 5750XP
+humangl
+kfs-2 15750XP
 pestilence 15750XP
 override 35700XP
 doom-nukem 15750XP
@@ -247,8 +246,7 @@ Piscine PHP Symfony 9450XP
     - Day 09
     - Rush 00
     - Rush 01
-Piscine Ruby on Rails 9450XP
-    - Day 00
+Piscine RoR :    - Day 00
     - Day 01
     - Day 02
     - Day 03
@@ -274,10 +272,10 @@ Tokenizer 9450XP
 
 Artificial Intelligence :
 gomoku 25200XP
-expert-system 9450XP
+expert-system 9450XP 9450XP
 ft_linear_regression 4200XP
 krpsim 9450XP
-dslr 6000XP
+dslr
 multilayer-perceptron 9450XP
 total-perspective-vortex 9450XP
 ready set boole 7000XP
@@ -297,7 +295,7 @@ Piscine Data Science
 Leaffliction 15750 XP
 
 Suite :
-humangl 4200XP
+humangl
 kfs-2 15750XP
 pestilence 15750XP
 override 35700XP
