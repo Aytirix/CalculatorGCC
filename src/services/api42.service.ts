@@ -2,7 +2,7 @@ import { config } from '@/config/config';
 import type { Project42, CursusUser, Event42 } from '@/types/rncp.types';
 import { storage } from '@/utils/storage';
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 interface CachedData<T> {
   data: T;

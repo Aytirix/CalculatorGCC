@@ -18,12 +18,31 @@
 
 .settings-card {
   @include card;
+  position: relative;
+  
+  .back-button-top {
+    position: absolute;
+    top: $spacing-lg;
+    left: $spacing-lg;
+    font-size: 1.5rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      transform: translateX(-4px);
+    }
+  }
   
   h1 {
     font-size: 2rem;
     margin-bottom: $spacing-xl;
     color: var(--color-primary);
     font-weight: 700;
+    padding-top: $spacing-lg;
   }
 
   .settings-section {
@@ -82,15 +101,6 @@
       background-color: rgba(239, 68, 68, 0.1);
       color: #dc2626;
       border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-  }
-
-  .back-button {
-    width: 100%;
-    margin-top: $spacing-md;
-
-    @include respond-to(md) {
-      width: auto;
     }
   }
 }

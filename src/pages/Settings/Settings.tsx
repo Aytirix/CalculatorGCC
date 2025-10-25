@@ -66,6 +66,14 @@ const Settings: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
+          <Button 
+            onClick={() => navigate('/dashboard')} 
+            variant="ghost" 
+            className="back-button-top"
+            size="icon"
+          >
+            ←
+          </Button>
           <h1>Paramètres</h1>
           
           <div className="settings-section">
@@ -110,10 +118,6 @@ const Settings: React.FC = () => {
               de l'école 42. Les données sont stockées localement dans votre navigateur.
             </p>
           </div>
-
-          <Button onClick={() => navigate('/dashboard')} variant="ghost" className="back-button">
-            ← Retour au tableau de bord
-          </Button>
         </motion.div>
       </div>
     </div>

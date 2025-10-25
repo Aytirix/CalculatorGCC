@@ -332,7 +332,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleAddCustomProject = (name: string, xp: number, percentage: number) => {
+  const handleAddCustomProject = (name: string, xp: number, percentage: number, note?: string) => {
     const newProject: SimulatorProject = {
       id: `custom-${Date.now()}`,
       name: name,
@@ -348,9 +348,14 @@ const Dashboard: React.FC = () => {
     if (percentage !== 100) {
       setProjectPercentages(prev => ({ ...prev, [newProject.id]: percentage }));
     }
+    
+    // Sauvegarder la note si elle existe
+    if (note) {
+      setProjectNotes(prev => ({ ...prev, [newProject.id]: note }));
+    }
   };
 
-  const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number) => {
+  const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number, note?: string) => {
     setCustomProjects(prev =>
       prev.map(project =>
         project.id === id
@@ -365,6 +370,17 @@ const Dashboard: React.FC = () => {
     } else {
       // Retirer le pourcentage s'il est à 100%
       setProjectPercentages(prev => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [id]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
+    
+    // Mettre à jour ou supprimer la note
+    if (note) {
+      setProjectNotes(prev => ({ ...prev, [id]: note }));
+    } else {
+      setProjectNotes(prev => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { [id]: _removed, ...rest } = prev;
         return rest;
@@ -639,16 +655,17 @@ const Dashboard: React.FC = () => {
         <AddCustomProjectModal
           isOpen={customProjectModal.isOpen}
           onClose={() => setCustomProjectModal({ isOpen: false, editProject: null })}
-          onSave={(name, xp, percentage) => {
+          onSave={(name, xp, percentage, note) => {
             if (customProjectModal.editProject) {
-              handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage);
+              handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage, note);
             } else {
-              handleAddCustomProject(name, xp, percentage);
+              handleAddCustomProject(name, xp, percentage, note);
             }
           }}
           editProject={customProjectModal.editProject ? {
             ...customProjectModal.editProject,
             percentage: projectPercentages[customProjectModal.editProject.id] || 100,
+            note: projectNotes[customProjectModal.editProject.id] || '',
           } : null}
         />
       </div>
