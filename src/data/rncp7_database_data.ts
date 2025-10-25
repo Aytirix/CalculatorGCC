@@ -83,6 +83,7 @@ export const RNCP7_DATABASE_DATA: RNCP = {
       projects: [
         { id: 'dslr', name: 'dslr', xp: 9450, slug: 'dslr' },
         { id: 'expert-system', name: 'expert-system', xp: 9450, slug: 'expert-system' },
+        { id: 'ft-linear-regression', name: 'ft-linear-regression', xp: 4200, slug: 'ft-linear-regression' },
         { id: 'gomoku', name: 'gomoku', xp: 25200, slug: 'gomoku' },
         { id: 'krpsim', name: 'krpsim', xp: 9450, slug: 'krpsim' },
         { id: 'leaffliction', name: 'Leaffliction', xp: 15750, slug: 'leaffliction' },

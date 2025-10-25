@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ProjectCategory, CategoryValidation } from '@/types/rncp.types';
+import { isProjectCompleted } from '@/utils/projectMatcher';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import './CategorySection.scss';
 
@@ -93,7 +94,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               <ProjectCard
                 key={project.id}
                 project={project}
-                isCompleted={completedProjects.includes(project.slug || project.id)}
+                isCompleted={isProjectCompleted(project.slug || project.id, completedProjects)}
                 isSimulated={simulatedProjects.includes(project.id)}
                 onToggleSimulation={onToggleSimulation}
                 simulatedSubProjects={simulatedSubProjects[project.id] || []}

@@ -6,6 +6,7 @@ import { RNCP_DATA } from '@/data/rncp.data';
 import { api42Service } from '@/services/api42.service';
 import { authService } from '@/services/auth.service';
 import { xpService } from '@/services/xp.service';
+import { isProjectCompleted } from '@/utils/projectMatcher';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import './Dashboard.scss';
 
@@ -90,7 +91,7 @@ const Dashboard: React.FC = () => {
       
       // La liste des slugs des projets validés est déjà dans userData.projects
       const completedProjectSlugs = userData.projects;
-
+      
       // Créer la progression utilisateur
       const progress: UserProgress = {
         currentLevel: userData.level,
@@ -207,7 +208,8 @@ const Dashboard: React.FC = () => {
         
         // Si plus aucun sous-projet n'est simulé, retirer l'entrée du projet
         if (newSubProjects.length === 0) {
-          const { [projectId]: _, ...rest } = prev;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [projectId]: _removed, ...rest } = prev;
           return rest;
         }
         
@@ -229,10 +231,12 @@ const Dashboard: React.FC = () => {
     if (!userProgress) return [];
     
     const projects: SimulatorProject[] = [];
+    const apiSlugs = userProgress.completedProjects;
     RNCP_DATA.forEach(rncp => {
       rncp.categories.forEach(category => {
         category.projects.forEach(project => {
-          if (userProgress.completedProjects.includes(project.slug || project.id)) {
+          const projectSlug = project.slug || project.id;
+          if (isProjectCompleted(projectSlug, apiSlugs)) {
             projects.push(project);
           }
         });

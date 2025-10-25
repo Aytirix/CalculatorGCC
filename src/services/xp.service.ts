@@ -1,4 +1,5 @@
 import levelData from '../../public/level.json';
+import { isProjectCompleted } from '@/utils/projectMatcher';
 import type { SimulationResult, RNCP, ProjectCategory, RNCPValidation, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 
 interface LevelData {
@@ -132,8 +133,9 @@ export const xpService = {
   validateCategory: (category: ProjectCategory, validatedProjects: string[]): CategoryValidation => {
     // Trouver les projets validés de cette catégorie
     const categoryValidatedProjects = category.projects.filter((project) => {
-      // Vérifier si le projet (ou l'un de ses slug) est dans la liste des projets validés
-      return validatedProjects.includes(project.slug || project.id);
+      const projectSlug = project.slug || project.id;
+      // Utiliser la fonction de matching plus permissive
+      return isProjectCompleted(projectSlug, validatedProjects);
     });
 
     const currentCount = categoryValidatedProjects.length;
