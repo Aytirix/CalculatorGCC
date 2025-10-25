@@ -59,7 +59,16 @@ export const api42Service = {
       throw new Error('Failed to fetch user projects');
     }
 
-    const data = await response.json();
+    const rawData = await response.json();
+    
+    // L'API 42 retourne "validated?" au lieu de "validated"
+    // On transforme les données pour avoir la bonne structure
+    const data = rawData.map((project: Record<string, unknown>) => {
+      return {
+        ...project,
+        validated: project['validated?'] !== undefined ? project['validated?'] : project.validated,
+      };
+    }) as Project42[];
     
     // Mettre en cache
     storage.set(CACHE_KEYS.PROJECTS, {
@@ -185,8 +194,8 @@ export const api42Service = {
 
     const cursus42 = cursusUsers.find((c) => c.cursus_id === 21);
     const validatedProjects = projects
-      .filter((p) => p.validated === true || (p.final_mark !== undefined && p.final_mark >= 100))
-      .map((p) => p.project.slug);
+      .filter((p) => p.validated === true)
+      .map((p) => p.project.name);
 
     const userData = {
       level: cursus42?.level || 0,

@@ -17,6 +17,7 @@ const Dashboard: React.FC = () => {
   const [simulatedProjects, setSimulatedProjects] = useState<string[]>([]);
   const [simulatedSubProjects, setSimulatedSubProjects] = useState<Record<string, string[]>>({});
   const [projectPercentages, setProjectPercentages] = useState<Record<string, number>>({});
+  const [completedProjectsPercentages, setCompletedProjectsPercentages] = useState<Record<string, number>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
 
@@ -111,6 +112,19 @@ const Dashboard: React.FC = () => {
       
       // La liste des slugs des projets validés est déjà dans userData.projects
       const completedProjectSlugs = userData.projects;
+
+      // Extraire les pourcentages réels (final_mark) de TOUS les projets validés
+      // peu importe leur note (50%, 75%, 100%, 125%, etc.)
+      const realPercentages: Record<string, number> = {};
+      userData.allProjects.forEach((project) => {
+        if (project.validated === true) {
+          // Convertir la note sur 100 en pourcentage (125 max devient 125%)
+          const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
+          // Utiliser project.name comme clé car c'est ce qui est retourné par l'API
+          realPercentages[project.project.name] = percentage;
+        }
+      });
+      setCompletedProjectsPercentages(realPercentages);
       
       // Créer la progression utilisateur
       const progress: UserProgress = {
@@ -467,6 +481,7 @@ const Dashboard: React.FC = () => {
             simulatedSubProjects={simulatedSubProjects}
             onToggleSubProject={handleToggleSubProject}
             projectPercentages={projectPercentages}
+            completedProjectsPercentages={completedProjectsPercentages}
             onPercentageChange={handlePercentageChange}
           />
         </motion.div>

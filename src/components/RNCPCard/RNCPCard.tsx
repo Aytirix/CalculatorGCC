@@ -16,6 +16,7 @@ interface RNCPCardProps {
   simulatedSubProjects?: Record<string, string[]>;
   onToggleSubProject?: (projectId: string, subProjectId: string) => void;
   projectPercentages?: Record<string, number>;
+  completedProjectsPercentages?: Record<string, number>;
   onPercentageChange?: (projectId: string, percentage: number) => void;
 }
 
@@ -29,6 +30,7 @@ const RNCPCard = ({
   simulatedSubProjects = {},
   onToggleSubProject,
   projectPercentages = {},
+  completedProjectsPercentages = {},
   onPercentageChange
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
@@ -107,6 +109,7 @@ const RNCPCard = ({
               simulatedSubProjects={simulatedSubProjects}
               onToggleSubProject={onToggleSubProject}
               projectPercentages={projectPercentages}
+              completedProjectsPercentages={completedProjectsPercentages}
               onPercentageChange={onPercentageChange}
             />
           );
