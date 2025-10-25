@@ -20,6 +20,7 @@ const Dashboard: React.FC = () => {
   const [projectPercentages, setProjectPercentages] = useState<Record<string, number>>({});
   const [completedProjectsPercentages, setCompletedProjectsPercentages] = useState<Record<string, number>>({});
   const [customProjects, setCustomProjects] = useState<SimulatorProject[]>([]);
+  const [projectNotes, setProjectNotes] = useState<Record<string, string>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
   const [customProjectModal, setCustomProjectModal] = useState<{
@@ -68,6 +69,16 @@ const Dashboard: React.FC = () => {
         console.error('Erreur lors du chargement des projets personnalisés:', err);
       }
     }
+
+    const savedNotes = localStorage.getItem('project_notes');
+    if (savedNotes) {
+      try {
+        const parsed = JSON.parse(savedNotes);
+        setProjectNotes(parsed);
+      } catch (err) {
+        console.error('Erreur lors du chargement des notes:', err);
+      }
+    }
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -105,6 +116,15 @@ const Dashboard: React.FC = () => {
       localStorage.removeItem('custom_projects');
     }
   }, [customProjects]);
+
+  // Sauvegarder les notes dans localStorage
+  useEffect(() => {
+    if (Object.keys(projectNotes).length > 0) {
+      localStorage.setItem('project_notes', JSON.stringify(projectNotes));
+    } else {
+      localStorage.removeItem('project_notes');
+    }
+  }, [projectNotes]);
 
   const loadUserData = async (forceRefresh = false) => {
     try {
@@ -359,6 +379,19 @@ const Dashboard: React.FC = () => {
     setSimulatedProjects(prev => prev.filter(projId => projId !== id));
   };
 
+  const handleSaveNote = (projectId: string, note: string) => {
+    if (note.trim()) {
+      setProjectNotes(prev => ({ ...prev, [projectId]: note }));
+    } else {
+      // Supprimer la note si elle est vide
+      setProjectNotes(prev => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [projectId]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
   const getCompletedProjects = (): SimulatorProject[] => {
     if (!userProgress) return [];
     
@@ -597,6 +630,8 @@ const Dashboard: React.FC = () => {
             onAddCustomProject={() => setCustomProjectModal({ isOpen: true, editProject: null })}
             onEditCustomProject={(project) => setCustomProjectModal({ isOpen: true, editProject: project })}
             onDeleteCustomProject={handleDeleteCustomProject}
+            projectNotes={projectNotes}
+            onSaveNote={handleSaveNote}
           />
         </motion.div>
 

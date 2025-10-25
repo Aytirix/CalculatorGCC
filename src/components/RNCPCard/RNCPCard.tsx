@@ -22,6 +22,8 @@ interface RNCPCardProps {
   onAddCustomProject?: () => void;
   onEditCustomProject?: (project: SimulatorProject) => void;
   onDeleteCustomProject?: (id: string) => void;
+  projectNotes?: Record<string, string>;
+  onSaveNote?: (projectId: string, note: string) => void;
 }
 
 const RNCPCard = ({ 
@@ -38,7 +40,9 @@ const RNCPCard = ({
   onPercentageChange,
   onAddCustomProject,
   onEditCustomProject,
-  onDeleteCustomProject
+  onDeleteCustomProject,
+  projectNotes = {},
+  onSaveNote
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
   const hasLevelRequirement = validation.isLevelValid;
@@ -122,6 +126,8 @@ const RNCPCard = ({
               onAddCustomProject={onAddCustomProject}
               onEditCustomProject={onEditCustomProject}
               onDeleteCustomProject={onDeleteCustomProject}
+              projectNotes={projectNotes}
+              onSaveNote={onSaveNote}
             />
           );
         })}

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { SimulatorProject } from '@/types/rncp.types';
 import ProjectContextMenu from '@/components/ProjectContextMenu/ProjectContextMenu';
 import ProjectPercentageModal from '@/components/ProjectPercentageModal/ProjectPercentageModal';
+import ProjectNoteModal from '@/components/ProjectNoteModal/ProjectNoteModal';
 import './ProjectCard.scss';
 
 interface ProjectCardProps {
@@ -14,6 +15,8 @@ interface ProjectCardProps {
 	onToggleSubProject?: (projectId: string, subProjectId: string) => void;
 	projectPercentage?: number;
 	onPercentageChange?: (projectId: string, percentage: number) => void;
+	projectNote?: string;
+	onSaveNote?: (projectId: string, note: string) => void;
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -25,10 +28,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	onToggleSubProject,
 	projectPercentage = 100,
 	onPercentageChange,
+	projectNote,
+	onSaveNote,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
 	const hasSubProjects = project.subProjects && project.subProjects.length > 0;
 
@@ -36,11 +42,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		e.preventDefault();
 		e.stopPropagation();
 
-		// Ne pas afficher le menu contextuel si le projet est complété ou si onPercentageChange n'est pas défini
-		if (isCompleted || !onPercentageChange) {
-			return;
-		}
-
+		// Toujours afficher le menu contextuel (pour les notes)
 		setContextMenu({ x: e.clientX, y: e.clientY });
 	};
 
@@ -56,9 +58,23 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		setIsModalOpen(false);
 	};
 
+	const handleOpenNoteModal = () => {
+		setIsNoteModalOpen(true);
+	};
+
+	const handleCloseNoteModal = () => {
+		setIsNoteModalOpen(false);
+	};
+
 	const handleSavePercentage = (percentage: number) => {
 		if (onPercentageChange) {
 			onPercentageChange(project.id, percentage);
+		}
+	};
+
+	const handleSaveNote = (projectId: string, note: string) => {
+		if (onSaveNote) {
+			onSaveNote(projectId, note);
 		}
 	};
 
@@ -217,6 +233,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					y={contextMenu.y}
 					onClose={handleCloseContextMenu}
 					onEditPercentage={handleOpenModal}
+					onEditNote={handleOpenNoteModal}
 					projectName={project.name}
 				/>
 			)}
@@ -228,6 +245,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 				projectName={project.name}
 				currentPercentage={projectPercentage}
 			/>
+
+			{onSaveNote && (
+				<ProjectNoteModal
+					isOpen={isNoteModalOpen}
+					onClose={handleCloseNoteModal}
+					onSave={handleSaveNote}
+					projectName={project.name}
+					projectId={project.id}
+					currentNote={projectNote}
+				/>
+			)}
 		</>
 	);
 };

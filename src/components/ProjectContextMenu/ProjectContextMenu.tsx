@@ -7,6 +7,7 @@ interface ProjectContextMenuProps {
   y: number;
   onClose: () => void;
   onEditPercentage: () => void;
+  onEditNote: () => void;
   projectName: string;
 }
 
@@ -15,6 +16,7 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   y,
   onClose,
   onEditPercentage,
+  onEditNote,
   projectName,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,16 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
       >
         <span className="context-menu-icon">📊</span>
         <span>Modifier le pourcentage</span>
+      </button>
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          onEditNote();
+          onClose();
+        }}
+      >
+        <span className="context-menu-icon">📝</span>
+        <span>Ajouter/modifier une note</span>
       </button>
     </motion.div>
   );

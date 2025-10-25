@@ -21,6 +21,8 @@ interface CategorySectionProps {
 	onAddCustomProject?: () => void;
 	onEditCustomProject?: (project: SimulatorProject) => void;
 	onDeleteCustomProject?: (id: string) => void;
+	projectNotes?: Record<string, string>;
+	onSaveNote?: (projectId: string, note: string) => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -38,6 +40,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	onAddCustomProject,
 	onEditCustomProject,
 	onDeleteCustomProject,
+	projectNotes = {},
+	onSaveNote,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
 
@@ -170,6 +174,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 										onToggleSubProject={onToggleSubProject}
 										projectPercentage={projectPercentage}
 										onPercentageChange={isCompleted ? undefined : onPercentageChange}
+										projectNote={projectNotes[project.id]}
+										onSaveNote={onSaveNote}
 									/>
 								);
 							})}
