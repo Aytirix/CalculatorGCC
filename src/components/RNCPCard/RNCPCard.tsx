@@ -18,6 +18,10 @@ interface RNCPCardProps {
   projectPercentages?: Record<string, number>;
   completedProjectsPercentages?: Record<string, number>;
   onPercentageChange?: (projectId: string, percentage: number) => void;
+  customProjects?: SimulatorProject[];
+  onAddCustomProject?: () => void;
+  onEditCustomProject?: (project: SimulatorProject) => void;
+  onDeleteCustomProject?: (id: string) => void;
 }
 
 const RNCPCard = ({ 
@@ -31,7 +35,10 @@ const RNCPCard = ({
   onToggleSubProject,
   projectPercentages = {},
   completedProjectsPercentages = {},
-  onPercentageChange
+  onPercentageChange,
+  onAddCustomProject,
+  onEditCustomProject,
+  onDeleteCustomProject
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
   const hasLevelRequirement = validation.isLevelValid;
@@ -111,6 +118,10 @@ const RNCPCard = ({
               projectPercentages={projectPercentages}
               completedProjectsPercentages={completedProjectsPercentages}
               onPercentageChange={onPercentageChange}
+              isOtherProjectsCategory={category.id === 'other-projects'}
+              onAddCustomProject={onAddCustomProject}
+              onEditCustomProject={onEditCustomProject}
+              onDeleteCustomProject={onDeleteCustomProject}
             />
           );
         })}

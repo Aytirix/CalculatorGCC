@@ -142,6 +142,48 @@
     flex-direction: column;
     gap: $spacing-sm;
     overflow: hidden;
+
+    .add-custom-project-button {
+      background: transparent;
+      border: 2px dashed var(--border-color);
+      border-radius: $radius-md;
+      padding: $spacing-md;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: $spacing-sm;
+      cursor: pointer;
+      transition: all $transition-fast;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      min-height: 50px;
+
+      &:hover {
+        border-color: var(--color-primary);
+        background: rgba(59, 130, 246, 0.05);
+        color: var(--color-primary);
+        transform: translateY(-2px);
+
+        .add-icon {
+          transform: rotate(90deg) scale(1.1);
+        }
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      .add-icon {
+        font-size: 1.5rem;
+        line-height: 1;
+        transition: transform $transition-fast;
+      }
+
+      .add-label {
+        font-weight: 600;
+      }
+    }
   }
 }
 

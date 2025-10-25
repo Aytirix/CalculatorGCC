@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
+import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomProjectModal';
 import { RNCP_DATA } from '@/data/rncp.data';
 import { api42Service } from '@/services/api42.service';
 import { authService } from '@/services/auth.service';
@@ -18,8 +19,13 @@ const Dashboard: React.FC = () => {
   const [simulatedSubProjects, setSimulatedSubProjects] = useState<Record<string, string[]>>({});
   const [projectPercentages, setProjectPercentages] = useState<Record<string, number>>({});
   const [completedProjectsPercentages, setCompletedProjectsPercentages] = useState<Record<string, number>>({});
+  const [customProjects, setCustomProjects] = useState<SimulatorProject[]>([]);
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
+  const [customProjectModal, setCustomProjectModal] = useState<{
+    isOpen: boolean;
+    editProject: SimulatorProject | null;
+  }>({ isOpen: false, editProject: null });
 
   // Charger les projets simulés depuis le localStorage
   useEffect(() => {
@@ -52,6 +58,16 @@ const Dashboard: React.FC = () => {
         console.error('Erreur lors du chargement des pourcentages:', err);
       }
     }
+
+    const savedCustomProjects = localStorage.getItem('custom_projects');
+    if (savedCustomProjects) {
+      try {
+        const parsed = JSON.parse(savedCustomProjects);
+        setCustomProjects(parsed);
+      } catch (err) {
+        console.error('Erreur lors du chargement des projets personnalisés:', err);
+      }
+    }
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -80,6 +96,15 @@ const Dashboard: React.FC = () => {
       localStorage.removeItem('project_percentages');
     }
   }, [projectPercentages]);
+
+  // Sauvegarder les projets personnalisés dans localStorage
+  useEffect(() => {
+    if (customProjects.length > 0) {
+      localStorage.setItem('custom_projects', JSON.stringify(customProjects));
+    } else {
+      localStorage.removeItem('custom_projects');
+    }
+  }, [customProjects]);
 
   const loadUserData = async (forceRefresh = false) => {
     try {
@@ -287,6 +312,53 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleAddCustomProject = (name: string, xp: number, percentage: number) => {
+    const newProject: SimulatorProject = {
+      id: `custom-${Date.now()}`,
+      name: name,
+      xp: xp,
+      slug: name.toLowerCase().replace(/\s+/g, '-'),
+    };
+    setCustomProjects(prev => [...prev, newProject]);
+    
+    // Ajouter automatiquement à la simulation
+    setSimulatedProjects(prev => [...prev, newProject.id]);
+    
+    // Définir le pourcentage si différent de 100%
+    if (percentage !== 100) {
+      setProjectPercentages(prev => ({ ...prev, [newProject.id]: percentage }));
+    }
+  };
+
+  const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number) => {
+    setCustomProjects(prev =>
+      prev.map(project =>
+        project.id === id
+          ? { ...project, name, xp, slug: name.toLowerCase().replace(/\s+/g, '-') }
+          : project
+      )
+    );
+    
+    // Mettre à jour le pourcentage
+    if (percentage !== 100) {
+      setProjectPercentages(prev => ({ ...prev, [id]: percentage }));
+    } else {
+      // Retirer le pourcentage s'il est à 100%
+      setProjectPercentages(prev => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [id]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const handleDeleteCustomProject = (id: string) => {
+    setCustomProjects(prev => prev.filter(project => project.id !== id));
+    
+    // Retirer aussi de la simulation
+    setSimulatedProjects(prev => prev.filter(projId => projId !== id));
+  };
+
   const getCompletedProjects = (): SimulatorProject[] => {
     if (!userProgress) return [];
     
@@ -322,7 +394,26 @@ const Dashboard: React.FC = () => {
   const getRNCPValidations = (): RNCPValidation[] => {
     if (!userProgress) return [];
 
-    return RNCP_DATA.map(rncp => {
+    // Injecter les projets personnalisés dans la catégorie "Autres projets"
+    const rncpDataWithCustom = RNCP_DATA.map(rncp => {
+      if (rncp.id === 'rncp-global') {
+        return {
+          ...rncp,
+          categories: rncp.categories.map(category => {
+            if (category.id === 'other-projects') {
+              return {
+                ...category,
+                projects: customProjects,
+              };
+            }
+            return category;
+          }),
+        };
+      }
+      return rncp;
+    });
+
+    return rncpDataWithCustom.map(rncp => {
       return xpService.validateRNCP(
         rncp,
         projectedLevel,
@@ -368,10 +459,29 @@ const Dashboard: React.FC = () => {
 
   if (!userProgress) return null;
 
+  // Injecter les projets personnalisés dans la catégorie "Autres projets"
+  const rncpDataWithCustom = RNCP_DATA.map(rncp => {
+    if (rncp.id === 'rncp-global') {
+      return {
+        ...rncp,
+        categories: rncp.categories.map(category => {
+          if (category.id === 'other-projects') {
+            return {
+              ...category,
+              projects: customProjects,
+            };
+          }
+          return category;
+        }),
+      };
+    }
+    return rncp;
+  });
+
   const rncpValidations = getRNCPValidations();
   const completedProjects = getCompletedProjects();
   const simulatedProjectsDetails = getSimulatedProjectsDetails();
-  const selectedRNCP = RNCP_DATA[selectedRNCPIndex];
+  const selectedRNCP = rncpDataWithCustom[selectedRNCPIndex];
   const selectedValidation = rncpValidations[selectedRNCPIndex];
 
   return (
@@ -437,7 +547,7 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          {RNCP_DATA.map((rncp, index) => {
+          {rncpDataWithCustom.map((rncp, index) => {
             const validation = rncpValidations[index];
             const isActive = selectedRNCPIndex === index;
             
@@ -483,8 +593,29 @@ const Dashboard: React.FC = () => {
             projectPercentages={projectPercentages}
             completedProjectsPercentages={completedProjectsPercentages}
             onPercentageChange={handlePercentageChange}
+            customProjects={customProjects}
+            onAddCustomProject={() => setCustomProjectModal({ isOpen: true, editProject: null })}
+            onEditCustomProject={(project) => setCustomProjectModal({ isOpen: true, editProject: project })}
+            onDeleteCustomProject={handleDeleteCustomProject}
           />
         </motion.div>
+
+        {/* Modal d'ajout/édition de projet personnalisé */}
+        <AddCustomProjectModal
+          isOpen={customProjectModal.isOpen}
+          onClose={() => setCustomProjectModal({ isOpen: false, editProject: null })}
+          onSave={(name, xp, percentage) => {
+            if (customProjectModal.editProject) {
+              handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage);
+            } else {
+              handleAddCustomProject(name, xp, percentage);
+            }
+          }}
+          editProject={customProjectModal.editProject ? {
+            ...customProjectModal.editProject,
+            percentage: projectPercentages[customProjectModal.editProject.id] || 100,
+          } : null}
+        />
       </div>
     </div>
   );

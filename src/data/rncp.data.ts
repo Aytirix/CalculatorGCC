@@ -103,6 +103,13 @@ const RNCP_GLOBAL: RNCP = {
 				{ id: 'total-perspective-vortex', name: 'total-perspective-vortex', xp: 9450, slug: 'total-perspective-vortex' },
 			],
 		},
+		{
+			id: 'other-projects',
+			name: 'Autres projets',
+			requiredCount: 0,
+			requiredXP: 0,
+			projects: [],
+		},
 	],
 };
 

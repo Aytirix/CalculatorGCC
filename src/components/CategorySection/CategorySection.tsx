@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ProjectCategory, CategoryValidation } from '@/types/rncp.types';
+import type { ProjectCategory, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
 import ProjectCard from '../ProjectCard/ProjectCard';
+import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
 import './CategorySection.scss';
 
 interface CategorySectionProps {
@@ -16,6 +17,10 @@ interface CategorySectionProps {
 	projectPercentages?: Record<string, number>;
 	completedProjectsPercentages?: Record<string, number>;
 	onPercentageChange?: (projectId: string, percentage: number) => void;
+	isOtherProjectsCategory?: boolean;
+	onAddCustomProject?: () => void;
+	onEditCustomProject?: (project: SimulatorProject) => void;
+	onDeleteCustomProject?: (id: string) => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -29,6 +34,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	projectPercentages = {},
 	completedProjectsPercentages = {},
 	onPercentageChange,
+	isOtherProjectsCategory = false,
+	onAddCustomProject,
+	onEditCustomProject,
+	onDeleteCustomProject,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
 
@@ -96,7 +105,35 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 						exit={{ height: 0, opacity: 0 }}
 						transition={{ duration: 0.3 }}
 					>
+						{/* Bouton d'ajout pour la catégorie "Autres projets" */}
+						{isOtherProjectsCategory && onAddCustomProject && (
+							<button
+								className="add-custom-project-button"
+								onClick={onAddCustomProject}
+								title="Ajouter un projet personnalisé"
+							>
+								<span className="add-icon">+</span>
+								<span className="add-label">Ajouter un projet</span>
+							</button>
+						)}
+
+						{/* Affichage des projets */}
 						{category.projects.map((project) => {
+							// Si c'est la catégorie "Autres projets", afficher CustomProjectCard
+							if (isOtherProjectsCategory && onEditCustomProject && onDeleteCustomProject) {
+								return (
+									<CustomProjectCard
+										key={project.id}
+										id={project.id}
+										name={project.name}
+										xp={project.xp}
+										onEdit={() => onEditCustomProject(project)}
+										onDelete={onDeleteCustomProject}
+									/>
+								);
+							}
+
+							// Sinon, afficher ProjectCard normal
 							const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
 							// Pour les projets complétés, utiliser le pourcentage réel de l'API avec normalisation
 							// Pour les autres, utiliser le pourcentage personnalisé ou 100%
