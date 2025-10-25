@@ -13,6 +13,8 @@ interface CategorySectionProps {
   onToggleSimulation: (projectId: string) => void;
   simulatedSubProjects?: Record<string, string[]>;
   onToggleSubProject?: (projectId: string, subProjectId: string) => void;
+  projectPercentages?: Record<string, number>;
+  onPercentageChange?: (projectId: string, percentage: number) => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -23,6 +25,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onToggleSimulation,
   simulatedSubProjects = {},
   onToggleSubProject,
+  projectPercentages = {},
+  onPercentageChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -99,6 +103,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 onToggleSimulation={onToggleSimulation}
                 simulatedSubProjects={simulatedSubProjects[project.id] || []}
                 onToggleSubProject={onToggleSubProject}
+                projectPercentage={projectPercentages[project.id] || 100}
+                onPercentageChange={onPercentageChange}
               />
             ))}
           </motion.div>

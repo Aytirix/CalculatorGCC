@@ -15,6 +15,8 @@ interface RNCPCardProps {
   onToggleSimulation: (projectId: string) => void;
   simulatedSubProjects?: Record<string, string[]>;
   onToggleSubProject?: (projectId: string, subProjectId: string) => void;
+  projectPercentages?: Record<string, number>;
+  onPercentageChange?: (projectId: string, percentage: number) => void;
 }
 
 const RNCPCard = ({ 
@@ -25,7 +27,9 @@ const RNCPCard = ({
   simulatedProjects, 
   onToggleSimulation,
   simulatedSubProjects = {},
-  onToggleSubProject
+  onToggleSubProject,
+  projectPercentages = {},
+  onPercentageChange
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
   const hasLevelRequirement = validation.isLevelValid;
@@ -102,6 +106,8 @@ const RNCPCard = ({
               onToggleSimulation={onToggleSimulation}
               simulatedSubProjects={simulatedSubProjects}
               onToggleSubProject={onToggleSubProject}
+              projectPercentages={projectPercentages}
+              onPercentageChange={onPercentageChange}
             />
           );
         })}

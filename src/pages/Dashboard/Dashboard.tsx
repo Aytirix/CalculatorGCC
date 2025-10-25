@@ -16,6 +16,7 @@ const Dashboard: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
   const [simulatedProjects, setSimulatedProjects] = useState<string[]>([]);
   const [simulatedSubProjects, setSimulatedSubProjects] = useState<Record<string, string[]>>({});
+  const [projectPercentages, setProjectPercentages] = useState<Record<string, number>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
 
@@ -40,6 +41,16 @@ const Dashboard: React.FC = () => {
         console.error('Erreur lors du chargement des sous-projets simulés:', err);
       }
     }
+
+    const savedPercentages = localStorage.getItem('project_percentages');
+    if (savedPercentages) {
+      try {
+        const parsed = JSON.parse(savedPercentages);
+        setProjectPercentages(parsed);
+      } catch (err) {
+        console.error('Erreur lors du chargement des pourcentages:', err);
+      }
+    }
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -59,6 +70,15 @@ const Dashboard: React.FC = () => {
       localStorage.removeItem('simulated_sub_projects');
     }
   }, [simulatedSubProjects]);
+
+  // Sauvegarder les pourcentages dans localStorage
+  useEffect(() => {
+    if (Object.keys(projectPercentages).length > 0) {
+      localStorage.setItem('project_percentages', JSON.stringify(projectPercentages));
+    } else {
+      localStorage.removeItem('project_percentages');
+    }
+  }, [projectPercentages]);
 
   const loadUserData = async (forceRefresh = false) => {
     try {
@@ -224,6 +244,21 @@ const Dashboard: React.FC = () => {
           [projectId]: [...currentSubProjects, subProjectId],
         };
       }
+    });
+  };
+
+  const handlePercentageChange = (projectId: string, percentage: number) => {
+    setProjectPercentages(prev => {
+      if (percentage === 100) {
+        // Si le pourcentage est 100%, le retirer du state
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [projectId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return {
+        ...prev,
+        [projectId]: percentage,
+      };
     });
   };
 
@@ -406,6 +441,8 @@ const Dashboard: React.FC = () => {
             onToggleSimulation={handleToggleSimulation}
             simulatedSubProjects={simulatedSubProjects}
             onToggleSubProject={handleToggleSubProject}
+            projectPercentages={projectPercentages}
+            onPercentageChange={handlePercentageChange}
           />
         </motion.div>
       </div>
