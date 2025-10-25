@@ -117,44 +117,62 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 							</button>
 						)}
 
-						{/* Affichage des projets */}
-						{category.projects.map((project) => {
-							// Si c'est la catégorie "Autres projets", afficher CustomProjectCard
-							if (isOtherProjectsCategory && onEditCustomProject && onDeleteCustomProject) {
+						{/* Affichage des projets - triés par: validés > simulés > le reste */}
+						{[...category.projects]
+							.sort((a, b) => {
+								const aCompleted = isProjectCompleted(a.slug || a.id, completedProjects);
+								const bCompleted = isProjectCompleted(b.slug || b.id, completedProjects);
+								const aSimulated = simulatedProjects.includes(a.id);
+								const bSimulated = simulatedProjects.includes(b.id);
+
+								// Projets validés en premier
+								if (aCompleted && !bCompleted) return -1;
+								if (!aCompleted && bCompleted) return 1;
+
+								// Si les deux sont validés ou les deux non validés, trier par simulés
+								if (aSimulated && !bSimulated) return -1;
+								if (!aSimulated && bSimulated) return 1;
+
+								// Sinon, garder l'ordre original
+								return 0;
+							})
+							.map((project) => {
+								// Si c'est la catégorie "Autres projets", afficher CustomProjectCard
+								if (isOtherProjectsCategory && onEditCustomProject && onDeleteCustomProject) {
+									return (
+										<CustomProjectCard
+											key={project.id}
+											id={project.id}
+											name={project.name}
+											xp={project.xp}
+											onEdit={() => onEditCustomProject(project)}
+											onDelete={onDeleteCustomProject}
+										/>
+									);
+								}
+
+								// Sinon, afficher ProjectCard normal
+								const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
+								// Pour les projets complétés, utiliser le pourcentage réel de l'API avec normalisation
+								// Pour les autres, utiliser le pourcentage personnalisé ou 100%
+								const projectPercentage = isCompleted
+									? findProjectPercentage(project, completedProjectsPercentages, 100)
+									: (projectPercentages[project.id] || 100);
+
 								return (
-									<CustomProjectCard
+									<ProjectCard
 										key={project.id}
-										id={project.id}
-										name={project.name}
-										xp={project.xp}
-										onEdit={() => onEditCustomProject(project)}
-										onDelete={onDeleteCustomProject}
+										project={project}
+										isCompleted={isCompleted}
+										isSimulated={simulatedProjects.includes(project.id)}
+										onToggleSimulation={onToggleSimulation}
+										simulatedSubProjects={simulatedSubProjects[project.id] || []}
+										onToggleSubProject={onToggleSubProject}
+										projectPercentage={projectPercentage}
+										onPercentageChange={isCompleted ? undefined : onPercentageChange}
 									/>
 								);
-							}
-
-							// Sinon, afficher ProjectCard normal
-							const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
-							// Pour les projets complétés, utiliser le pourcentage réel de l'API avec normalisation
-							// Pour les autres, utiliser le pourcentage personnalisé ou 100%
-							const projectPercentage = isCompleted
-								? findProjectPercentage(project, completedProjectsPercentages, 100)
-								: (projectPercentages[project.id] || 100);
-
-							return (
-								<ProjectCard
-									key={project.id}
-									project={project}
-									isCompleted={isCompleted}
-									isSimulated={simulatedProjects.includes(project.id)}
-									onToggleSimulation={onToggleSimulation}
-									simulatedSubProjects={simulatedSubProjects[project.id] || []}
-									onToggleSubProject={onToggleSubProject}
-									projectPercentage={projectPercentage}
-									onPercentageChange={isCompleted ? undefined : onPercentageChange}
-								/>
-							);
-						})}
+							})}
 					</motion.div>
 				)}
 			</AnimatePresence>
