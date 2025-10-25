@@ -40,6 +40,30 @@ const fetchWithRetry = async (url: string, accessToken: string, retries = 0): Pr
   return response;
 };
 
+// Types d'événements valides pour le RNCP
+const VALID_EVENT_KINDS = [
+  //'piscine', pour l'instant désactivé car sur gcc il n'est pas pris en compte
+  'meet_up',
+  'conference',
+  'exam',
+  'challenge',
+  'hackathon',
+  'pedago',
+  'event',
+  'rush',
+  'workshop',
+  'partnership',
+  'speed_working',
+  'meet',
+  'other'
+] as const;
+
+// Type pour la réponse de l'API events_users
+interface EventUser {
+  event: Event42;
+  user_id: number;
+}
+
 export const api42Service = {
   // Récupérer les projets de l'utilisateur
   getUserProjects: async (accessToken: string, userId: number): Promise<Project42[]> => {
@@ -136,7 +160,7 @@ export const api42Service = {
     }
 
     const response = await fetchWithRetry(
-      `${config.oauth.apiUrl}/users/${userId}/events`,
+      `${config.oauth.apiUrl}/users/${userId}/events_users`,
       accessToken
     );
 
@@ -144,7 +168,14 @@ export const api42Service = {
       throw new Error('Failed to fetch user events');
     }
 
-    const data = await response.json();
+    const rawData = await response.json();
+    
+    // Extraire et filtrer uniquement les événements valides pour le RNCP
+    const data = (rawData as EventUser[])
+      .map((eventUser) => eventUser.event)
+      .filter((event) => VALID_EVENT_KINDS.includes(event.kind as typeof VALID_EVENT_KINDS[number]));
+    
+    console.log(`📊 Événements valides récupérés: ${data.length} sur ${rawData.length} total`);
     
     // Mettre en cache
     storage.set(CACHE_KEYS.EVENTS, {
