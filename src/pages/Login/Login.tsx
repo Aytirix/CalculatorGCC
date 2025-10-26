@@ -1,13 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { authService } from '@/services/auth.service';
+import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import './Login.scss';
 
 const Login: React.FC = () => {
-  const handleLogin = () => {
-    window.location.href = authService.getAuthUrl();
-  };
+  const { login } = useAuth();
 
   return (
     <div className="login-page">
@@ -24,7 +22,7 @@ const Login: React.FC = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Button onClick={handleLogin} size="lg" className="login-button">
+          <Button onClick={login} size="lg" className="login-button">
             Se connecter avec 42
           </Button>
         </motion.div>

@@ -1,26 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { authService } from '@/services/auth.service';
-import type { User, AuthTokens } from '@/services/auth.service';
+import { backendAuthService, type User } from '@/services/backend-auth.service';
 
 interface AuthContextType {
   user: User | null;
-  tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (code: string) => Promise<void>;
-  logout: () => void;
+  login: () => void;
+  logout: () => Promise<void>;
+  getApiToken: () => string | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -28,61 +19,66 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [tokens, setTokens] = useState<AuthTokens | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing authentication on mount
-    const checkAuth = async () => {
-      try {
-        const storedTokens = authService.getTokens();
-        const storedUser = authService.getUser();
-
-        if (storedTokens && storedUser && !authService.isTokenExpired(storedTokens)) {
-          setTokens(storedTokens);
-          setUser(storedUser);
-        } else {
-          authService.logout();
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        authService.logout();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
+    initializeAuth();
   }, []);
 
-  const login = async (code: string) => {
+  const initializeAuth = async () => {
     try {
-      setIsLoading(true);
-      const tokens = await authService.exchangeCodeForToken(code);
-      const user = await authService.fetchUserInfo(tokens.access_token);
-      setTokens(tokens);
-      setUser(user);
+      // Gérer le callback OAuth (si on revient de la redirection)
+      backendAuthService.handleCallback();
+
+      // Vérifier si l'utilisateur est authentifié
+      if (backendAuthService.isAuthenticated()) {
+        // Valider le token auprès du backend
+        const isValid = await backendAuthService.validateToken();
+
+        if (isValid) {
+          // Récupérer les infos utilisateur depuis le JWT
+          const userInfo = backendAuthService.getUser();
+          
+          // Enrichir avec image.link pour compatibilité
+          if (userInfo && userInfo.image_url) {
+            userInfo.image = { link: userInfo.image_url };
+          }
+          
+          setUser(userInfo);
+        } else {
+          // Token invalide, déconnecter
+          await backendAuthService.logout();
+        }
+      }
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      console.error('Auth initialization error:', error);
+      await backendAuthService.logout();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    authService.logout();
-    setTokens(null);
+  const login = () => {
+    // Redirige vers le backend pour initier l'OAuth
+    backendAuthService.login();
+  };
+
+  const logout = async () => {
+    await backendAuthService.logout();
     setUser(null);
+  };
+
+  const getApiToken = () => {
+    return backendAuthService.getApiToken();
   };
 
   const value: AuthContextType = {
     user,
-    tokens,
-    isAuthenticated: !!user && !!tokens,
+    isAuthenticated: !!user,
     isLoading,
     login,
     logout,
+    getApiToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

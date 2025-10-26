@@ -4,8 +4,7 @@ import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
 import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomProjectModal';
 import { RNCP_DATA } from '@/data/rncp.data';
-import { api42Service } from '@/services/api42.service';
-import { authService } from '@/services/auth.service';
+import { BackendAPI42Service } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted } from '@/utils/projectMatcher';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
@@ -131,29 +130,14 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Si forceRefresh, vider le cache
+      // Note: Le cache n'est plus géré côté frontend
+      // Si vous voulez forcer un refresh, vous pouvez implémenter un cache-busting côté backend
       if (forceRefresh) {
-        api42Service.clearCache();
+        console.log('Force refresh requested');
       }
 
-      // Récupérer le token d'accès
-      const tokens = authService.getTokens();
-      if (!tokens) {
-        setError('Non authentifié');
-        setLoading(false);
-        return;
-      }
-
-      // Récupérer l'utilisateur
-      const user = authService.getUser();
-      if (!user) {
-        setError('Utilisateur non trouvé');
-        setLoading(false);
-        return;
-      }
-
-      // Récupérer les données de l'utilisateur depuis l'API 42
-      const userData = await api42Service.getUserData(tokens.access_token, user.id);
+      // Récupérer les données de l'utilisateur depuis le backend
+      const userData = await BackendAPI42Service.getUserData();
       
       // La liste des slugs des projets validés est déjà dans userData.projects
       const completedProjectSlugs = userData.projects;

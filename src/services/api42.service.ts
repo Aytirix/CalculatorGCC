@@ -75,7 +75,7 @@ export const api42Service = {
     }
 
     const response = await fetchWithRetry(
-      `${config.oauth.apiUrl}/users/${userId}/projects_users`,
+      `${config.api42Url}/users/${userId}/projects_users`,
       accessToken
     );
 
@@ -113,7 +113,7 @@ export const api42Service = {
     }
 
     const response = await fetchWithRetry(
-      `${config.oauth.apiUrl}/users/${userId}/cursus_users`,
+      `${config.api42Url}/users/${userId}/cursus_users`,
       accessToken
     );
 
@@ -160,7 +160,7 @@ export const api42Service = {
     }
 
     const response = await fetchWithRetry(
-      `${config.oauth.apiUrl}/users/${userId}/events_users`,
+      `${config.api42Url}/users/${userId}/events_users`,
       accessToken
     );
 
