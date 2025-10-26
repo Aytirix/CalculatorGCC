@@ -34,34 +34,10 @@ export const backendAuthService = {
   },
 
   /**
-   * Gère le retour du callback OAuth
-   * Récupère le JWT depuis l'URL et le stocke
-   * @returns true si un token a été trouvé et stocké
-   */
-  handleCallback: (): boolean => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const error = urlParams.get('error');
-
-    if (error) {
-      console.error('Authentication error:', error);
-      return false;
-    }
-
-    if (token) {
-      backendAuthService.saveToken(token);
-      // Nettoyer l'URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return true;
-    }
-
-    return false;
-  },
-
-  /**
    * Sauvegarde le JWT
    */
   saveToken: (token: string): void => {
+    console.log('[Auth] Saving token to storage');
     storage.set(JWT_STORAGE_KEY, token);
   },
 
@@ -115,6 +91,9 @@ export const backendAuthService = {
    */
   validateToken: async (): Promise<boolean> => {
     const token = backendAuthService.getToken();
+    console.log('[Auth] validateToken - Token exists:', !!token);
+    console.log('[Auth] validateToken - Token preview:', token?.substring(0, 50) + '...');
+    
     if (!token) return false;
 
     try {
@@ -124,9 +103,16 @@ export const backendAuthService = {
         },
       });
 
+      console.log('[Auth] validateToken - Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[Auth] validateToken - Error response:', errorData);
+      }
+
       return response.ok;
     } catch (error) {
-      console.error('Token validation error:', error);
+      console.error('[Auth] validateToken - Network error:', error);
       return false;
     }
   },

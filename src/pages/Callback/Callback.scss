@@ -38,6 +38,12 @@
     font-size: 4rem;
     margin-bottom: $spacing-md;
   }
+
+  .redirect-info {
+    margin-top: $spacing-md;
+    font-size: 0.9rem;
+    opacity: 0.7;
+  }
 }
 
 @keyframes spin {

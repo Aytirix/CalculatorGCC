@@ -27,17 +27,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initializeAuth = async () => {
     try {
-      // Gérer le callback OAuth (si on revient de la redirection)
-      backendAuthService.handleCallback();
-
-      // Vérifier si l'utilisateur est authentifié
-      if (backendAuthService.isAuthenticated()) {
+      console.log('[AuthContext] Starting auth initialization');
+      
+      // Vérifier si l'utilisateur est authentifié (token en localStorage)
+      const isAuth = backendAuthService.isAuthenticated();
+      console.log('[AuthContext] Is authenticated:', isAuth);
+      
+      if (isAuth) {
         // Valider le token auprès du backend
+        console.log('[AuthContext] Validating token with backend...');
         const isValid = await backendAuthService.validateToken();
+        console.log('[AuthContext] Token valid:', isValid);
 
         if (isValid) {
           // Récupérer les infos utilisateur depuis le JWT
           const userInfo = backendAuthService.getUser();
+          console.log('[AuthContext] User info:', userInfo);
           
           // Enrichir avec image.link pour compatibilité
           if (userInfo && userInfo.image_url) {
@@ -45,15 +50,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
           
           setUser(userInfo);
+          console.log('[AuthContext] User set successfully');
         } else {
           // Token invalide, déconnecter
+          console.log('[AuthContext] Token invalid, logging out');
           await backendAuthService.logout();
         }
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      console.error('[AuthContext] Auth initialization error:', error);
       await backendAuthService.logout();
     } finally {
+      console.log('[AuthContext] Auth initialization complete');
       setIsLoading(false);
     }
   };
