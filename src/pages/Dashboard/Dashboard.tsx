@@ -130,14 +130,12 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Note: Le cache n'est plus géré côté frontend
-      // Si vous voulez forcer un refresh, vous pouvez implémenter un cache-busting côté backend
       if (forceRefresh) {
-        console.log('Force refresh requested');
+        console.log('Force refresh requested - bypassing cache');
       }
 
       // Récupérer les données de l'utilisateur depuis le backend
-      const userData = await BackendAPI42Service.getUserData();
+      const userData = await BackendAPI42Service.getUserData(forceRefresh);
       
       // La liste des slugs des projets validés est déjà dans userData.projects
       const completedProjectSlugs = userData.projects;
@@ -169,8 +167,20 @@ const Dashboard: React.FC = () => {
       setProjectedLevel(userData.level);
       setLoading(false);
     } catch (err) {
-      console.error('Erreur lors du chargement des données utilisateur:', err);
-      setError('Impossible de charger vos données. Veuillez réessayer.');
+      const error = err as Error;
+      console.error('Erreur lors du chargement des données utilisateur:', error);
+      
+      // Message d'erreur plus spécifique selon le type d'erreur
+      let errorMessage = 'Impossible de charger vos données. Veuillez réessayer.';
+      
+      if (error.message?.includes('expired') || error.message?.includes('login again')) {
+        errorMessage = 'Votre session a expiré. Vous allez être redirigé vers la page de connexion...';
+        // La redirection est déjà gérée par le service
+      } else if (error.message?.includes('rate limit')) {
+        errorMessage = 'Limite de requêtes API 42 atteinte. Veuillez patienter quelques minutes.';
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };

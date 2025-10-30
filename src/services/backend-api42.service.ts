@@ -61,11 +61,25 @@ export class BackendAPI42Service {
 
     if (!response.ok) {
       if (response.status === 401) {
-        // Token expiré, déconnecter l'utilisateur
+        // Token expiré ou invalide, déconnecter l'utilisateur
+        console.error('[BackendAPI42] Token expired or invalid, logging out');
         await backendAuthService.logout();
-        throw new Error('Session expired. Please login again.');
+        
+        // Récupérer le message d'erreur pour affichage
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.code === 'TOKEN_EXPIRED'
+          ? 'Your session has expired. Please login again.'
+          : 'Session expired. Please login again.';
+        
+        // Rediriger vers la page de login
+        window.location.href = '/';
+        throw new Error(errorMessage);
       }
-      throw new Error(`API request failed: ${response.statusText}`);
+      
+      // Autres erreurs
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.message || response.statusText;
+      throw new Error(`API request failed: ${errorMessage}`);
     }
 
     return response.json();
@@ -95,8 +109,11 @@ export class BackendAPI42Service {
   /**
    * Récupère toutes les données utilisateur en une fois (optimisé)
    */
-  static async getUserData(): Promise<UserData> {
-    return this.request<UserData>('/api/api42/user-data');
+  static async getUserData(forceRefresh = false): Promise<UserData> {
+    const endpoint = forceRefresh 
+      ? '/api/api42/user-data?refresh=true' 
+      : '/api/api42/user-data';
+    return this.request<UserData>(endpoint);
   }
 
   /**
