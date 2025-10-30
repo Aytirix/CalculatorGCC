@@ -164,7 +164,7 @@ const Dashboard: React.FC = () => {
       // Vérifier le cache localStorage d'abord
       const CACHE_KEY = 'user_data_cache';
       const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 jours
-      const CACHE_MIN_AGE = 60 * 1000; // 1 minute minimum avant de permettre un refresh
+      const CACHE_MIN_AGE = 10 * 60 * 1000; // 10 minutes minimum avant de permettre un refresh
       
       const cachedData = localStorage.getItem(CACHE_KEY);
       if (cachedData) {
@@ -172,10 +172,10 @@ const Dashboard: React.FC = () => {
           const { data, timestamp } = JSON.parse(cachedData);
           const age = Date.now() - timestamp;
           
-          // Si le cache a moins d'1 minute, TOUJOURS l'utiliser (même avec forceRefresh)
+          // Si le cache a moins de 10 minutes, TOUJOURS l'utiliser (même avec forceRefresh)
           // pour éviter de spam l'API 42
           if (age < CACHE_MIN_AGE) {
-            console.log(`[Dashboard] ⚠️  Cache too fresh (${Math.round(age / 1000)}s), refusing to bypass - preventing rate limit`);
+            console.log(`[Dashboard] ⚠️  Cache too fresh (${Math.round(age / 1000)}s / ${Math.round(CACHE_MIN_AGE / 1000)}s min), refusing to bypass - preventing rate limit`);
             const userData = data;
             
             // Traiter les données cachées
@@ -240,7 +240,7 @@ const Dashboard: React.FC = () => {
             console.log('[Dashboard] Cache expired, fetching fresh data');
             localStorage.removeItem(CACHE_KEY);
           } else if (forceRefresh) {
-            console.log('[Dashboard] Force refresh requested (cache older than 1 minute) - fetching fresh data');
+            console.log('[Dashboard] Force refresh requested (cache older than 10 minutes) - fetching fresh data');
           }
         } catch (err) {
           console.error('[Dashboard] Error reading cache:', err);

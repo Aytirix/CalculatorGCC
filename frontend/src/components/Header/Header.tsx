@@ -38,7 +38,7 @@ const Header: React.FC = () => {
           onClick={() => navigate('/dashboard')}
           style={{ cursor: 'pointer' }}
         >
-          <h1>42 XP Simulator</h1>
+          <h1>CalculatorGCC</h1>
         </motion.div>
 
         <motion.div

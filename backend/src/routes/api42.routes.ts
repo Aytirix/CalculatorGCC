@@ -11,7 +11,95 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL =  7 * 24 * 60 * 60 * 1000; // 7 jours (réduit le spam API 42)
-const CACHE_MIN_AGE = 60 * 1000; // 1 minute - ne jamais refetch avant ce délai, même avec forceRefresh
+const CACHE_MIN_AGE = 10 * 60 * 1000; // 10 minutes - ne jamais refetch avant ce délai, même avec forceRefresh
+
+// ===== RATE LIMITER GLOBAL POUR API 42 AVEC FILE D'ATTENTE =====
+// Garantit 200ms minimum entre TOUTES les requêtes vers l'API 42 (tous utilisateurs confondus)
+
+interface QueuedRequest<T> {
+  execute: () => Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: any) => void;
+}
+
+class API42RateLimiter {
+  private queue: QueuedRequest<any>[] = [];
+  private processing = false;
+  private lastRequestTime = 0;
+  private readonly minDelay = 200; // millisecondes
+
+  /**
+   * Ajoute une requête à la file d'attente
+   * Retourne une Promise qui sera résolue quand la requête sera exécutée
+   */
+  async enqueue<T>(execute: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ execute, resolve, reject });
+      console.log(`[API42 Queue] Request added to queue (queue size: ${this.queue.length})`);
+      
+      // Démarrer le traitement si pas déjà en cours
+      if (!this.processing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  /**
+   * Traite la file d'attente séquentiellement
+   * Garantit 200ms entre chaque requête
+   */
+  private async processQueue(): Promise<void> {
+    if (this.processing || this.queue.length === 0) {
+      return;
+    }
+
+    this.processing = true;
+
+    while (this.queue.length > 0) {
+      const request = this.queue.shift()!;
+      
+      // Calculer le temps d'attente nécessaire
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      
+      if (timeSinceLastRequest < this.minDelay) {
+        const waitTime = this.minDelay - timeSinceLastRequest;
+        console.log(`[API42 Queue] Waiting ${waitTime}ms before next request (${this.queue.length} in queue)...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+
+      // Exécuter la requête
+      try {
+        console.log(`[API42 Queue] Executing request (${this.queue.length} remaining in queue)`);
+        const result = await request.execute();
+        this.lastRequestTime = Date.now();
+        request.resolve(result);
+      } catch (error) {
+        request.reject(error);
+      }
+    }
+
+    this.processing = false;
+    console.log('[API42 Queue] Queue empty, processing stopped');
+  }
+}
+
+// Instance globale du rate limiter
+const api42RateLimiter = new API42RateLimiter();
+
+/**
+ * Wrapper pour toutes les requêtes vers l'API 42
+ * Applique automatiquement le rate limiting global via une file d'attente
+ * Garantit qu'une seule requête est envoyée à la fois avec 200ms entre chaque
+ */
+async function api42Request<T>(url: string, token: string): Promise<T> {
+  return api42RateLimiter.enqueue(async () => {
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  });
+}
 
 function getCached(key: string): any | null {
   const entry = cache.get(key);
@@ -201,37 +289,40 @@ export async function api42Routes(fastify: FastifyInstance) {
       
       console.log('[API42 Routes] API token preview:', api_token.substring(0, 20) + '...');
       
-      // Faire les requêtes en séquence pour éviter le rate limiting
-      // Au lieu de les envoyer toutes en parallèle, on attend chacune avant d'envoyer la suivante
-      console.log('[API42 Routes] Making sequential requests to API 42 (to avoid rate limit)...');
+      // Faire les requêtes en séquence avec rate limiting global (200ms entre chaque)
+      // Le rate limiter s'applique à TOUS les utilisateurs pour éviter de surcharger l'API 42
+      console.log('[API42 Routes] Making sequential requests to API 42 with global rate limit (200ms)...');
       
       console.log('[API42 Routes] 1/3 Fetching projects...');
-      const projectsRes = await axios.get(`${config.oauth42.apiUrl}/users/${user_id_42}/projects_users`, {
-        headers: { Authorization: `Bearer ${api_token}` },
-      });
-      console.log(`[API42 Routes] ✓ Projects fetched: ${projectsRes.data.length} items`);
+      const projectsData = await api42Request<any[]>(
+        `${config.oauth42.apiUrl}/users/${user_id_42}/projects_users`,
+        api_token
+      );
+      console.log(`[API42 Routes] ✓ Projects fetched: ${projectsData.length} items`);
       
       console.log('[API42 Routes] 2/3 Fetching cursus...');
-      const cursusRes = await axios.get(`${config.oauth42.apiUrl}/users/${user_id_42}/cursus_users`, {
-        headers: { Authorization: `Bearer ${api_token}` },
-      });
-      console.log(`[API42 Routes] ✓ Cursus fetched: ${cursusRes.data.length} items`);
+      const cursusData = await api42Request<any[]>(
+        `${config.oauth42.apiUrl}/users/${user_id_42}/cursus_users`,
+        api_token
+      );
+      console.log(`[API42 Routes] ✓ Cursus fetched: ${cursusData.length} items`);
       
       console.log('[API42 Routes] 3/3 Fetching events...');
-      const eventsRes = await axios.get(`${config.oauth42.apiUrl}/users/${user_id_42}/events_users`, {
-        headers: { Authorization: `Bearer ${api_token}` },
-      });
-      console.log(`[API42 Routes] ✓ Events fetched: ${eventsRes.data.length} items`);
+      const eventsData = await api42Request<any[]>(
+        `${config.oauth42.apiUrl}/users/${user_id_42}/events_users`,
+        api_token
+      );
+      console.log(`[API42 Routes] ✓ Events fetched: ${eventsData.length} items`);
 
       console.log('[API42 Routes] ✓ All API 42 requests successful');
 
       // Transformer les données
-      const projects = projectsRes.data.map((project: any) => ({
+      const projects = projectsData.map((project: any) => ({
         ...project,
         validated: project['validated?'] !== undefined ? project['validated?'] : project.validated,
       }));
 
-      const cursus = cursusRes.data;
+      const cursus = cursusData;
       const cursus42 = cursus.find((c: any) => c.cursus_id === 21);
 
       const validEventKinds = [
@@ -240,7 +331,7 @@ export async function api42Routes(fastify: FastifyInstance) {
         'speed_working', 'meet', 'other'
       ];
 
-      const events = eventsRes.data
+      const events = eventsData
         .map((eventUser: any) => eventUser.event)
         .filter((event: any) => validEventKinds.includes(event.kind));
 

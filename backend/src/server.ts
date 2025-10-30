@@ -29,6 +29,8 @@ await fastify.register(cors, {
 	origin: [config.frontendUrl, 'http://localhost:5173', 'http://localhost:5180'],
 	credentials: true,
 	methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+	// Cache les preflight requests (OPTIONS) pendant 24h pour réduire le nombre de requêtes
+	maxAge: 86400, // 24 heures en secondes
 });
 
 // Helmet - sécurise les headers HTTP
