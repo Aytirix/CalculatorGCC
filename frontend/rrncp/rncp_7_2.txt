@@ -1,0 +1,170 @@
+tout les evenements valider seulement si il on se tag :
+piscine
+meet_up
+conference
+exam
+challenge
+hackathon
+pedago
+event
+rush
+workshop
+partnership
+speed_working
+meet
+other
+
+RNCP 6 - Développement Applicatif
+
+lvl mimimum 21
+15 events
+2 experience professionel
+
+Suite:
+minimum 1 projet parmis cette liste :
+rt 20750XP
+42sh 15750XP
+kfs-2 15750XP
+humanGL 4200XP
+Override 35700XP
+Pestilence 15750XP
+doom-nukem 15750XP
+Inception-of-Things 25450XP
+total-perspective-vortex 9450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
+
+2 projet de groupe minimum parmis cette liste
+rt 20750XP
+xv 3000XP
+war 35700XP
+gbmu 31500XP
+kfs-1 15750XP
+kfs-2 15750XP
+kfs-3 3570XP
+kfs-4 25200XP
+kfs-5 35700XP
+kfs-6 25200XP
+kfs-7 35700XP
+kfs-8 15750XP
+kfs-9 15750XP
+kfs-x 35700XP
+mod1 9450XP
+dslr 9450XP
+guimp 12600XP
+zappy 25200XP
+rubik 9450XP
+death 35700XP
+famine 9450XP
+darkly 6300XP
+matcha 9450XP
+lem_in 9450XP
+gomoku 25200XP
+ft_vox 15750XP
+krpsim 9450XP
+cloud-1 9450XP
+corewar 35700XP
+humanGL 4200XP
+nibbler 9450XP
+ft_nmap 15750XP
+override 35700XP
+ft_ality 4200XP
+rainfall 25200XP
+n-puzzle 9450XP
+hypertube 15750XP
+boot2root 11500XP
+ft_turing 9450XP
+ft_newton 24360XP
+ft_kalman 16800XP
+ft_shield 15750XP
+bomberman 25200XP
+snow-crash 9450XP
+music-room 25200XP
+Pestilence 15750XP
+taskmaster 9450XP
+red-tetris 15750XP
+filesystem 15750XP
+doom-nukem 15750XP
+matt-daemon 9450XP
+shaderpixel 15750XP
+ft_minecraft 20750XP
+tinky-winkey 16800XP
+Leaffliction 15750XP
+Open Project  31500XP
+expert-system 9450XP
+woody-woodpacker 9450XP
+freddie-mercury 12600XP
+swifty-proteins 15750XP
+AutomaticDirectory 9450XP
+Inception-of-Things 25450XP
+userspace_digressions 16800XP
+AdministrativeDirectory 9450XP
+Bgp At Doors of Autonomous Systems is Simple 22450XP
+
+bases de données :
+minimum 2 projet
+minimum 50K xp
+darkly 6300XP
+matcha 9450XP
+h42n42 9450XP
+camagru 4200XP
+hypertube 15750XP
+Tokenizer 9450XP
+music-room 25200XP
+red-tetris 15750XP
+TokenizeArt 9450XP
+Piscine RoR :
+RoR - 0 - Starting
+RoR - 0 - Initiation
+RoR - 0 - Oob 1500XP
+RoR - 1 - Base Rails 1500XP
+RoR - 1 - Gems
+RoR - 2 - SQL 1000XP
+RoR - 3 - Sessions
+RoR - 3 - Advanced
+RoR - 3 - Final 3475XP
+Piscine Django :
+Django - 0 - Starting
+Django - 0 - Initiation
+Django - 0 - Oob 1500XP
+Django - 1 - Base Django 3475XP
+Django - 1 - Lib
+Django - 2 - SQL 1000XP
+Django - 3 - Sessions
+Django - 3 - Advanced
+Django - 3 - Final 3475XP
+Piscine Symfony :
+Symfony - 0 - Starting
+Symfony - 0 - Initiation
+Symfony - 0 - Oob 1500XP
+Symfony - 1 - Base Symfony 3475XP
+Symfony - 1 - Composer
+Symfony - 2 - SQL 1000XP
+Symfony - 3 - Sessions
+Symfony - 3 - Advanced
+Symfony - 3 - Final 3475XP
+
+Projets d'intelligence artificielle:
+minimum 3 projet
+minimum 70K xp
+dslr 9450XP
+gomoku 25200XP
+krpsim 9450XP
+matrix 7000XP
+Leaffliction 15750XP
+expert-system 9450XP 9450XP
+Learn2Slither 9450XP
+ready set boole 7000XP
+multilayer-perceptron 9450XP
+total-perspective-vortex 9450XP
+Python for Data Science 2725XP :
+Python - 0 - Starting 545XP
+Python - 1 - Array 545XP
+Python - 2 - DataTable 545XP
+Python - 3 - OOP 545XP
+Python - 4 - Dod 2545XP
+Piscine Data Science 4725XP :
+Data Science - 0 545XP
+Data Science - 1 545XP
+Data Science - 2 545XP
+Data Science - 3 545XP
+Data Science - 4 2545XP

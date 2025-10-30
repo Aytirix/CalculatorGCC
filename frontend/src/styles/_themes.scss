@@ -1,0 +1,50 @@
+@use './variables' as *;
+
+// Light theme
+.light {
+  --bg-primary: #{$light-background};
+  --bg-secondary: #{rgba(0, 0, 0, 0.03)};
+  --fg-primary: #{$light-foreground};
+  --bg-card: #{$light-card};
+  --border-card: #{$light-card-border};
+  --color-primary: #{$light-primary};
+  --color-primary-rgb: 59, 130, 246;
+  --color-primary-hover: #{$light-primary-hover};
+  --color-secondary: #{$light-secondary};
+  --success: #10b981;
+  --success-rgb: 16, 185, 129;
+  --bg-accent: #{$light-accent};
+  --text-primary: #{$light-text};
+  --text-rgb: 0, 0, 0;
+  --text-muted: #{$light-text-muted};
+  --border-color: #{$light-border};
+  --shadow-color: #{$light-shadow};
+}
+
+// Dark theme
+.dark {
+  --bg-primary: #{$dark-background};
+  --bg-secondary: #{rgba(255, 255, 255, 0.05)};
+  --fg-primary: #{$dark-foreground};
+  --bg-card: #{$dark-card};
+  --border-card: #{$dark-card-border};
+  --color-primary: #{$dark-primary};
+  --color-primary-rgb: 96, 165, 250;
+  --color-primary-hover: #{$dark-primary-hover};
+  --color-secondary: #{$dark-secondary};
+  --success: #34d399;
+  --success-rgb: 52, 211, 153;
+  --bg-accent: #{$dark-accent};
+  --text-primary: #{$dark-text};
+  --text-rgb: 255, 255, 255;
+  --text-muted: #{$dark-text-muted};
+  --border-color: #{$dark-border};
+  --shadow-color: #{$dark-shadow};
+}
+
+// Base theme styles
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color $transition-normal, color $transition-normal;
+}

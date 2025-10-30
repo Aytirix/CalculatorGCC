@@ -1,0 +1,122 @@
+@use './variables' as *;
+
+// Mixin for responsive design
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == sm {
+    @media (min-width: $breakpoint-sm) {
+      @content;
+    }
+  } @else if $breakpoint == md {
+    @media (min-width: $breakpoint-md) {
+      @content;
+    }
+  } @else if $breakpoint == lg {
+    @media (min-width: $breakpoint-lg) {
+      @content;
+    }
+  } @else if $breakpoint == xl {
+    @media (min-width: $breakpoint-xl) {
+      @content;
+    }
+  }
+}
+
+// Card mixin
+@mixin card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  transition: box-shadow $transition-normal;
+
+  &:hover {
+    box-shadow: 0 4px 12px var(--shadow-color);
+  }
+}
+
+// Button base mixin
+@mixin button-base {
+  padding: $spacing-sm $spacing-lg;
+  border-radius: $radius-md;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all $transition-fast;
+  outline: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Primary button
+@mixin button-primary {
+  @include button-base;
+  background-color: var(--color-primary);
+  color: white;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+  }
+}
+
+// Secondary button
+@mixin button-secondary {
+  @include button-base;
+  background-color: var(--color-secondary);
+  color: white;
+
+  &:hover:not(:disabled) {
+    opacity: 0.8;
+  }
+}
+
+// Flexbox helpers
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Text truncate
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Smooth scroll
+@mixin smooth-scroll {
+  scroll-behavior: smooth;
+  overflow-y: auto;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--bg-accent);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-secondary);
+    border-radius: $radius-md;
+
+    &:hover {
+      background: var(--color-primary);
+    }
+  }
+}

@@ -1,0 +1,197 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.category-section {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-lg;
+  padding: $spacing-md;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  height: fit-content;
+
+  .category-header {
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: $spacing-sm;
+
+    &:hover .category-title h3 {
+      color: var(--color-primary);
+    }
+  }
+
+  .category-title {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-sm;
+
+    .expand-icon {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      transition: transform $transition-fast;
+      display: inline-block;
+      width: 16px;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+      transition: color $transition-fast;
+      flex: 1;
+    }
+
+    .validation-badge {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: $radius-md;
+      box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
+    }
+  }
+
+  .category-stats {
+    display: flex;
+    gap: $spacing-md;
+    flex-wrap: wrap;
+    margin-bottom: $spacing-sm;
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: $spacing-xs;
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      .stat-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        padding: 2px 8px;
+        background-color: var(--bg-accent);
+        border-radius: $radius-sm;
+
+        &.valid {
+          background-color: rgba(34, 197, 94, 0.1);
+          color: #16a34a;
+        }
+      }
+    }
+  }
+
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    margin-bottom: $spacing-lg;
+
+    .progress-bar-bg {
+      flex: 1;
+      height: 12px;
+      background-color: var(--bg-accent);
+      border-radius: $radius-md;
+      overflow: hidden;
+      position: relative;
+
+      .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #2563eb);
+        border-radius: $radius-md;
+        position: relative;
+
+        &::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent
+          );
+          animation: shimmer 2s infinite;
+        }
+
+        &.completed {
+          background: linear-gradient(90deg, #22c55e, #16a34a);
+        }
+      }
+    }
+
+    .progress-percentage {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 45px;
+      text-align: right;
+    }
+  }
+
+  .projects-grid {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-sm;
+    overflow: hidden;
+
+    .add-custom-project-button {
+      background: transparent;
+      border: 2px dashed var(--border-color);
+      border-radius: $radius-md;
+      padding: $spacing-md;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: $spacing-sm;
+      cursor: pointer;
+      transition: all $transition-fast;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      min-height: 50px;
+
+      &:hover {
+        border-color: var(--color-primary);
+        background: rgba(59, 130, 246, 0.05);
+        color: var(--color-primary);
+        transform: translateY(-2px);
+
+        .add-icon {
+          transform: rotate(90deg) scale(1.1);
+        }
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      .add-icon {
+        font-size: 1.5rem;
+        line-height: 1;
+        transition: transform $transition-fast;
+      }
+
+      .add-label {
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
