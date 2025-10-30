@@ -24,6 +24,8 @@ interface RNCPCardProps {
   onDeleteCustomProject?: (id: string) => void;
   projectNotes?: Record<string, string>;
   onSaveNote?: (projectId: string, note: string) => void;
+  coalitionBoosts?: Record<string, boolean>;
+  onToggleCoalitionBoost?: (projectId: string) => void;
 }
 
 const RNCPCard = ({ 
@@ -42,7 +44,9 @@ const RNCPCard = ({
   onEditCustomProject,
   onDeleteCustomProject,
   projectNotes = {},
-  onSaveNote
+  onSaveNote,
+  coalitionBoosts = {},
+  onToggleCoalitionBoost
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
   const hasLevelRequirement = validation.isLevelValid;
@@ -128,6 +132,8 @@ const RNCPCard = ({
               onDeleteCustomProject={onDeleteCustomProject}
               projectNotes={projectNotes}
               onSaveNote={onSaveNote}
+              coalitionBoosts={coalitionBoosts}
+              onToggleCoalitionBoost={onToggleCoalitionBoost}
             />
           );
         })}

@@ -5,8 +5,8 @@ import './AddCustomProjectModal.scss';
 interface AddCustomProjectModalProps {
 	isOpen: boolean;
 	onClose: () => void;
-	onSave: (name: string, xp: number, percentage: number, note?: string) => void;
-	editProject?: { id: string; name: string; xp: number; percentage?: number; note?: string } | null;
+	onSave: (name: string, xp: number, percentage: number, note?: string, hasCoalitionBoost?: boolean) => void;
+	editProject?: { id: string; name: string; xp: number; percentage?: number; note?: string; hasCoalitionBoost?: boolean } | null;
 }
 
 const AddCustomProjectModal: React.FC<AddCustomProjectModalProps> = ({
@@ -19,6 +19,7 @@ const AddCustomProjectModal: React.FC<AddCustomProjectModalProps> = ({
 	const [xp, setXp] = useState('');
 	const [percentage, setPercentage] = useState('100');
 	const [note, setNote] = useState('');
+	const [hasCoalitionBoost, setHasCoalitionBoost] = useState(false);
 
 	useEffect(() => {
 		if (editProject) {
@@ -26,11 +27,13 @@ const AddCustomProjectModal: React.FC<AddCustomProjectModalProps> = ({
 			setXp(editProject.xp.toString());
 			setPercentage((editProject.percentage || 100).toString());
 			setNote(editProject.note || '');
+			setHasCoalitionBoost(editProject.hasCoalitionBoost || false);
 		} else {
 			setName('');
 			setXp('');
 			setPercentage('100');
 			setNote('');
+			setHasCoalitionBoost(false);
 		}
 	}, [editProject, isOpen]);
 
@@ -38,11 +41,12 @@ const AddCustomProjectModal: React.FC<AddCustomProjectModalProps> = ({
 		const xpValue = parseInt(xp, 10);
 		const percentageValue = parseInt(percentage, 10);
 		if (name.trim() && xpValue > 0 && percentageValue >= 50 && percentageValue <= 125) {
-			onSave(name.trim(), xpValue, percentageValue, note.trim() || undefined);
+			onSave(name.trim(), xpValue, percentageValue, note.trim() || undefined, hasCoalitionBoost);
 			setName('');
 			setXp('');
 			setPercentage('100');
 			setNote('');
+			setHasCoalitionBoost(false);
 			onClose();
 		}
 	};
@@ -134,6 +138,23 @@ const AddCustomProjectModal: React.FC<AddCustomProjectModalProps> = ({
 							/>
 						</div>
 
+						<div className="form-group coalition-boost-toggle">
+							<div className="toggle-content">
+								<div className="toggle-info">
+									<label htmlFor="coalition-boost">Boost Coalitions</label>
+									<span className="toggle-description">+4.2% XP</span>
+								</div>
+								<label className="toggle-switch">
+									<input
+										id="coalition-boost"
+										type="checkbox"
+										checked={hasCoalitionBoost}
+										onChange={(e) => setHasCoalitionBoost(e.target.checked)}
+									/>
+									<span className="toggle-slider"></span>
+								</label>
+							</div>
+						</div>
 
 					</div>
 

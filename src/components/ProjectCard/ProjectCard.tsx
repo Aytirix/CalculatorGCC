@@ -17,6 +17,8 @@ interface ProjectCardProps {
 	onPercentageChange?: (projectId: string, percentage: number) => void;
 	projectNote?: string;
 	onSaveNote?: (projectId: string, note: string) => void;
+	hasCoalitionBoost?: boolean;
+	onToggleCoalitionBoost?: (projectId: string) => void;
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -30,6 +32,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	onPercentageChange,
 	projectNote,
 	onSaveNote,
+	hasCoalitionBoost = false,
+	onToggleCoalitionBoost,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -134,8 +138,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 	const status = getStatus();
 
-	// Calculer l'XP modifié par le pourcentage
-	const modifiedXP = Math.round((project.xp * projectPercentage) / 100);
+	// Calculer l'XP modifié par le pourcentage et le boost coalition
+	let modifiedXP = Math.round((project.xp * projectPercentage) / 100);
+	if (hasCoalitionBoost) {
+		modifiedXP = Math.round(modifiedXP * 1.042); // +4.2%
+	}
 
 	const showPercentage = projectPercentage !== 100;
 
@@ -236,6 +243,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					onEditNote={handleOpenNoteModal}
 					projectName={project.name}
 					isCompleted={isCompleted}
+					hasCoalitionBoost={hasCoalitionBoost}
+					onToggleCoalitionBoost={() => onToggleCoalitionBoost?.(project.id)}
 				/>
 			)}
 

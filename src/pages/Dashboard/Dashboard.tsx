@@ -20,12 +20,14 @@ const Dashboard: React.FC = () => {
   const [completedProjectsPercentages, setCompletedProjectsPercentages] = useState<Record<string, number>>({});
   const [customProjects, setCustomProjects] = useState<SimulatorProject[]>([]);
   const [projectNotes, setProjectNotes] = useState<Record<string, string>>({});
+  const [coalitionBoosts, setCoalitionBoosts] = useState<Record<string, boolean>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
   const [customProjectModal, setCustomProjectModal] = useState<{
     isOpen: boolean;
     editProject: SimulatorProject | null;
   }>({ isOpen: false, editProject: null });
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
   // Charger les projets simulés depuis le localStorage
   useEffect(() => {
@@ -78,6 +80,16 @@ const Dashboard: React.FC = () => {
         console.error('Erreur lors du chargement des notes:', err);
       }
     }
+
+    const savedCoalitionBoosts = localStorage.getItem('coalition_boosts');
+    if (savedCoalitionBoosts) {
+      try {
+        const parsed = JSON.parse(savedCoalitionBoosts);
+        setCoalitionBoosts(parsed);
+      } catch (err) {
+        console.error('Erreur lors du chargement des boosts coalition:', err);
+      }
+    }
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -127,60 +139,113 @@ const Dashboard: React.FC = () => {
 
   const loadUserData = async (forceRefresh = false) => {
     try {
+      // Throttle : éviter les appels trop rapprochés (moins de 30 secondes)
+      const now = Date.now();
+      const timeSinceLastFetch = now - lastFetchTime;
+      const MIN_FETCH_INTERVAL = 30 * 1000; // 30 secondes minimum entre deux fetch
+      
+      if (timeSinceLastFetch < MIN_FETCH_INTERVAL && !forceRefresh) {
+        console.log(`[Dashboard] ⚠️  Throttle: only ${Math.round(timeSinceLastFetch / 1000)}s since last fetch, skipping...`);
+        return;
+      }
+      
+      // Si forceRefresh mais que le dernier fetch est très récent (< 10s), refuser
+      if (forceRefresh && timeSinceLastFetch < 10000) {
+        console.log(`[Dashboard] ⚠️  Force refresh denied: only ${Math.round(timeSinceLastFetch / 1000)}s since last fetch`);
+        setError('Veuillez attendre quelques secondes avant de rafraîchir à nouveau.');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      
       setLoading(true);
       setError(null);
+      setLastFetchTime(now);
 
-      // Vérifier le cache localStorage d'abord (sauf si force refresh)
+      // Vérifier le cache localStorage d'abord
       const CACHE_KEY = 'user_data_cache';
       const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 jours
+      const CACHE_MIN_AGE = 60 * 1000; // 1 minute minimum avant de permettre un refresh
       
-      if (!forceRefresh) {
-        const cachedData = localStorage.getItem(CACHE_KEY);
-        if (cachedData) {
-          try {
-            const { data, timestamp } = JSON.parse(cachedData);
-            const age = Date.now() - timestamp;
+      const cachedData = localStorage.getItem(CACHE_KEY);
+      if (cachedData) {
+        try {
+          const { data, timestamp } = JSON.parse(cachedData);
+          const age = Date.now() - timestamp;
+          
+          // Si le cache a moins d'1 minute, TOUJOURS l'utiliser (même avec forceRefresh)
+          // pour éviter de spam l'API 42
+          if (age < CACHE_MIN_AGE) {
+            console.log(`[Dashboard] ⚠️  Cache too fresh (${Math.round(age / 1000)}s), refusing to bypass - preventing rate limit`);
+            const userData = data;
             
-            if (age < CACHE_TTL) {
-              console.log(`[Dashboard] Using cached data (age: ${Math.round(age / 1000)}s)`);
-              const userData = data;
-              
-              // Traiter les données cachées (même logique qu'après l'API)
-              const completedProjectSlugs = userData.projects;
-              const realPercentages: Record<string, number> = {};
-              (userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
-                if (project.validated === true) {
-                  const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
-                  realPercentages[project.project.name] = percentage;
-                }
-              });
-              setCompletedProjectsPercentages(realPercentages);
-              
-              const progress: UserProgress = {
-                currentLevel: userData.level,
-                currentXP: xpService.getXPFromLevel(userData.level),
-                events: userData.eventsCount,
-                professionalExperience: 0,
-                completedProjects: completedProjectSlugs,
-                simulatedProjects: [],
-              };
-              
-              setUserProgress(progress);
-              setProjectedLevel(userData.level);
-              setLoading(false);
-              return; // Sortir sans appeler l'API
-            } else {
-              console.log('[Dashboard] Cache expired, fetching fresh data');
-              localStorage.removeItem(CACHE_KEY);
-            }
-          } catch (err) {
-            console.error('[Dashboard] Error reading cache:', err);
-            localStorage.removeItem(CACHE_KEY);
+            // Traiter les données cachées
+            const completedProjectSlugs = userData.projects;
+            const realPercentages: Record<string, number> = {};
+            (userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
+              if (project.validated === true) {
+                const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
+                realPercentages[project.project.name] = percentage;
+              }
+            });
+            setCompletedProjectsPercentages(realPercentages);
+            
+            const progress: UserProgress = {
+              currentLevel: userData.level,
+              currentXP: xpService.getXPFromLevel(userData.level),
+              events: userData.eventsCount,
+              professionalExperience: 0,
+              completedProjects: completedProjectSlugs,
+              simulatedProjects: [],
+            };
+            
+            setUserProgress(progress);
+            setProjectedLevel(userData.level);
+            setLoading(false);
+            return;
           }
+          
+          // Si pas de forceRefresh et cache valide, l'utiliser
+          if (!forceRefresh && age < CACHE_TTL) {
+            console.log(`[Dashboard] Using cached data (age: ${Math.round(age / 1000)}s)`);
+            const userData = data;
+            
+            // Traiter les données cachées (même logique qu'après l'API)
+            const completedProjectSlugs = userData.projects;
+            const realPercentages: Record<string, number> = {};
+            (userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
+              if (project.validated === true) {
+                const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
+                realPercentages[project.project.name] = percentage;
+              }
+            });
+            setCompletedProjectsPercentages(realPercentages);
+            
+            const progress: UserProgress = {
+              currentLevel: userData.level,
+              currentXP: xpService.getXPFromLevel(userData.level),
+              events: userData.eventsCount,
+              professionalExperience: 0,
+              completedProjects: completedProjectSlugs,
+              simulatedProjects: [],
+            };
+            
+            setUserProgress(progress);
+            setProjectedLevel(userData.level);
+            setLoading(false);
+            return; // Sortir sans appeler l'API
+          }
+          
+          // Cache expiré
+          if (age >= CACHE_TTL) {
+            console.log('[Dashboard] Cache expired, fetching fresh data');
+            localStorage.removeItem(CACHE_KEY);
+          } else if (forceRefresh) {
+            console.log('[Dashboard] Force refresh requested (cache older than 1 minute) - fetching fresh data');
+          }
+        } catch (err) {
+          console.error('[Dashboard] Error reading cache:', err);
+          localStorage.removeItem(CACHE_KEY);
         }
-      } else {
-        console.log('[Dashboard] Force refresh requested - bypassing cache');
-        localStorage.removeItem(CACHE_KEY);
       }
 
       // Récupérer les données de l'utilisateur depuis le backend
@@ -244,18 +309,19 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Mettre à jour le niveau projeté quand les projets simulés changent
   useEffect(() => {
     if (!userProgress) return;
-    
+
     // Calculer l'XP total de tous les projets (complétés + simulés)
     let totalXP = userProgress.currentXP;
-    
+
     // Utiliser un Set pour tracker les projets déjà comptés (éviter les doublons)
     const countedProjects = new Set<string>();
-    
+
     // Pour chaque projet simulé sans sous-projets, ajouter son XP
     simulatedProjects.forEach(projectSlug => {
       // Trouver le projet dans les données RNCP (on s'arrête dès qu'on le trouve)
@@ -263,9 +329,18 @@ const Dashboard: React.FC = () => {
         for (const category of rncp.categories) {
           const project = category.projects.find(p => p.slug === projectSlug || p.id === projectSlug);
           if (project && !project.subProjects && !countedProjects.has(project.id)) {
-            totalXP += project.xp;
+            // Appliquer le pourcentage personnalisé si présent
+            const percentage = projectPercentages[project.id] ?? 100;
+            let addedXP = Math.round((project.xp * percentage) / 100);
+
+            // Appliquer le boost coalition si activé pour ce projet
+            if (coalitionBoosts[project.id]) {
+              addedXP = Math.round(addedXP * 1.042);
+            }
+
+            totalXP += addedXP;
             countedProjects.add(project.id);
-            console.log(`✅ Projet: ${project.name} +${project.xp} XP`);
+            console.log(`✅ Projet: ${project.name} +${addedXP} XP (base: ${project.xp}, %: ${percentage}, boost: ${coalitionBoosts[project.id] ? 'yes' : 'no'})`);
             break; // On sort de la boucle des catégories
           }
         }
@@ -277,7 +352,7 @@ const Dashboard: React.FC = () => {
     Object.entries(simulatedSubProjects).forEach(([projectId, subProjectIds]) => {
       // On compte ce projet seulement s'il n'a pas déjà été compté
       if (countedProjects.has(projectId)) return;
-      
+
       for (const rncp of RNCP_DATA) {
         for (const category of rncp.categories) {
           const project = category.projects.find(p => p.id === projectId);
@@ -289,11 +364,22 @@ const Dashboard: React.FC = () => {
 
             if (allSubProjectsValidated) {
               // Si tous les sous-projets sont validés, ajouter l'XP du projet principal
-              console.log(`✅ Piscine complète: ${project.name} +${project.xp} XP`);
-              totalXP += project.xp;
+              let addedXP = project.xp;
+
+              // Appliquer le pourcentage personnalisé si présent (rare pour les piscines)
+              const percentage = projectPercentages[project.id] ?? 100;
+              addedXP = Math.round((addedXP * percentage) / 100);
+
+              // Appliquer le boost coalition si activé
+              if (coalitionBoosts[project.id]) {
+                addedXP = Math.round(addedXP * 1.042);
+              }
+
+              console.log(`✅ Piscine complète: ${project.name} +${addedXP} XP (base: ${project.xp}, %: ${percentage}, boost: ${coalitionBoosts[project.id] ? 'yes' : 'no'})`);
+              totalXP += addedXP;
             }
 
-            // Ajouter l'XP de chaque sous-projet validé individuellement
+            // Ajouter l'XP de chaque sous-projet validé individuellement (sans boost coalition)
             subProjectIds.forEach(subId => {
               const subProject = project.subProjects?.find(s => s.id === subId);
               if (subProject && subProject.xp > 0) {
@@ -301,7 +387,7 @@ const Dashboard: React.FC = () => {
                 totalXP += subProject.xp;
               }
             });
-            
+
             countedProjects.add(projectId);
             break; // On sort de la boucle des catégories
           }
@@ -314,7 +400,7 @@ const Dashboard: React.FC = () => {
     const newLevel = xpService.getLevelFromXP(totalXP);
     console.log(`📊 Niveau projeté: ${newLevel}`);
     setProjectedLevel(newLevel);
-  }, [simulatedProjects, simulatedSubProjects, userProgress]);
+  }, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts]);
 
   const handleToggleSimulation = (projectId: string) => {
     setSimulatedProjects(prev => {
@@ -383,7 +469,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleAddCustomProject = (name: string, xp: number, percentage: number, note?: string) => {
+  const handleAddCustomProject = (name: string, xp: number, percentage: number, note?: string, hasCoalitionBoost?: boolean) => {
     const newProject: SimulatorProject = {
       id: `custom-${Date.now()}`,
       name: name,
@@ -404,9 +490,18 @@ const Dashboard: React.FC = () => {
     if (note) {
       setProjectNotes(prev => ({ ...prev, [newProject.id]: note }));
     }
+
+    // Sauvegarder le boost coalition si activé
+    if (hasCoalitionBoost) {
+      setCoalitionBoosts(prev => {
+        const newBoosts = { ...prev, [newProject.id]: true };
+        localStorage.setItem('coalition_boosts', JSON.stringify(newBoosts));
+        return newBoosts;
+      });
+    }
   };
 
-  const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number, note?: string) => {
+  const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number, note?: string, hasCoalitionBoost?: boolean) => {
     setCustomProjects(prev =>
       prev.map(project =>
         project.id === id
@@ -437,6 +532,18 @@ const Dashboard: React.FC = () => {
         return rest;
       });
     }
+
+    // Mettre à jour le boost coalition
+    setCoalitionBoosts(prev => {
+      const newBoosts = { ...prev };
+      if (hasCoalitionBoost) {
+        newBoosts[id] = true;
+      } else {
+        delete newBoosts[id];
+      }
+      localStorage.setItem('coalition_boosts', JSON.stringify(newBoosts));
+      return newBoosts;
+    });
   };
 
   const handleDeleteCustomProject = (id: string) => {
@@ -457,6 +564,14 @@ const Dashboard: React.FC = () => {
         return rest;
       });
     }
+  };
+
+  const handleToggleCoalitionBoost = (projectId: string) => {
+    setCoalitionBoosts(prev => {
+      const newBoosts = { ...prev, [projectId]: !prev[projectId] };
+      localStorage.setItem('coalition_boosts', JSON.stringify(newBoosts));
+      return newBoosts;
+    });
   };
 
   const getCompletedProjects = (): SimulatorProject[] => {
@@ -699,6 +814,8 @@ const Dashboard: React.FC = () => {
             onDeleteCustomProject={handleDeleteCustomProject}
             projectNotes={projectNotes}
             onSaveNote={handleSaveNote}
+            coalitionBoosts={coalitionBoosts}
+            onToggleCoalitionBoost={handleToggleCoalitionBoost}
           />
         </motion.div>
 
@@ -706,17 +823,18 @@ const Dashboard: React.FC = () => {
         <AddCustomProjectModal
           isOpen={customProjectModal.isOpen}
           onClose={() => setCustomProjectModal({ isOpen: false, editProject: null })}
-          onSave={(name, xp, percentage, note) => {
+          onSave={(name, xp, percentage, note, hasCoalitionBoost) => {
             if (customProjectModal.editProject) {
-              handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage, note);
+              handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage, note, hasCoalitionBoost);
             } else {
-              handleAddCustomProject(name, xp, percentage, note);
+              handleAddCustomProject(name, xp, percentage, note, hasCoalitionBoost);
             }
           }}
           editProject={customProjectModal.editProject ? {
             ...customProjectModal.editProject,
             percentage: projectPercentages[customProjectModal.editProject.id] || 100,
             note: projectNotes[customProjectModal.editProject.id] || '',
+            hasCoalitionBoost: coalitionBoosts[customProjectModal.editProject.id] || false,
           } : null}
         />
       </div>

@@ -23,6 +23,8 @@ interface CategorySectionProps {
 	onDeleteCustomProject?: (id: string) => void;
 	projectNotes?: Record<string, string>;
 	onSaveNote?: (projectId: string, note: string) => void;
+	coalitionBoosts?: Record<string, boolean>;
+	onToggleCoalitionBoost?: (projectId: string) => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -42,6 +44,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	onDeleteCustomProject,
 	projectNotes = {},
 	onSaveNote,
+	coalitionBoosts = {},
+	onToggleCoalitionBoost,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
 
@@ -176,6 +180,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 										onPercentageChange={isCompleted ? undefined : onPercentageChange}
 										projectNote={projectNotes[project.id]}
 										onSaveNote={onSaveNote}
+										hasCoalitionBoost={coalitionBoosts[project.id] || false}
+										onToggleCoalitionBoost={onToggleCoalitionBoost}
 									/>
 								);
 							})}

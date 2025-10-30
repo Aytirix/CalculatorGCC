@@ -10,6 +10,8 @@ interface ProjectContextMenuProps {
   onEditNote: () => void;
   projectName: string;
   isCompleted: boolean;
+  hasCoalitionBoost?: boolean;
+  onToggleCoalitionBoost?: () => void;
 }
 
 const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -20,6 +22,8 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   onEditNote,
   projectName,
   isCompleted,
+  hasCoalitionBoost = false,
+  onToggleCoalitionBoost,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = React.useState({ x, y });
@@ -94,19 +98,48 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
       <div className="context-menu-header">
         <span className="project-name-truncate">{projectName}</span>
       </div>
-      <div className="context-menu-divider" />
-      {!isCompleted && (
-        <button
-          className="context-menu-item"
-          onClick={() => {
+      
+      {/* Toggle Boost Coalitions */}
+      {onToggleCoalitionBoost && (
+        <>
+          <div className="context-menu-toggle">
+            <div className="toggle-content">
+              <span className="toggle-icon">🏆</span>
+              <div className="toggle-info">
+                <span className="toggle-label">Boost Coalitions</span>
+                <span className="toggle-description">+4.2% XP</span>
+              </div>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={hasCoalitionBoost}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onToggleCoalitionBoost();
+                }}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+          <div className="context-menu-divider" />
+        </>
+      )}
+      
+      <button
+        className={`context-menu-item ${isCompleted ? 'disabled' : ''}`}
+        onClick={() => {
+          if (!isCompleted) {
             onEditPercentage();
             onClose();
-          }}
-        >
-          <span className="context-menu-icon">📊</span>
-          <span>Modifier le pourcentage</span>
-        </button>
-      )}
+          }
+        }}
+        disabled={isCompleted}
+        title={isCompleted ? 'Projet validé via l\'API 42 - modification désactivée' : 'Modifier le pourcentage'}
+      >
+        <span className="context-menu-icon">📊</span>
+        <span>Modifier le pourcentage</span>
+      </button>
       <button
         className="context-menu-item"
         onClick={() => {
