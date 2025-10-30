@@ -235,6 +235,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					onEditPercentage={handleOpenModal}
 					onEditNote={handleOpenNoteModal}
 					projectName={project.name}
+					isCompleted={isCompleted}
 				/>
 			)}
 

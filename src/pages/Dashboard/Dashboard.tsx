@@ -130,12 +130,69 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      if (forceRefresh) {
-        console.log('Force refresh requested - bypassing cache');
+      // Vérifier le cache localStorage d'abord (sauf si force refresh)
+      const CACHE_KEY = 'user_data_cache';
+      const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 jours
+      
+      if (!forceRefresh) {
+        const cachedData = localStorage.getItem(CACHE_KEY);
+        if (cachedData) {
+          try {
+            const { data, timestamp } = JSON.parse(cachedData);
+            const age = Date.now() - timestamp;
+            
+            if (age < CACHE_TTL) {
+              console.log(`[Dashboard] Using cached data (age: ${Math.round(age / 1000)}s)`);
+              const userData = data;
+              
+              // Traiter les données cachées (même logique qu'après l'API)
+              const completedProjectSlugs = userData.projects;
+              const realPercentages: Record<string, number> = {};
+              (userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
+                if (project.validated === true) {
+                  const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
+                  realPercentages[project.project.name] = percentage;
+                }
+              });
+              setCompletedProjectsPercentages(realPercentages);
+              
+              const progress: UserProgress = {
+                currentLevel: userData.level,
+                currentXP: xpService.getXPFromLevel(userData.level),
+                events: userData.eventsCount,
+                professionalExperience: 0,
+                completedProjects: completedProjectSlugs,
+                simulatedProjects: [],
+              };
+              
+              setUserProgress(progress);
+              setProjectedLevel(userData.level);
+              setLoading(false);
+              return; // Sortir sans appeler l'API
+            } else {
+              console.log('[Dashboard] Cache expired, fetching fresh data');
+              localStorage.removeItem(CACHE_KEY);
+            }
+          } catch (err) {
+            console.error('[Dashboard] Error reading cache:', err);
+            localStorage.removeItem(CACHE_KEY);
+          }
+        }
+      } else {
+        console.log('[Dashboard] Force refresh requested - bypassing cache');
+        localStorage.removeItem(CACHE_KEY);
       }
 
       // Récupérer les données de l'utilisateur depuis le backend
+      console.log('[Dashboard] Fetching data from backend...');
       const userData = await BackendAPI42Service.getUserData(forceRefresh);
+      
+      // Mettre en cache
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data: userData,
+        timestamp: Date.now(),
+      }));
+      console.log('[Dashboard] Data cached in localStorage');
       
       // La liste des slugs des projets validés est déjà dans userData.projects
       const completedProjectSlugs = userData.projects;

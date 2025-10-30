@@ -9,6 +9,7 @@ interface ProjectContextMenuProps {
   onEditPercentage: () => void;
   onEditNote: () => void;
   projectName: string;
+  isCompleted: boolean;
 }
 
 const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -18,6 +19,7 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   onEditPercentage,
   onEditNote,
   projectName,
+  isCompleted,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,16 +59,18 @@ const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
         <span className="project-name-truncate">{projectName}</span>
       </div>
       <div className="context-menu-divider" />
-      <button
-        className="context-menu-item"
-        onClick={() => {
-          onEditPercentage();
-          onClose();
-        }}
-      >
-        <span className="context-menu-icon">📊</span>
-        <span>Modifier le pourcentage</span>
-      </button>
+      {!isCompleted && (
+        <button
+          className="context-menu-item"
+          onClick={() => {
+            onEditPercentage();
+            onClose();
+          }}
+        >
+          <span className="context-menu-icon">📊</span>
+          <span>Modifier le pourcentage</span>
+        </button>
+      )}
       <button
         className="context-menu-item"
         onClick={() => {
