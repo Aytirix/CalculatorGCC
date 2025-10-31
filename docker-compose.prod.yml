@@ -31,6 +31,8 @@ services:
       PORT: 7000
       HOSTNAME: ${HOSTNAME:-localhost}
       ENABLE_SSL: ${ENABLE_SSL:-true}
+    env_file:
+      - ./backend/srcs/.env
     restart: unless-stopped
     networks:
       - calculatorGCC_network

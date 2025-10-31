@@ -19,4 +19,7 @@ export const config = {
   
   // URL de base de l'application (pour les redirections, etc.)
   appUrl: buildUrl(hostname, 3000, enableSSL),
+  
+  // API 42 URL
+  api42Url: 'https://api.intra.42.fr',
 };
