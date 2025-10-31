@@ -1,0 +1,65 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: calculatorGCC_nginx_dev
+    depends_on:
+      - backend
+      - frontend
+    environment:
+      NODE_PROJET: dev
+      ENABLE_SSL: ${ENABLE_SSL:-true}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - ./nginx/conf/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ssl_certs:/etc/nginx/ssl
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: calculatorGCC_backend_dev
+    environment:
+      NODE_ENV: development
+      PORT: 7000
+      HOSTNAME: ${HOSTNAME:-localhost}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
+    volumes:
+      - ./backend/srcs:/app:delegated
+      - /app/node_modules
+    working_dir: /app
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: calculatorGCC_frontend_dev
+    environment:
+      NODE_ENV: development
+      VITE_HOSTNAME: ${HOSTNAME:-localhost}
+      VITE_ENABLE_SSL: ${ENABLE_SSL:-false}
+    volumes:
+      - ./frontend/srcs:/app:delegated
+      - /app/node_modules
+    working_dir: /app
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+networks:
+  calculatorGCC_network:
+    driver: bridge
+
+volumes:
+  ssl_certs:

@@ -1,6 +1,8 @@
 import { storage } from '@/utils/storage';
+import { config } from '@/config/config';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:7000';
+// Le backend est accessible via Nginx reverse proxy
+const BACKEND_URL = config.backendUrl;
 const JWT_STORAGE_KEY = 'gcc_jwt_token';
 
 export interface JWTPayload {
@@ -30,7 +32,7 @@ export const backendAuthService = {
    * Redirige vers le backend pour initier l'authentification OAuth 42
    */
   login: (): void => {
-    window.location.href = `${BACKEND_URL}/api/auth/42`;
+    window.location.href = `${BACKEND_URL}/auth/42`;
   },
 
   /**
@@ -97,7 +99,7 @@ export const backendAuthService = {
     if (!token) return false;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      const response = await fetch(`${BACKEND_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -140,7 +142,7 @@ export const backendAuthService = {
     if (!token) return null;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      const response = await fetch(`${BACKEND_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -166,7 +168,7 @@ export const backendAuthService = {
     // Appel optionnel au backend
     if (token) {
       try {
-        await fetch(`${BACKEND_URL}/api/auth/logout`, {
+        await fetch(`${BACKEND_URL}/auth/logout`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,

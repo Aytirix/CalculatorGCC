@@ -27,3 +27,12 @@ dist-ssr
 *.sln
 *.sw?
 backend/.env
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+.docker
+
+# Ignore generated SSL certificates
+nginx/ssl/
