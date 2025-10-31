@@ -72,7 +72,12 @@ export const xpService = {
   },
 
   // Calculer l'XP total d'une liste de projets
-  calculateTotalXP: (projects: SimulatorProject[]): number => {
+  calculateTotalXP: (
+    projects: SimulatorProject[], 
+    projectPercentages?: Record<string, number>,
+    completedProjectsPercentages?: Record<string, number>,
+    coalitionBoosts?: Record<string, boolean>
+  ): number => {
     return projects.reduce((total, project) => {
       let projectXP = project.xp;
       
@@ -81,6 +86,15 @@ export const xpService = {
       if (project.subProjects && project.subProjects.length > 0) {
         // L'XP du projet parent est déjà la somme
         projectXP = project.xp;
+      }
+
+      // Appliquer le pourcentage du projet (simulé ou complété)
+      const percentage = projectPercentages?.[project.id] ?? completedProjectsPercentages?.[project.id] ?? 100;
+      projectXP = Math.round((projectXP * percentage) / 100);
+
+      // Appliquer le boost de coalition si activé (+4.2%)
+      if (coalitionBoosts?.[project.id]) {
+        projectXP = Math.round(projectXP * 1.042);
       }
       
       return total + projectXP;
@@ -94,7 +108,10 @@ export const xpService = {
     userEvents: number,
     userProfessionalExp: number,
     completedProjects: string[],
-    simulatedProjects: string[]
+    simulatedProjects: string[],
+    projectPercentages?: Record<string, number>,
+    completedProjectsPercentages?: Record<string, number>,
+    coalitionBoosts?: Record<string, boolean>
   ): RNCPValidation => {
     const allValidatedProjects = [...completedProjects, ...simulatedProjects];
 
@@ -109,7 +126,13 @@ export const xpService = {
 
     // Valider chaque catégorie
     const categoriesValidation: CategoryValidation[] = rncp.categories.map((category) => {
-      return xpService.validateCategory(category, allValidatedProjects);
+      return xpService.validateCategory(
+        category, 
+        allValidatedProjects, 
+        projectPercentages, 
+        completedProjectsPercentages, 
+        coalitionBoosts
+      );
     });
 
     // Le RNCP est valide si toutes les conditions sont remplies
@@ -130,7 +153,13 @@ export const xpService = {
   },
 
   // Valider une catégorie
-  validateCategory: (category: ProjectCategory, validatedProjects: string[]): CategoryValidation => {
+  validateCategory: (
+    category: ProjectCategory, 
+    validatedProjects: string[],
+    projectPercentages?: Record<string, number>,
+    completedProjectsPercentages?: Record<string, number>,
+    coalitionBoosts?: Record<string, boolean>
+  ): CategoryValidation => {
     // Trouver les projets validés de cette catégorie
     const categoryValidatedProjects = category.projects.filter((project) => {
       const projectSlug = project.slug || project.id;
@@ -139,7 +168,12 @@ export const xpService = {
     });
 
     const currentCount = categoryValidatedProjects.length;
-    const currentXP = xpService.calculateTotalXP(categoryValidatedProjects);
+    const currentXP = xpService.calculateTotalXP(
+      categoryValidatedProjects, 
+      projectPercentages, 
+      completedProjectsPercentages, 
+      coalitionBoosts
+    );
 
     const isValid =
       currentCount >= category.requiredCount &&

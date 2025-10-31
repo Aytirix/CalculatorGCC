@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
@@ -632,7 +632,8 @@ const Dashboard: React.FC = () => {
     return projects;
   };
 
-  const getRNCPValidations = (): RNCPValidation[] => {
+  // Mémoriser les validations RNCP et les recalculer quand les dépendances changent
+  const rncpValidations = useMemo((): RNCPValidation[] => {
     if (!userProgress) return [];
 
     // Injecter les projets personnalisés dans la catégorie "Autres projets"
@@ -661,10 +662,13 @@ const Dashboard: React.FC = () => {
         userProgress.events,
         userProgress.professionalExperience,
         userProgress.completedProjects,
-        simulatedProjects
+        simulatedProjects,
+        projectPercentages,
+        completedProjectsPercentages,
+        coalitionBoosts
       );
     });
-  };
+  }, [userProgress, projectedLevel, simulatedProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
 
   if (loading) {
     return (
@@ -719,7 +723,6 @@ const Dashboard: React.FC = () => {
     return rncp;
   });
 
-  const rncpValidations = getRNCPValidations();
   const completedProjects = getCompletedProjects();
   const simulatedProjectsDetails = getSimulatedProjectsDetails();
   const selectedRNCP = rncpDataWithCustom[selectedRNCPIndex];
