@@ -27,14 +27,8 @@ dev: ## Démarrer l'application en mode développement
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml up --build -d
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée !$(RESET)"
-	@echo "$(BLUE)📍 Accès:$(RESET)"
-	@echo "   - Frontend: https://localhost:3000"
-	@echo "   - Backend API: https://localhost:3000/api/"
 	@echo ""
-	@echo "$(YELLOW)📋 Commandes utiles:$(RESET)"
-	@echo "   - Voir les logs: make logs-dev"
-	@echo "   - Arrêter: make stop"
-	@echo "   - Redémarrer: make restart-dev"
+	@./show-urls.sh
 	@echo ""
 
 build-dev: ## Rebuild les images en mode développement
@@ -57,15 +51,8 @@ prod: ## Démarrer l'application en mode production
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml up -d
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée en production !$(RESET)"
-	@echo "$(BLUE)📍 Accès:$(RESET)"
-	@echo "   - Application: https://localhost:3000"
-	@echo "   - API Backend: https://localhost:3000/api/"
 	@echo ""
-	@echo "$(YELLOW)📋 Commandes utiles:$(RESET)"
-	@echo "   - Voir les logs: make logs-prod"
-	@echo "   - Arrêter: make stop"
-	@echo "   - Redémarrer: make restart-prod"
-	@echo ""
+	@./show-urls.sh
 	@echo "$(YELLOW)⚠️  Note: Les certificats SSL sont auto-signés.$(RESET)"
 
 build-prod: ## Rebuild les images en mode production

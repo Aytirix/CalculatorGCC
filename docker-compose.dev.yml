@@ -11,7 +11,7 @@ services:
       NODE_PROJET: dev
       ENABLE_SSL: ${ENABLE_SSL:-true}
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d:ro
       - ./nginx/conf/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
