@@ -42,6 +42,28 @@ const Header: React.FC = () => {
         </motion.div>
 
         <motion.div
+          className="header-nav"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="nav-button"
+          >
+            Projets
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/professional-experience')}
+            className="nav-button"
+          >
+            Expérience professionnelle
+          </Button>
+        </motion.div>
+
+        <motion.div
           className="header-actions"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}

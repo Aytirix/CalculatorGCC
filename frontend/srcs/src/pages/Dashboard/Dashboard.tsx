@@ -7,6 +7,7 @@ import { RNCP_DATA } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted } from '@/utils/projectMatcher';
+import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import './Dashboard.scss';
 
@@ -189,17 +190,19 @@ const Dashboard: React.FC = () => {
             });
             setCompletedProjectsPercentages(realPercentages);
             
+            const professionalExpXP = professionalExperienceStorage.getRealXP();
+            const professionalExpCount = professionalExperienceStorage.getRealCount();
             const progress: UserProgress = {
               currentLevel: userData.level,
               currentXP: xpService.getXPFromLevel(userData.level),
               events: userData.eventsCount,
-              professionalExperience: 0,
+              professionalExperience: professionalExpCount,
               completedProjects: completedProjectSlugs,
               simulatedProjects: [],
             };
             
             setUserProgress(progress);
-            setProjectedLevel(userData.level);
+            setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
             setLoading(false);
             return;
           }
@@ -220,17 +223,19 @@ const Dashboard: React.FC = () => {
             });
             setCompletedProjectsPercentages(realPercentages);
             
+            const professionalExpXP = professionalExperienceStorage.getRealXP();
+            const professionalExpCount = professionalExperienceStorage.getRealCount();
             const progress: UserProgress = {
               currentLevel: userData.level,
               currentXP: xpService.getXPFromLevel(userData.level),
               events: userData.eventsCount,
-              professionalExperience: 0,
+              professionalExperience: professionalExpCount,
               completedProjects: completedProjectSlugs,
               simulatedProjects: [],
             };
             
             setUserProgress(progress);
-            setProjectedLevel(userData.level);
+            setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
             setLoading(false);
             return; // Sortir sans appeler l'API
           }
@@ -276,17 +281,19 @@ const Dashboard: React.FC = () => {
       setCompletedProjectsPercentages(realPercentages);
       
       // Créer la progression utilisateur
+      const professionalExpXP = professionalExperienceStorage.getRealXP();
+      const professionalExpCount = professionalExperienceStorage.getRealCount();
       const progress: UserProgress = {
         currentLevel: userData.level,
         currentXP: xpService.getXPFromLevel(userData.level),
         events: userData.eventsCount,
-        professionalExperience: 0, // À implémenter: extraction depuis l'API 42
+        professionalExperience: professionalExpCount,
         completedProjects: completedProjectSlugs,
         simulatedProjects: [],
       };
 
       setUserProgress(progress);
-      setProjectedLevel(userData.level);
+      setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
       setLoading(false);
     } catch (err) {
       const error = err as Error;
@@ -309,6 +316,20 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadUserData();
+
+    // Écouter les changements du localStorage pour les expériences professionnelles
+    const handleStorageChange = () => {
+      // Recalculer le niveau avec les nouvelles expériences
+      if (userProgress) {
+        const professionalExpXP = professionalExperienceStorage.getTotalXP();
+        const totalXP = userProgress.currentXP + professionalExpXP;
+        const newLevel = xpService.getLevelFromXP(totalXP);
+        setProjectedLevel(newLevel);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -395,6 +416,11 @@ const Dashboard: React.FC = () => {
         if (countedProjects.has(projectId)) break; // On sort de la boucle des RNCPs
       }
     });
+
+    // Ajouter l'XP des expériences professionnelles
+    const professionalExperiencesXP = professionalExperienceStorage.getTotalXP();
+    totalXP += professionalExperiencesXP;
+    console.log(`👔 XP des expériences professionnelles: ${professionalExperiencesXP}`);
 
     console.log(`💡 XP Total calculé: ${totalXP}`);
     const newLevel = xpService.getLevelFromXP(totalXP);
@@ -717,7 +743,7 @@ const Dashboard: React.FC = () => {
                   <span className="label">Niveau actuel</span>
                   <span className="value">{userProgress.currentLevel.toFixed(2)}</span>
                 </div>
-                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
+                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceStorage.getTotalXP() > 0) && (
                   <>
                     <span className="arrow">→</span>
                     <div className="level-projected">
@@ -727,11 +753,18 @@ const Dashboard: React.FC = () => {
                   </>
                 )}
               </div>
-              {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
-                <p className="simulation-info">
-                  {simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
-                </p>
-              )}
+              <div className="simulation-info">
+                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
+                  <p>
+                    {simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
+                  </p>
+                )}
+                {professionalExperienceStorage.getTotalXP() > 0 && (
+                  <p>
+                    {professionalExperienceStorage.getAll().length} expérience{professionalExperienceStorage.getAll().length > 1 ? 's' : ''} professionnelle{professionalExperienceStorage.getAll().length > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="header-actions">
               <button 

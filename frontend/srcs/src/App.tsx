@@ -8,6 +8,7 @@ import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
 import Dashboard from '@/pages/Dashboard/Dashboard';
 import Settings from '@/pages/Settings/Settings';
+import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -32,6 +33,14 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/professional-experience"
+        element={
+          <ProtectedRoute>
+            <ProfessionalExperience />
           </ProtectedRoute>
         }
       />

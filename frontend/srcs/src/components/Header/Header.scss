@@ -17,13 +17,35 @@
 }
 
 .header-container {
-  @include flex-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-lg;
   max-width: 1400px;
   margin: 0 auto;
   padding: $spacing-md $spacing-lg;
 
   @include respond-to(lg) {
     padding: $spacing-md $spacing-xl;
+  }
+}
+
+.header-nav {
+  display: flex;
+  gap: $spacing-sm;
+  flex: 1;
+  justify-content: center;
+
+  .nav-button {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all $transition-fast;
+
+    &:hover {
+      color: var(--color-primary);
+      background-color: var(--bg-hover);
+    }
   }
 }
 
