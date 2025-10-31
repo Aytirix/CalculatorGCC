@@ -27,19 +27,11 @@ const fastify = Fastify({
 // CORS
 // Le frontend accède au backend via Nginx (frontendUrl)
 // En dev, on accepte aussi les ports Vite directs pour le développement local
-const allowedOrigins = [
-	config.frontendUrl,
-	// Ports de dev Vite (si accès direct, hors Docker)
-	'http://localhost:5173',
-	'http://localhost:5180',
-];
-
 await fastify.register(cors, {
-	origin: allowedOrigins,
+	origin: true,
 	credentials: true,
 	methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-	// Cache les preflight requests (OPTIONS) pendant 24h pour réduire le nombre de requêtes
-	maxAge: 86400, // 24 heures en secondes
+	maxAge: 86400,
 });
 
 // Helmet - sécurise les headers HTTP
