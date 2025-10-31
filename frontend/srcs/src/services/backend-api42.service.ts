@@ -1,6 +1,7 @@
 import { backendAuthService } from './backend-auth.service';
+import { config } from '@/config/config';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:7000';
+const BACKEND_URL = config.backendUrl;
 
 export interface Project42 {
   id: number;
@@ -89,21 +90,21 @@ export class BackendAPI42Service {
    * Récupère les projets de l'utilisateur
    */
   static async getUserProjects(): Promise<Project42[]> {
-    return this.request<Project42[]>('/api/api42/projects');
+    return this.request<Project42[]>('/api42/projects');
   }
 
   /**
    * Récupère les cursus de l'utilisateur
    */
   static async getUserCursus(): Promise<CursusUser[]> {
-    return this.request<CursusUser[]>('/api/api42/cursus');
+    return this.request<CursusUser[]>('/api42/cursus');
   }
 
   /**
    * Récupère les événements de l'utilisateur
    */
   static async getUserEvents(): Promise<Event42[]> {
-    return this.request<Event42[]>('/api/api42/events');
+    return this.request<Event42[]>('/api42/events');
   }
 
   /**
@@ -111,8 +112,8 @@ export class BackendAPI42Service {
    */
   static async getUserData(forceRefresh = false): Promise<UserData> {
     const endpoint = forceRefresh 
-      ? '/api/api42/user-data?refresh=true' 
-      : '/api/api42/user-data';
+      ? '/api42/user-data?refresh=true' 
+      : '/api42/user-data';
     return this.request<UserData>(endpoint);
   }
 
@@ -120,7 +121,7 @@ export class BackendAPI42Service {
    * Récupère les infos complètes de l'utilisateur depuis l'API 42
    */
   static async getMe(): Promise<unknown> {
-    return this.request<unknown>('/api/api42/me');
+    return this.request<unknown>('/api42/me');
   }
 
   /**

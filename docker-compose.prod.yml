@@ -1,0 +1,57 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: calculatorGCC_nginx_prod
+    depends_on:
+      - backend
+    environment:
+      NODE_PROJET: production
+      ENABLE_SSL: ${ENABLE_SSL:-true}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - ./nginx/conf/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - frontend_build:/var/www/html/frontend:ro
+      - ssl_certs:/etc/nginx/ssl
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: calculatorGCC_backend_prod
+    environment:
+      NODE_ENV: production
+      PORT: 7000
+      HOSTNAME: ${HOSTNAME:-localhost}
+      ENABLE_SSL: ${ENABLE_SSL:-true}
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+  # Service temporaire pour builder le frontend
+  frontend_builder:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: calculatorGCC_frontend_builder
+    environment:
+      VITE_HOSTNAME: ${HOSTNAME:-localhost}
+      VITE_ENABLE_SSL: ${ENABLE_SSL:-true}
+    volumes:
+      - frontend_build:/app/dist
+
+networks:
+  calculatorGCC_network:
+    driver: bridge
+
+volumes:
+  frontend_build:
+  ssl_certs:
