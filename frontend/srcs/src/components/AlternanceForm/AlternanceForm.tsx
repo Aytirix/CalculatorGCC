@@ -9,14 +9,15 @@ import './AlternanceForm.scss';
 interface AlternanceFormProps {
   onSubmit: (experience: Omit<ProfessionalExperience, 'id'>) => void;
   onCancel: () => void;
+  initialValues?: ProfessionalExperience | null;
 }
 
-const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel }) => {
-  const [startDate, setStartDate] = useState('');
-  const [duration, setDuration] = useState<1 | 2>(1);
-  const [validationPercentage, setValidationPercentage] = useState(100);
-  const [coalitionBoost, setCoalitionBoost] = useState(false);
-  const [isSimulation, setIsSimulation] = useState(false);
+const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, initialValues }) => {
+  const [startDate, setStartDate] = useState(initialValues?.startDate || '');
+  const [duration, setDuration] = useState<1 | 2>((initialValues?.duration as 1 | 2) || 1);
+  const [validationPercentage, setValidationPercentage] = useState(initialValues?.validationPercentage || 100);
+  const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
+  const [isSimulation, setIsSimulation] = useState(initialValues?.isSimulation || false);
   const [calculatedXP, setCalculatedXP] = useState(0);
 
   // Calculate XP whenever inputs change

@@ -21,6 +21,42 @@ body {
   min-height: 100vh;
 }
 
+// Scrollbar styling - Arrondie et moderne
+* {
+  // Pour les navigateurs WebKit (Chrome, Safari, Edge)
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(var(--text-rgb), 0.05);
+    border-radius: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(var(--text-rgb), 0.2);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.3s ease;
+
+    &:hover {
+      background: rgba(var(--text-rgb), 0.3);
+      background-clip: padding-box;
+    }
+
+    &:active {
+      background: rgba(var(--text-rgb), 0.4);
+      background-clip: padding-box;
+    }
+  }
+
+  // Pour Firefox
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--text-rgb), 0.2) rgba(var(--text-rgb), 0.05);
+}
+
 #root {
   min-height: 100vh;
   display: flex;

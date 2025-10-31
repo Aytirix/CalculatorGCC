@@ -8,9 +8,10 @@ interface ExperienceCardProps {
   experience: ProfessionalExperience;
   index: number;
   onDelete: () => void;
+  onEdit: () => void;
 }
 
-const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience, index, onDelete }) => {
+const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience, index, onDelete, onEdit }) => {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Non spécifiée';
     const date = new Date(dateString);
@@ -57,15 +58,26 @@ const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience, index, onDe
             🔮 Simulation
           </span>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDelete}
-          className="delete-button"
-          title="Supprimer"
-        >
-          🗑️
-        </Button>
+        <div className="card-actions">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            className="edit-button"
+            title="Modifier"
+          >
+            ✏️
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            className="delete-button"
+            title="Supprimer"
+          >
+            🗑️
+          </Button>
+        </div>
       </div>
 
       <div className="card-body">

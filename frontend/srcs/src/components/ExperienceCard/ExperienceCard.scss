@@ -105,15 +105,26 @@
       border: 1px solid var(--color-warning);
     }
 
+    .card-actions {
+      display: flex;
+      gap: $spacing-xs;
+    }
+
+    .edit-button,
     .delete-button {
       font-size: 1.2rem;
       color: var(--text-secondary);
       transition: all $transition-fast;
+    }
 
-      &:hover {
-        color: var(--color-danger);
-        background: rgba(var(--color-danger-rgb), 0.1);
-      }
+    .edit-button:hover {
+      color: var(--color-primary);
+      background: rgba(var(--color-primary-rgb), 0.1);
+    }
+
+    .delete-button:hover {
+      color: var(--color-danger);
+      background: rgba(var(--color-danger-rgb), 0.1);
     }
   }
 

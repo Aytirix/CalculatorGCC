@@ -10,12 +10,20 @@ interface AddExperienceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (experience: Omit<ProfessionalExperience, 'id'>) => void;
+  editingExperience?: ProfessionalExperience | null;
 }
 
 type ExperienceType = 'stage' | 'alternance' | null;
 
-const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ isOpen, onClose, onAdd }) => {
-  const [selectedType, setSelectedType] = useState<ExperienceType>(null);
+const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onAdd, 
+  editingExperience 
+}) => {
+  const [selectedType, setSelectedType] = useState<ExperienceType>(
+    editingExperience?.type || null
+  );
 
   const handleClose = () => {
     setSelectedType(null);
@@ -26,6 +34,15 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ isOpen, onClose
     onAdd(experience);
     setSelectedType(null);
   };
+
+  // Réinitialiser le type sélectionné quand l'expérience en édition change
+  React.useEffect(() => {
+    if (editingExperience) {
+      setSelectedType(editingExperience.type);
+    } else {
+      setSelectedType(null);
+    }
+  }, [editingExperience]);
 
   if (!isOpen) return null;
 
@@ -41,7 +58,7 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ isOpen, onClose
           onClick={(e) => e.stopPropagation()}
         >
           <div className="modal-header">
-            <h2>Ajouter une expérience professionnelle</h2>
+            <h2>{editingExperience ? 'Modifier' : 'Ajouter'} une expérience professionnelle</h2>
             <button className="close-button" onClick={handleClose}>
               ✕
             </button>
@@ -74,11 +91,13 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ isOpen, onClose
               <StageForm
                 onSubmit={handleAdd}
                 onCancel={() => setSelectedType(null)}
+                initialValues={editingExperience}
               />
             ) : (
               <AlternanceForm
                 onSubmit={handleAdd}
                 onCancel={() => setSelectedType(null)}
+                initialValues={editingExperience}
               />
             )}
           </div>

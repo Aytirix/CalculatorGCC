@@ -21,6 +21,7 @@ export interface ProfessionalExperience {
 const ProfessionalExperience: React.FC = () => {
   const [experiences, setExperiences] = useState<ProfessionalExperience[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExperience, setEditingExperience] = useState<ProfessionalExperience | null>(null);
 
   // Charger les expériences depuis le localStorage au montage
   useEffect(() => {
@@ -29,15 +30,32 @@ const ProfessionalExperience: React.FC = () => {
   }, []);
 
   const handleAddExperience = (experience: Omit<ProfessionalExperience, 'id'>) => {
-    const newExperience: ProfessionalExperience = {
-      ...experience,
-      id: Date.now().toString(),
-    };
-    const updatedExperiences = professionalExperienceStorage.add(newExperience);
-    setExperiences(updatedExperiences);
+    if (editingExperience) {
+      // Mode édition
+      const updatedExperience: ProfessionalExperience = {
+        ...experience,
+        id: editingExperience.id,
+      };
+      const updatedExperiences = professionalExperienceStorage.update(updatedExperience);
+      setExperiences(updatedExperiences);
+      setEditingExperience(null);
+    } else {
+      // Mode ajout
+      const newExperience: ProfessionalExperience = {
+        ...experience,
+        id: Date.now().toString(),
+      };
+      const updatedExperiences = professionalExperienceStorage.add(newExperience);
+      setExperiences(updatedExperiences);
+    }
     setIsModalOpen(false);
     // Forcer un rafraîchissement pour mettre à jour le niveau sur le dashboard
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleEditExperience = (experience: ProfessionalExperience) => {
+    setEditingExperience(experience);
+    setIsModalOpen(true);
   };
 
   const handleDeleteExperience = (id: string) => {
@@ -45,6 +63,11 @@ const ProfessionalExperience: React.FC = () => {
     setExperiences(updatedExperiences);
     // Forcer un rafraîchissement pour mettre à jour le niveau sur le dashboard
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingExperience(null);
   };
 
   const totalXP = experiences.reduce((sum, exp) => sum + exp.xpEarned, 0);
@@ -109,6 +132,7 @@ const ProfessionalExperience: React.FC = () => {
                 key={experience.id}
                 experience={experience}
                 index={index}
+                onEdit={() => handleEditExperience(experience)}
                 onDelete={() => handleDeleteExperience(experience.id)}
               />
             ))
@@ -118,8 +142,9 @@ const ProfessionalExperience: React.FC = () => {
 
       <AddExperienceModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         onAdd={handleAddExperience}
+        editingExperience={editingExperience}
       />
     </div>
   );

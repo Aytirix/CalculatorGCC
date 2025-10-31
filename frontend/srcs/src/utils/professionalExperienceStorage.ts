@@ -39,6 +39,17 @@ export const professionalExperienceStorage = {
   },
 
   /**
+   * Met à jour une expérience existante
+   */
+  update(experience: ProfessionalExperience): ProfessionalExperience[] {
+    const experiences = this.getAll().map(exp => 
+      exp.id === experience.id ? experience : exp
+    );
+    this.saveAll(experiences);
+    return experiences;
+  },
+
+  /**
    * Supprime une expérience par son ID
    */
   remove(id: string): ProfessionalExperience[] {
