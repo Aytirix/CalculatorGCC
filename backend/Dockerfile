@@ -13,6 +13,9 @@ COPY srcs/ ./
 FROM base AS development
 # Installer tsx pour le développement avec hot-reload
 CMD ["npm", "run", "dev"]
+#debugging
+#CMD ["npm", "run", "debug"]
+
 
 # Stage de build pour la production
 FROM base AS builder

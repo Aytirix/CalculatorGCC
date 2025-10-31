@@ -31,9 +31,7 @@ export const matchesProject = (localSlug: string, apiSlug: string): boolean => {
   
   // Le projet local doit au moins être contenu dans le slug de l'API
   const matches = normalizedApi.includes(normalizedLocal);
-  
-  console.log(`🔍 Comparaison: "${localSlug}" (→"${normalizedLocal}") vs "${apiSlug}" (→"${normalizedApi}") = ${matches ? '✅ MATCH' : '❌ NO MATCH'}`);
-  
+
   return matches;
 };
 

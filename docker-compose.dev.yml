@@ -31,6 +31,8 @@ services:
       PORT: 7000
       HOSTNAME: ${HOSTNAME:-localhost}
       ENABLE_SSL: ${ENABLE_SSL:-false}
+    ports:
+      - "9229:9229"  # Port pour le débogage
     volumes:
       - ./backend/srcs:/app:delegated
       - /app/node_modules
