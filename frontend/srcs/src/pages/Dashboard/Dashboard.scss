@@ -20,28 +20,36 @@
   margin-bottom: $spacing-2xl;
 
   .welcome-header {
+    position: relative;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: flex-start;
-    gap: 2rem;
 
     @media (max-width: 768px) {
       flex-direction: column;
       align-items: stretch;
-      gap: 1rem;
     }
   }
 
   .welcome-content {
     flex: 1;
     text-align: center;
+    max-width: 100%;
   }
 
   .header-actions {
+    position: absolute;
+    right: 0;
+    top: 0;
     display: flex;
     gap: $spacing-sm;
     align-items: flex-start;
-    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      position: static;
+      justify-content: center;
+      margin-top: 1rem;
+    }
   }
 
   .refresh-button,

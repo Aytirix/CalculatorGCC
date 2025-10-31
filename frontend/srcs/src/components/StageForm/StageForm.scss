@@ -1,0 +1,228 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.stage-form {
+  .form-header {
+    text-align: center;
+    margin-bottom: $spacing-xl;
+    padding-bottom: $spacing-lg;
+    border-bottom: 1px solid var(--border-color);
+
+    h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 $spacing-xs 0;
+    }
+
+    .form-description {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+  }
+
+  .form-group {
+    margin-bottom: $spacing-lg;
+
+    label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: $spacing-xs;
+    }
+
+    input[type="date"],
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: $spacing-sm $spacing-md;
+      font-size: 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: $border-radius-md;
+      color: var(--text-primary);
+      transition: all $transition-fast;
+
+      &:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+      }
+    }
+  }
+
+  .percentage-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    input {
+      flex: 1;
+      padding-right: $spacing-xl;
+    }
+
+    .percentage-symbol {
+      position: absolute;
+      right: $spacing-md;
+      color: var(--text-secondary);
+      font-weight: 600;
+      pointer-events: none;
+    }
+  }
+
+  .percentage-slider {
+    width: 100%;
+    margin-top: $spacing-sm;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+
+    &::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      cursor: pointer;
+      border: none;
+      transition: all $transition-fast;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+  }
+
+  .switch-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $spacing-md;
+    background: var(--bg-secondary);
+    border-radius: $border-radius-md;
+    border: 1px solid var(--border-color);
+    transition: all $transition-fast;
+
+    &:has(button[data-state="checked"]) {
+      background: rgba(var(--color-primary-rgb), 0.05);
+      border-color: var(--color-primary);
+    }
+
+    .switch-label-container {
+      flex: 1;
+
+      label {
+        margin: 0;
+        transition: color $transition-fast;
+      }
+
+      .switch-description {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin: $spacing-xs 0 0 0;
+        transition: color $transition-fast;
+      }
+    }
+
+    // Améliorer le switch visuellement
+    button[role="switch"] {
+      &[data-state="checked"] {
+        background: var(--color-primary) !important;
+      }
+
+      &[data-state="unchecked"] {
+        background: var(--border-color) !important;
+      }
+
+      span {
+        background: white !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+    }
+  }
+
+  .xp-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $spacing-lg;
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-primary-rgb), 0.05));
+    border: 2px solid var(--color-primary);
+    border-radius: $border-radius-lg;
+    margin: $spacing-xl 0;
+
+    .xp-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .xp-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+  }
+
+  .form-actions {
+    display: flex;
+    gap: $spacing-md;
+    justify-content: flex-end;
+
+    button {
+      padding: $spacing-sm $spacing-lg;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all $transition-fast;
+
+      // Bouton "Annuler" (outline variant)
+      &:first-child {
+        background: transparent;
+        color: var(--text-primary);
+        border: 2px solid var(--border-color);
+
+        &:hover {
+          background: var(--bg-secondary);
+          border-color: var(--text-secondary);
+        }
+      }
+
+      // Bouton "Ajouter le stage" (default/primary variant)
+      &:last-child {
+        background: var(--color-primary);
+        color: white;
+        border: 2px solid var(--color-primary);
+
+        &:hover {
+          background: var(--color-primary);
+          opacity: 0.9;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
+      }
+    }
+  }
+}

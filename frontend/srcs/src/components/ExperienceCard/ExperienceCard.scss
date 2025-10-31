@@ -1,0 +1,166 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.experience-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: $border-radius-xl;
+  padding: $spacing-lg;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  transition: all $transition-fast;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
+    opacity: 0;
+    transition: opacity $transition-fast;
+  }
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px var(--shadow-color);
+
+    &::before {
+      opacity: 1;
+    }
+  }
+
+  &.stage {
+    border-color: var(--color-info);
+
+    .card-type {
+      color: var(--color-info);
+    }
+
+    &::before {
+      background: linear-gradient(90deg, var(--color-info), #4dabf7);
+    }
+  }
+
+  &.alternance {
+    border-color: var(--color-primary);
+
+    .card-type {
+      color: var(--color-primary);
+    }
+  }
+
+  &.simulation {
+    border-style: dashed;
+    opacity: 0.85;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(var(--color-warning-rgb), 0.03) 10px,
+        rgba(var(--color-warning-rgb), 0.03) 20px
+      );
+      pointer-events: none;
+    }
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-lg;
+    padding-bottom: $spacing-md;
+    border-bottom: 1px solid var(--border-color);
+
+    .card-type {
+      display: flex;
+      align-items: center;
+      gap: $spacing-xs;
+      font-weight: 700;
+      font-size: 1.1rem;
+      flex: 1;
+
+      .type-icon {
+        font-size: 1.5rem;
+      }
+    }
+
+    .simulation-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: $spacing-xs $spacing-sm;
+      background: rgba(var(--color-warning-rgb), 0.15);
+      color: var(--color-warning);
+      border-radius: $border-radius-sm;
+      border: 1px solid var(--color-warning);
+    }
+
+    .delete-button {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      transition: all $transition-fast;
+
+      &:hover {
+        color: var(--color-danger);
+        background: rgba(var(--color-danger-rgb), 0.1);
+      }
+    }
+  }
+
+  .card-body {
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: $spacing-sm 0;
+
+      .info-label {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      .info-value {
+        font-size: 0.95rem;
+        color: var(--text-primary);
+        font-weight: 600;
+
+        &.boost {
+          color: var(--color-success);
+        }
+      }
+    }
+
+    .xp-display {
+      margin-top: $spacing-lg;
+      padding: $spacing-md;
+      background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-primary-rgb), 0.05));
+      border-radius: $border-radius-lg;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .xp-label {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+
+      .xp-value {
+        font-size: 1.3rem;
+        color: var(--color-primary);
+        font-weight: 700;
+      }
+    }
+  }
+}
