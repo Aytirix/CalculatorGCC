@@ -24,12 +24,23 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
   useEffect(() => {
     // Base XP: 10500 per month at 100%
     const baseXP = 10500 * months;
-    // Apply validation percentage
-    const xpWithValidation = (baseXP * validationPercentage) / 100;
-    // Apply coalition boost (4.2% if enabled)
-    const finalXP = xpWithValidation * (1 + (coalitionBoost ? 4.2 : 0) / 100);
+    
+    // Pour les expériences réelles, l'XP de base+validation est déjà compté dans le level de l'API 42
+    // On ne compte que le boost de coalition (4.2%)
+    // Pour les simulations, on compte tout (base + validation + boost)
+    let finalXP;
+    if (isSimulation) {
+      // Simulation: compter XP total (base + validation + boost)
+      const xpWithValidation = (baseXP * validationPercentage) / 100;
+      finalXP = xpWithValidation * (1 + (coalitionBoost ? 4.2 : 0) / 100);
+    } else {
+      // Réel: compter uniquement le boost coalition sur l'XP à 100%
+      // (le pourcentage de validation n'affecte que l'affichage, pas le boost)
+      finalXP = coalitionBoost ? (baseXP * 4.2 / 100) : 0;
+    }
+    
     setCalculatedXP(Math.round(finalXP));
-  }, [months, validationPercentage, coalitionBoost]);
+  }, [months, validationPercentage, coalitionBoost, isSimulation]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
