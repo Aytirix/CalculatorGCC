@@ -49,7 +49,8 @@ const RNCPCard = ({
   onToggleCoalitionBoost
 }: RNCPCardProps) => {
   const isFullyValidated = validation.overallValid;
-  const hasLevelRequirement = validation.isLevelValid;
+  // Utiliser le niveau réel pour la validation, pas le niveau projeté
+  const hasLevelRequirement = userProgress.currentLevel >= rncp.level;
   const hasEventsRequirement = validation.isEventsValid;
   const hasProfessionalExperience = validation.isProfessionalExperienceValid;
 
@@ -57,10 +58,78 @@ const RNCPCard = ({
   const completedProjectSlugs = completedProjects.map(p => p.slug || p.id);
   const simulatedProjectSlugs = simulatedProjects.map(p => p.slug || p.id);
 
+  // Calculer le pourcentage de validation réel (sans simulations)
+  const calculateRealValidationPercentage = (): number => {
+    let totalCriteria = 0;
+    let validatedCriteria = 0;
+
+    // 1. Niveau (1 critère) - Utiliser le niveau actuel réel, pas le projeté
+    totalCriteria++;
+    if (userProgress.currentLevel >= rncp.level) validatedCriteria++;
+
+    // 2. Événements (1 critère)
+    totalCriteria++;
+    if (validation.isEventsValid) validatedCriteria++;
+
+    // 3. Expérience professionnelle (1 critère)
+    totalCriteria++;
+    if (validation.isProfessionalExperienceValid) validatedCriteria++;
+
+    // 4. Catégories (2 critères par catégorie : nombre de projets + XP minimum)
+    // Recalculer en ne comptant que les projets complétés (pas simulés)
+    rncp.categories.forEach(category => {
+      // Trouver les projets complétés réels (non simulés) de cette catégorie
+      const realCompletedProjects = category.projects.filter(project => {
+        const projectSlug = project.slug || project.id;
+        // Le projet est complété s'il est dans completedProjects mais PAS dans simulatedProjects
+        return completedProjectSlugs.includes(projectSlug) && !simulatedProjectSlugs.includes(projectSlug);
+      });
+
+      const realCount = realCompletedProjects.length;
+      const realXP = realCompletedProjects.reduce((sum, project) => sum + project.xp, 0);
+
+      // Critère: nombre de projets requis
+      totalCriteria++;
+      if (realCount >= category.requiredCount) {
+        validatedCriteria++;
+      }
+
+      // Critère: XP minimum requis
+      totalCriteria++;
+      if (realXP >= category.requiredXP) {
+        validatedCriteria++;
+      }
+    });
+
+    return totalCriteria > 0 ? Math.round((validatedCriteria / totalCriteria) * 100) : 0;
+  };
+
+  const validationPercentage = calculateRealValidationPercentage();
+  const isGlobalRNCP = rncp.id === 'rncp-global';
+
   return (
     <div className={`rncp-card ${isFullyValidated ? 'rncp-card--validated' : ''}`}>
-      {/* Prérequis en une ligne compacte */}
-      <div className="rncp-card__requirements">
+      {/* Pourcentage de validation global - Ne pas afficher pour RNCP Global */}
+      {!isGlobalRNCP && (
+        <div className="rncp-card__validation-progress">
+          <div className="rncp-card__validation-progress-bar">
+            <div 
+              className="rncp-card__validation-progress-fill" 
+              style={{ width: `${validationPercentage}%` }}
+            ></div>
+          </div>
+          <div className="rncp-card__validation-progress-text">
+            <span className="rncp-card__validation-progress-label">Validation</span>
+            <span className="rncp-card__validation-progress-value">
+              {validationPercentage}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Prérequis en une ligne compacte - Ne pas afficher pour RNCP Global */}
+      {!isGlobalRNCP && (
+        <div className="rncp-card__requirements">
         <div className="rncp-card__requirement-item">
           <span className={`rncp-card__requirement-icon ${hasLevelRequirement ? 'validated' : ''}`}>
             {hasLevelRequirement ? '✓' : '○'}
@@ -103,6 +172,7 @@ const RNCPCard = ({
           </span>
         </div>
       </div>
+      )}
 
       {/* Catégories */}
       <div className="rncp-card__categories">
