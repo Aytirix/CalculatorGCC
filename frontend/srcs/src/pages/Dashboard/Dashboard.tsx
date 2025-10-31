@@ -829,7 +829,7 @@ const Dashboard: React.FC = () => {
             rncp={selectedRNCP}
             validation={selectedValidation}
             userProgress={{
-              currentLevel: projectedLevel,
+              currentLevel: userProgress.currentLevel,
               events: userProgress.events,
               professionalExperience: userProgress.professionalExperience,
             }}
