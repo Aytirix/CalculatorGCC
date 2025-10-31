@@ -13,9 +13,9 @@ export const config = {
   hostname,
   enableSSL,
   
-  // Backend API via Nginx reverse proxy
-  // Construction automatique de l'URL backend (via /api/)
-  backendUrl: import.meta.env.VITE_API_URL || buildUrl(hostname, 3000, enableSSL, '/api'),
+
+  backendUrl: '/api',
+  
   
   // URL de base de l'application (pour les redirections, etc.)
   appUrl: buildUrl(hostname, 3000, enableSSL),
