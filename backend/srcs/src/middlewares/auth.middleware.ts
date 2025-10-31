@@ -7,22 +7,13 @@ export type AuthenticatedRequest = FastifyRequest;
  * Middleware d'authentification JWT
  * Vérifie le token et attache l'utilisateur à la requête
  */
-export async function authenticate(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
-  try {
-    const authHeader = request.headers.authorization;
-    console.log('[Auth Middleware] Authorization header:', authHeader?.substring(0, 50) + '...');
-    
-    await request.jwtVerify();
-    console.log('[Auth Middleware] JWT verified successfully, user:', request.user);
-    // Le payload JWT est automatiquement attaché à request.user par @fastify/jwt
-  } catch (err: any) {
-    console.error('[Auth Middleware] JWT verification failed:', err.message);
-    reply.code(401).send({ error: 'Unauthorized', message: 'Invalid or missing token' });
-  }
-}
+export const authenticate = async (request: FastifyRequest, reply: FastifyReply) => {
+	try {
+		await request.jwtVerify();
+	} catch (err: any) {
+		reply.code(401).send({ error: 'Token invalide ou expiré' });
+	}
+};
 
 /**
  * Middleware optionnel d'authentification
