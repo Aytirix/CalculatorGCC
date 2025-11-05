@@ -9,10 +9,26 @@ Application web pour calculer et suivre votre progression dans le cursus 42, ave
 make dev
 
 # Accéder à l'application
-open https://localhost:3000
+open http://localhost:3000
 ```
 
-C'est tout ! 🎉
+### 🔧 Configuration Initiale
+
+Au premier démarrage, vous serez redirigé vers la page de configuration :
+
+1. **Créer une application OAuth 42** :
+   - Allez sur https://profile.intra.42.fr/oauth/applications
+   - Créez une nouvelle application
+   - Redirect URI: `http://localhost:3000/callback`
+
+2. **Configurer l'application** :
+   - Visitez http://localhost:3000/setup
+   - Entrez votre Client ID et Client Secret
+   - Cliquez sur "Complete Setup"
+
+3. **C'est prêt !** 🎉
+   - L'application redémarre automatiquement
+   - Vous pouvez maintenant vous connecter avec votre compte 42
 
 ## 📚 Documentation
 
@@ -67,10 +83,12 @@ C'est tout ! 🎉
 - Ajout de projets personnalisés
 - Notes et pourcentages personnalisables
 
-### 🔐 Authentification
-- OAuth 42 (optionnel)
-- Stockage local des données
+### 🔐 Authentification & Sécurité
+- OAuth 42 avec configuration initiale sécurisée
+- Setup wizard avec token one-time
+- Stockage sécurisé des credentials dans .env
 - JWT pour l'API
+- Protection automatique des routes avant configuration
 
 ## 📦 Stack Technique
 

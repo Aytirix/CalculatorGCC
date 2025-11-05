@@ -28,7 +28,7 @@ dev: ## Démarrer l'application en mode développement
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée !$(RESET)"
 	@echo ""
-	@./show-urls.sh
+	@bash ./show-urls.sh || true
 	@echo ""
 
 build-dev: ## Rebuild les images en mode développement
@@ -52,7 +52,7 @@ prod: ## Démarrer l'application en mode production
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée en production !$(RESET)"
 	@echo ""
-	@./show-urls.sh
+	@bash ./show-urls.sh || true
 	@echo "$(YELLOW)⚠️  Note: Les certificats SSL sont auto-signés.$(RESET)"
 
 build-prod: ## Rebuild les images en mode production
@@ -80,6 +80,30 @@ clean: ## Arrêter et supprimer tous les conteneurs, volumes et images
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v --rmi all 2>/dev/null || true
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml down -v --rmi all 2>/dev/null || true
 	@echo "$(GREEN)✅ Nettoyage terminé$(RESET)"
+
+fclean: ## Nettoyage total (Docker + node_modules + .env backend)
+	@echo "$(RED)⚠️  ATTENTION: Cette commande va supprimer:$(RESET)"
+	@echo "  - Tous les conteneurs Docker"
+	@echo "  - Tous les volumes Docker"
+	@echo "  - Toutes les images Docker"
+	@echo "  - Les node_modules du frontend et backend"
+	@echo "  - Le fichier .env du backend"
+	@echo ""
+	@read -p "$(YELLOW)Êtes-vous sûr ? [y/N] $(RESET)" confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "$(RED)🗑️  Suppression en cours...$(RESET)"; \
+		$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v --rmi all 2>/dev/null || true; \
+		$(DOCKER_COMPOSE) -f docker-compose.prod.yml down -v --rmi all 2>/dev/null || true; \
+		echo "$(YELLOW)  → Suppression des node_modules du frontend...$(RESET)"; \
+		rm -rf frontend/srcs/node_modules 2>/dev/null || true; \
+		echo "$(YELLOW)  → Suppression des node_modules du backend...$(RESET)"; \
+		rm -rf backend/srcs/node_modules 2>/dev/null || true; \
+		echo "$(YELLOW)  → Suppression du .env du backend...$(RESET)"; \
+		rm -f backend/srcs/.env 2>/dev/null || true; \
+		echo "$(GREEN)✅ Nettoyage total terminé !$(RESET)"; \
+	else \
+		echo "$(BLUE)ℹ️  Annulé.$(RESET)"; \
+	fi
 
 ps: status ## Alias pour status
 

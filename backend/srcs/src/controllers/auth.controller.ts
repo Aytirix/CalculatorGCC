@@ -22,6 +22,8 @@ export class AuthController {
   static async handleCallback(request: any, reply: FastifyReply) {
     const { code } = request.query as { code?: string };
 
+    console.log('[Auth Controller] OAuth callback received with code:', code);
+
     if (!code) {
       return reply.code(400).send({ error: 'Missing authorization code' });
     }

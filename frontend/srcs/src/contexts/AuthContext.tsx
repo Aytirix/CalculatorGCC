@@ -9,6 +9,7 @@ interface AuthContextType {
   login: () => void;
   logout: () => Promise<void>;
   getApiToken: () => string | null;
+  refreshAuth: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,6 +81,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return backendAuthService.getApiToken();
   };
 
+  const refreshAuth = async () => {
+    setIsLoading(true);
+    await initializeAuth();
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
@@ -87,6 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     getApiToken,
+    refreshAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
