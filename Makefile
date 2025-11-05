@@ -89,7 +89,8 @@ fclean: ## Nettoyage total (Docker + node_modules + .env backend)
 	@echo "  - Les node_modules du frontend et backend"
 	@echo "  - Le fichier .env du backend"
 	@echo ""
-	@read -p "$(YELLOW)Êtes-vous sûr ? [y/N] $(RESET)" confirm; \
+	@printf "$(YELLOW)Êtes-vous sûr ? [y/N] $(RESET)"; \
+	read confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
 		echo "$(RED)🗑️  Suppression en cours...$(RESET)"; \
 		$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v --rmi all 2>/dev/null || true; \

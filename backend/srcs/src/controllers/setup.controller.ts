@@ -78,7 +78,7 @@ class SetupController {
       
       return reply.send({
         success: true,
-        message: 'Configuration updated successfully. Please restart the server for changes to take effect.',
+        message: 'Configuration updated successfully. Changes applied immediately.',
         configured: true
       });
     } catch (error) {
