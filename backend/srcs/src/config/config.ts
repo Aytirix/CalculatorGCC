@@ -1,6 +1,17 @@
 import dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+// Équivalent de __dirname en ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Charge le .env s'il existe
+const envPath = path.join(__dirname, '../../.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 // Helper pour construire les URLs avec le bon protocole
 const buildUrl = (hostname: string, port: number, useSSL: boolean): string => {
@@ -21,8 +32,8 @@ export const config = {
   frontendUrl: buildUrl(hostname, 3000, enableSSL),
 
   oauth42: {
-    clientId: process.env.CLIENT_ID_42!,
-    clientSecret: process.env.CLIENT_SECRET_42!,
+    clientId: process.env.CLIENT_ID_42 || '',
+    clientSecret: process.env.CLIENT_SECRET_42 || '',
     // Construction automatique de l'URI de redirection si non fournie
     redirectUri: `${buildUrl(hostname, 3000, enableSSL)}/api/auth/callback`,
     authUrl: 'https://api.intra.42.fr/oauth/authorize',
@@ -31,7 +42,7 @@ export const config = {
   },
   
   jwt: {
-    secret: process.env.JWT_SECRET!,
+    secret: process.env.JWT_SECRET || 'temporary-secret-for-setup',
     expiresIn: '7d',
   },
   
@@ -41,18 +52,27 @@ export const config = {
   },
 };
 
-// Validate required environment variables
+// Validate configuration (only logs warnings if not configured yet)
 function validateConfig() {
-  const required = [
-    'CLIENT_ID_42',
-    'CLIENT_SECRET_42',
-    'JWT_SECRET',
-  ];
+  // Vérifie si on est en mode setup
+  const isSetupMode = process.env.CONFIGURED !== 'true';
   
-  const missing = required.filter(key => !process.env[key]);
-  
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (isSetupMode) {
+    console.log('⚠️  Application in SETUP mode');
+    console.log('   Configuration will be required before normal operation');
+  } else {
+    // Vérifie les variables requises seulement si configuré
+    const required = [
+      'CLIENT_ID_42',
+      'CLIENT_SECRET_42',
+      'JWT_SECRET',
+    ];
+    
+    const missing = required.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
   }
   
   // Log des URLs construites pour debug

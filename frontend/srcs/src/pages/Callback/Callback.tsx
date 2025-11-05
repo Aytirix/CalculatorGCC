@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { backendAuthService } from '@/services/backend-auth.service';
+import { useAuth } from '@/contexts/useAuth';
 import './Callback.scss';
 
 /**
@@ -12,6 +13,7 @@ const Callback: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const { refreshAuth } = useAuth();
 
   useEffect(() => {
     const processCallback = async () => {
@@ -47,7 +49,11 @@ const Callback: React.FC = () => {
         const isValid = await backendAuthService.validateToken();
 
         if (isValid) {
-          console.log('[Callback] Token valid, redirecting to dashboard');
+          console.log('[Callback] Token valid, refreshing auth context');
+          // Rafraîchir le contexte d'authentification et attendre qu'il soit prêt
+          await refreshAuth();
+          
+          console.log('[Callback] Auth refreshed, redirecting to dashboard');
           // Rediriger vers le dashboard
           navigate('/dashboard', { replace: true });
         } else {

@@ -6,6 +6,20 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config/config.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { api42Routes } from './routes/api42.routes.js';
+import { setupRoutes } from './routes/setup.routes.js';
+import { requireConfigured } from './middlewares/setup.middleware.js';
+import { checkAndCreateEnv } from './utils/envSetup.js';
+
+// ===== SETUP CHECK =====
+// Vérifie si le .env existe et crée la configuration initiale si nécessaire
+const setupStatus = checkAndCreateEnv();
+if (!setupStatus.isConfigured) {
+	console.log('⚠️  APPLICATION NOT CONFIGURED');
+	console.log('📝 Please visit http://localhost:3000/setup to complete initial configuration');
+	if (setupStatus.setupToken) {
+		console.log(`🔑 Setup Token: ${setupStatus.setupToken}`);
+	}
+}
 
 const fastify = Fastify({
 	logger: {
@@ -78,8 +92,16 @@ fastify.get('/health', async () => {
 // ===== API ROUTES =====
 // Note: Pas de préfixe /api ici car Nginx le gère déjà
 // Les requêtes arrivent comme: /auth/42, /auth/callback, etc.
-await fastify.register(authRoutes);
-await fastify.register(api42Routes);
+
+// Routes de setup - toujours accessibles (avec leur propre middleware de protection)
+await fastify.register(setupRoutes);
+
+// Routes protégées - nécessitent que l'application soit configurée
+await fastify.register(async (protectedInstance) => {
+	protectedInstance.addHook('onRequest', requireConfigured);
+	await protectedInstance.register(authRoutes);
+	await protectedInstance.register(api42Routes);
+});
 
 // ===== ERROR HANDLER =====
 
