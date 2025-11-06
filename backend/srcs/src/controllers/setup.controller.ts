@@ -3,8 +3,8 @@ import {
   isConfigured,
   getSetupToken,
   updateEnvConfiguration
-} from '../utils/envSetup';
-import { validateApi42Credentials } from '../utils/validateApi42Credentials';
+} from '../utils/envSetup.js';
+import { validateApi42Credentials } from '../utils/validateApi42Credentials.js';
 
 interface ConfigureRequest {
   setupToken: string;
@@ -16,7 +16,7 @@ class SetupController {
   /**
    * Vérifie l'état de configuration de l'application
    */
-  async getStatus(request: FastifyRequest, reply: FastifyReply) {
+  async getStatus(_request: FastifyRequest, reply: FastifyReply) {
     const configured = isConfigured();
     
     return reply.send({
@@ -31,7 +31,7 @@ class SetupController {
    * Retourne le token de setup (uniquement si non configuré)
    * Ce token est utilisé pour sécuriser la configuration initiale
    */
-  async getSetupToken(request: FastifyRequest, reply: FastifyReply) {
+  async getSetupToken(_request: FastifyRequest, reply: FastifyReply) {
     const setupToken = getSetupToken();
     
     if (!setupToken) {

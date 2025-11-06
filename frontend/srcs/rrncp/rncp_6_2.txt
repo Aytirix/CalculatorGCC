@@ -48,7 +48,7 @@ kfs-8 15750XP
 kfs-9 15750XP
 kfs-x 35700XP
 mod1 9450XP
-dslr 9450XP
+dslr 6000XP
 guimp 12600XP
 zappy 25200XP
 rubik 9450XP

@@ -28,6 +28,9 @@ WORKDIR /app
 
 # Copier uniquement les fichiers nécessaires
 COPY srcs/package*.json ./
+COPY srcs/.env ./
+# Copier le package-lock.json depuis le stage builder
+COPY --from=builder /app/package-lock.json ./
 RUN npm ci --only=production
 
 # Copier le code compilé

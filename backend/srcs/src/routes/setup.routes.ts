@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { setupController } from '../controllers/setup.controller';
-import { requireNotConfigured, requireLocalhost } from '../middlewares/setup.middleware';
+import { setupController } from '../controllers/setup.controller.js';
+import { requireNotConfigured, requireLocalhost } from '../middlewares/setup.middleware.js';
 
 export async function setupRoutes(server: FastifyInstance) {
   // Route pour vérifier l'état de configuration (accessible depuis n'importe où)

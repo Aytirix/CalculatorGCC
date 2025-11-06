@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { isConfigured } from '../utils/envSetup';
+import { isConfigured } from '../utils/envSetup.js';
 
 /**
  * Middleware qui bloque toutes les routes si l'application n'est pas configurée
@@ -28,7 +28,7 @@ export async function requireConfigured(
  * Middleware qui bloque les routes de setup si l'application est déjà configurée
  */
 export async function requireNotConfigured(
-  request: FastifyRequest,
+  _request: FastifyRequest,
   reply: FastifyReply
 ) {
   if (isConfigured()) {

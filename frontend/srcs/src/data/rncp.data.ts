@@ -28,7 +28,7 @@ const RNCP_GLOBAL: RNCP = {
 				{ id: 'darkly', name: 'darkly', xp: 6300, slug: 'darkly' },
 				{ id: 'death', name: 'death', xp: 35700, slug: 'death' },
 				{ id: 'doom-nukem', name: 'doom-nukem', xp: 15750, slug: 'doom-nukem' },
-				{ id: 'dslr', name: 'dslr', xp: 9450, slug: 'dslr' },
+				{ id: 'dslr', name: 'dslr', xp: 6000, slug: 'dslr' },
 				{ id: 'expert-system', name: 'expert-system', xp: 9450, slug: 'expert-system' },
 				{ id: 'famine', name: 'famine', xp: 9450, slug: 'famine' },
 				{ id: 'filesystem', name: 'filesystem', xp: 15750, slug: 'filesystem' },
