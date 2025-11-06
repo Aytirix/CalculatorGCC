@@ -24,6 +24,11 @@ help: ## Afficher l'aide
 
 dev: ## Démarrer l'application en mode développement
 	@echo "$(GREEN)🚀 Démarrage en mode DÉVELOPPEMENT...$(RESET)"
+	@if [ ! -f .env ]; then \
+		echo "$(YELLOW)📝 Création du fichier .env depuis .env.example...$(RESET)"; \
+		cp .env.example .env; \
+		echo "$(GREEN)✅ Fichier .env créé !$(RESET)"; \
+	fi
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml up --build -d
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée !$(RESET)"
@@ -47,6 +52,11 @@ logs-dev: ## Voir les logs en mode développement
 
 prod: ## Démarrer l'application en mode production
 	@echo "$(GREEN)🚀 Démarrage en mode PRODUCTION...$(RESET)"
+	@if [ ! -f .env ]; then \
+		echo "$(YELLOW)📝 Création du fichier .env depuis .env.example...$(RESET)"; \
+		cp .env.example .env; \
+		echo "$(GREEN)✅ Fichier .env créé !$(RESET)"; \
+	fi
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml build
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml up -d
 	@echo ""
@@ -75,7 +85,7 @@ stop: ## Arrêter tous les conteneurs (dev et prod)
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml down 2>/dev/null || true
 	@echo "$(GREEN)✅ Tous les conteneurs ont été arrêtés$(RESET)"
 
-clean: ## Arrêter et supprimer tous les conteneurs, volumes et images
+clean: ## Arrêter et supprimer tous les conteneurs, volumes et images et node_modules
 	@echo "$(RED)🧹 Nettoyage complet...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v --rmi all 2>/dev/null || true
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml down -v --rmi all 2>/dev/null || true
@@ -85,12 +95,13 @@ clean: ## Arrêter et supprimer tous les conteneurs, volumes et images
 	echo "$(YELLOW)  → Suppression des node_modules du backend...$(RESET)"; \
 	rm -rf backend/srcs/node_modules 2>/dev/null || true; \
 
-fclean: ## Nettoyage total (Docker + node_modules + .env backend)
+fclean: ## Nettoyage total (Docker + node_modules + .env)
 	@echo "$(RED)⚠️  ATTENTION: Cette commande va supprimer:$(RESET)"
 	@echo "  - Tous les conteneurs Docker"
 	@echo "  - Tous les volumes Docker"
 	@echo "  - Toutes les images Docker"
 	@echo "  - Les node_modules du frontend et backend"
+	@echo "  - Le fichier .env à la racine"
 	@echo "  - Le fichier .env du backend"
 	@echo ""
 	@printf "$(YELLOW)Êtes-vous sûr ? [y/N] $(RESET)"; \
@@ -103,6 +114,8 @@ fclean: ## Nettoyage total (Docker + node_modules + .env backend)
 		rm -rf frontend/srcs/node_modules 2>/dev/null || true; \
 		echo "$(YELLOW)  → Suppression des node_modules du backend...$(RESET)"; \
 		rm -rf backend/srcs/node_modules 2>/dev/null || true; \
+		echo "$(YELLOW)  → Suppression du .env à la racine...$(RESET)"; \
+		rm -f .env 2>/dev/null || true; \
 		echo "$(YELLOW)  → Suppression du .env du backend...$(RESET)"; \
 		rm -f backend/srcs/.env 2>/dev/null || true; \
 		echo "$(GREEN)✅ Nettoyage total terminé !$(RESET)"; \
