@@ -38,3 +38,25 @@ export async function requireNotConfigured(
     });
   }
 }
+
+/**
+ * Middleware qui vérifie que la requête provient de localhost
+ * Utilisé pour sécuriser les routes de configuration initiale
+ */
+export async function requireLocalhost(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const host = request.headers.host || '';
+  
+  // Vérifie UNIQUEMENT que le host commence par localhost ou 127.0.0.1
+  const hostIsLocalhost = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+  
+  if (!hostIsLocalhost) {
+    return reply.status(403).send({
+      error: 'Access denied',
+      message: 'Setup configuration is only accessible from localhost',
+      remoteAccessBlocked: true
+    });
+  }
+}

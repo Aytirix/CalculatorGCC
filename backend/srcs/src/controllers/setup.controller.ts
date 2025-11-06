@@ -4,6 +4,7 @@ import {
   getSetupToken,
   updateEnvConfiguration
 } from '../utils/envSetup';
+import { validateApi42Credentials } from '../utils/validateApi42Credentials';
 
 interface ConfigureRequest {
   setupToken: string;
@@ -69,6 +70,21 @@ class SetupController {
       });
     }
     
+    // Valide les credentials avec l'API 42
+    console.log('🔐 Validation des credentials API 42...');
+    const validation = await validateApi42Credentials(body.clientId, body.clientSecret);
+    
+    if (!validation.valid) {
+      console.log('❌ Validation échouée:', validation.error);
+      return reply.status(400).send({
+        error: 'Invalid credentials',
+        message: validation.error || 'The provided credentials are invalid or cannot access 42 API',
+        validationFailed: true
+      });
+    }
+    
+    console.log('✅ Credentials validés, sauvegarde...');
+    
     // Met à jour la configuration
     try {
       updateEnvConfiguration({
@@ -76,13 +92,15 @@ class SetupController {
         clientSecret: body.clientSecret
       });
       
+      console.log('✅ Configuration sauvegardée');
+      
       return reply.send({
         success: true,
         message: 'Configuration updated successfully. Changes applied immediately.',
         configured: true
       });
     } catch (error) {
-      console.error('Error updating configuration:', error);
+      console.error('❌ Erreur sauvegarde:', error);
       return reply.status(500).send({
         error: 'Configuration failed',
         message: 'An error occurred while updating the configuration'
