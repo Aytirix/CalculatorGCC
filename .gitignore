@@ -33,3 +33,4 @@ backend/.env
 
 # Ignore generated SSL certificates
 nginx/ssl/
+**/package-lock.json
