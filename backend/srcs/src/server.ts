@@ -79,6 +79,10 @@ await fastify.register(jwt, {
 	},
 });
 
+// ===== GLOBAL MIDDLEWARE =====
+// Bloque toutes les routes sauf /api/setup/* si l'application n'est pas configurée
+fastify.addHook('onRequest', requireConfigured);
+
 // ===== HEALTH CHECK =====
 
 fastify.get('/health', async () => {
@@ -93,15 +97,12 @@ fastify.get('/health', async () => {
 // Note: Pas de préfixe /api ici car Nginx le gère déjà
 // Les requêtes arrivent comme: /auth/42, /auth/callback, etc.
 
-// Routes de setup - toujours accessibles (avec leur propre middleware de protection)
+// Routes de setup - accessibles même si non configuré (le middleware global les laisse passer)
 await fastify.register(setupRoutes);
 
-// Routes protégées - nécessitent que l'application soit configurée
-await fastify.register(async (protectedInstance) => {
-	protectedInstance.addHook('onRequest', requireConfigured);
-	await protectedInstance.register(authRoutes);
-	await protectedInstance.register(api42Routes);
-});
+// Routes protégées - nécessitent que l'application soit configurée (vérifié par le middleware global)
+await fastify.register(authRoutes);
+await fastify.register(api42Routes);
 
 // ===== ERROR HANDLER =====
 

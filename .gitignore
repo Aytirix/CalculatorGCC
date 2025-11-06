@@ -7,8 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
+**/.env
+**/node_modules
+**/dist
 dist-ssr
 *.local
 
@@ -32,3 +33,11 @@ backend/.env
 
 # Ignore generated SSL certificates
 nginx/ssl/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+.docker
+
+**/package-lock.json

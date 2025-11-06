@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { setupService } from '../../services/setup.service';
 import { Button } from '../../components/ui/button';
+import { config } from '../../config/config';
+import SetupInfo from './SetupInfo';
 import './Setup.scss';
 
 const Setup: React.FC = () => {
@@ -16,6 +18,10 @@ const Setup: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isRemoteAccess, setIsRemoteAccess] = useState(false);
+
+  // Construit l'URL du callback avec le hostname configuré
+  const callbackUrl = `${config.appUrl}/api/auth/callback`;
 
   useEffect(() => {
     checkSetupStatus();
@@ -34,6 +40,13 @@ const Setup: React.FC = () => {
       setSetupToken(token);
       setLoading(false);
     } catch (err: any) {
+      // Si l'erreur indique un accès distant bloqué
+      if (err.response?.data?.remoteAccessBlocked) {
+        setIsRemoteAccess(true);
+        setLoading(false);
+        return;
+      }
+      
       setError('Impossible de charger la configuration. Veuillez redémarrer le serveur.');
       setLoading(false);
     }
@@ -75,6 +88,11 @@ const Setup: React.FC = () => {
       [e.target.name]: e.target.value,
     });
   };
+
+  // Si l'accès est distant (non-localhost), afficher la page d'information
+  if (isRemoteAccess) {
+    return <SetupInfo />;
+  }
 
   if (loading) {
     return (
@@ -130,7 +148,7 @@ const Setup: React.FC = () => {
           <ol>
             <li>Rendez-vous sur <a href="https://profile.intra.42.fr/oauth/applications" target="_blank" rel="noopener noreferrer">42 OAuth Applications</a></li>
             <li>Créez une nouvelle application</li>
-            <li>Définissez le Redirect URI : <code>http://localhost:3000/api/auth/callback</code></li>
+            <li>Définissez le Redirect URI : <code>{callbackUrl}</code></li>
             <li>Copiez votre Client ID et Client Secret</li>
           </ol>
         </div>

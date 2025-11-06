@@ -141,10 +141,18 @@ export const professionalExperienceStorage = {
 
   /**
    * Compte le nombre d'expériences réelles (non simulées)
+   * Pour l'alternance de 2 ans, compte comme 2 expériences professionnelles
    */
   getRealCount(): number {
     const experiences = this.getAll();
-    return experiences.filter(exp => !exp.isSimulation).length;
+    return experiences
+      .filter(exp => !exp.isSimulation)
+      .reduce((count, exp) => {
+        if (exp.type === 'alternance' && exp.duration === 2) {
+          return count + 2; // Alternance de 2 ans compte comme 2 expériences
+        }
+        return count + 1; // Autres expériences comptent comme 1
+      }, 0);
   },
 
   /**

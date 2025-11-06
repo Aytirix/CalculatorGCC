@@ -81,7 +81,7 @@ export const RNCP7_DATABASE_DATA: RNCP = {
       requiredCount: 3,
       requiredXP: 70000,
       projects: [
-        { id: 'dslr', name: 'dslr', xp: 9450, slug: 'dslr' },
+        { id: 'dslr', name: 'dslr', xp: 6000, slug: 'dslr' },
         { id: 'expert-system', name: 'expert-system', xp: 9450, slug: 'expert-system' },
         { id: 'ft-linear-regression', name: 'ft-linear-regression', xp: 4200, slug: 'ft-linear-regression' },
         { id: 'gomoku', name: 'gomoku', xp: 25200, slug: 'gomoku' },
