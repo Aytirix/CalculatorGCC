@@ -7,6 +7,7 @@ services:
     depends_on:
       - backend
       - frontend
+      - phpmyadmin
     environment:
       NODE_PROJET: dev
       ENABLE_SSL: ${ENABLE_SSL:-true}
@@ -59,9 +60,38 @@ services:
     networks:
       - calculatorGCC_network
 
+  mariadb:
+    image: mariadb:latest
+    container_name: calculatorGCC_mariadb_dev
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-calculatorgcc}
+      MYSQL_USER: ${DB_USER:-calculatorgcc_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: calculatorGCC_phpmyadmin_dev
+    depends_on:
+      - mariadb
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 50M
+      PMA_ABSOLUTE_URI: ${HOSTNAME:-localhost}:3000/phpmyadmin/
+    restart: unless-stopped
+    networks:
+      - calculatorGCC_network
+
 networks:
   calculatorGCC_network:
     driver: bridge
 
 volumes:
   ssl_certs:
+  mariadb_data:

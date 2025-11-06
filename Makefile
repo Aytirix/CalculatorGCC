@@ -24,11 +24,7 @@ help: ## Afficher l'aide
 
 dev: ## Démarrer l'application en mode développement
 	@echo "$(GREEN)🚀 Démarrage en mode DÉVELOPPEMENT...$(RESET)"
-	@if [ ! -f .env ]; then \
-		echo "$(YELLOW)📝 Création du fichier .env depuis .env.example...$(RESET)"; \
-		cp .env.example .env; \
-		echo "$(GREEN)✅ Fichier .env créé !$(RESET)"; \
-	fi
+	@bash ./scripts/setup-db-env.sh
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml up --build -d
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée !$(RESET)"
@@ -52,11 +48,7 @@ logs-dev: ## Voir les logs en mode développement
 
 prod: ## Démarrer l'application en mode production
 	@echo "$(GREEN)🚀 Démarrage en mode PRODUCTION...$(RESET)"
-	@if [ ! -f .env ]; then \
-		echo "$(YELLOW)📝 Création du fichier .env depuis .env.example...$(RESET)"; \
-		cp .env.example .env; \
-		echo "$(GREEN)✅ Fichier .env créé !$(RESET)"; \
-	fi
+	@bash ./scripts/setup-db-env.sh
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml build
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml up -d
 	@echo ""
@@ -165,6 +157,52 @@ shell-nginx: ## Ouvrir un shell dans le conteneur nginx
 	else \
 		echo "$(RED)❌ Aucun conteneur nginx en cours d'exécution$(RESET)"; \
 	fi
+
+shell-db: ## Ouvrir un shell MySQL dans le conteneur MariaDB
+	@if $(DOCKER_COMPOSE) -f docker-compose.dev.yml ps | grep -q "calculatorGCC_mariadb_dev"; then \
+		$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec mariadb mysql -u root -p; \
+	elif $(DOCKER_COMPOSE) -f docker-compose.prod.yml ps | grep -q "calculatorGCC_mariadb_prod"; then \
+		$(DOCKER_COMPOSE) -f docker-compose.prod.yml exec mariadb mysql -u root -p; \
+	else \
+		echo "$(RED)❌ Aucun conteneur MariaDB en cours d'exécution$(RESET)"; \
+	fi
+
+db-backup: ## Créer une sauvegarde de la base de données
+	@echo "$(BLUE)💾 Création d'une sauvegarde de la base de données...$(RESET)"
+	@mkdir -p ./backups
+	@if $(DOCKER_COMPOSE) -f docker-compose.dev.yml ps | grep -q "calculatorGCC_mariadb_dev"; then \
+		$(DOCKER_COMPOSE) -f docker-compose.dev.yml exec -T mariadb mysqldump -u root -p$$(grep DB_ROOT_PASSWORD .env | cut -d '=' -f2) --all-databases > ./backups/backup_$$(date +%Y%m%d_%H%M%S).sql; \
+	elif $(DOCKER_COMPOSE) -f docker-compose.prod.yml ps | grep -q "calculatorGCC_mariadb_prod"; then \
+		$(DOCKER_COMPOSE) -f docker-compose.prod.yml exec -T mariadb mysqldump -u root -p$$(grep DB_ROOT_PASSWORD .env | cut -d '=' -f2) --all-databases > ./backups/backup_$$(date +%Y%m%d_%H%M%S).sql; \
+	else \
+		echo "$(RED)❌ Aucun conteneur MariaDB en cours d'exécution$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ Sauvegarde créée dans ./backups/$(RESET)"
+
+db-show-password: ## Afficher les informations de connexion à la base de données
+	@echo "$(BLUE)🔑 Informations de connexion à la base de données:$(RESET)"
+	@echo ""
+	@if [ -f .env ]; then \
+		ENABLE_SSL=$$(grep ENABLE_SSL .env | cut -d '=' -f2); \
+		HOSTNAME=$$(grep HOSTNAME .env | cut -d '=' -f2); \
+		if [ "$$ENABLE_SSL" = "true" ]; then \
+			PROTOCOL="https"; \
+		else \
+			PROTOCOL="http"; \
+		fi; \
+		echo "$(YELLOW)Root Password:$(RESET) $$(grep DB_ROOT_PASSWORD .env | cut -d '=' -f2)"; \
+		echo "$(YELLOW)Database:$(RESET) $$(grep DB_NAME .env | cut -d '=' -f2)"; \
+		echo "$(YELLOW)User:$(RESET) $$(grep DB_USER .env | cut -d '=' -f2)"; \
+		echo "$(YELLOW)User Password:$(RESET) $$(grep DB_PASSWORD .env | cut -d '=' -f2)"; \
+		echo ""; \
+		echo "$(GREEN)phpMyAdmin:$(RESET) $$PROTOCOL://$$HOSTNAME:3000/phpmyadmin"; \
+		echo "$(GREEN)MariaDB Host:$(RESET) mariadb (accessible uniquement depuis le réseau Docker)"; \
+		echo "$(GREEN)MariaDB Port:$(RESET) 3306"; \
+	else \
+		echo "$(RED)❌ Fichier .env non trouvé$(RESET)"; \
+	fi
+	@echo ""
 
 ##@ Par défaut
 
