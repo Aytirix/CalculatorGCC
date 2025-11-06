@@ -90,10 +90,6 @@ clean: ## Arrêter et supprimer tous les conteneurs, volumes et images et node_m
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml down -v --rmi all 2>/dev/null || true
 	@$(DOCKER_COMPOSE) -f docker-compose.prod.yml down -v --rmi all 2>/dev/null || true
 	@echo "$(GREEN)✅ Nettoyage terminé$(RESET)"
-	echo "$(YELLOW)  → Suppression des node_modules du frontend...$(RESET)"; \
-	rm -rf frontend/srcs/node_modules 2>/dev/null || true; \
-	echo "$(YELLOW)  → Suppression des node_modules du backend...$(RESET)"; \
-	rm -rf backend/srcs/node_modules 2>/dev/null || true; \
 
 fclean: ## Nettoyage total (Docker + node_modules + .env)
 	@echo "$(RED)⚠️  ATTENTION: Cette commande va supprimer:$(RESET)"
