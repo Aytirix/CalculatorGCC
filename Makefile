@@ -33,7 +33,7 @@ dev: ## Démarrer l'application en mode développement
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée !$(RESET)"
 	@echo ""
-	@bash ./show-urls.sh || true
+	@bash ./scripts/show-urls.sh || true
 	@echo ""
 
 build-dev: ## Rebuild les images en mode développement
@@ -62,7 +62,7 @@ prod: ## Démarrer l'application en mode production
 	@echo ""
 	@echo "$(GREEN)✅ Application démarrée en production !$(RESET)"
 	@echo ""
-	@bash ./show-urls.sh || true
+	@bash ./scripts/show-urls.sh || true
 	@echo "$(YELLOW)⚠️  Note: Les certificats SSL sont auto-signés.$(RESET)"
 
 build-prod: ## Rebuild les images en mode production
