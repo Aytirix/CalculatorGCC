@@ -2,6 +2,9 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 
+# Installer openssl et bash
+RUN apk add --no-cache openssl bash
+
 # Copier les fichiers de dépendances
 COPY srcs/package*.json ./
 RUN npm install
