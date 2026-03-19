@@ -8,18 +8,7 @@ import { authRoutes } from './routes/auth.routes.js';
 import { api42Routes } from './routes/api42.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
-import { checkAndCreateEnv } from './utils/envSetup.js';
-
-// ===== SETUP CHECK =====
-// Vérifie si le .env existe et crée la configuration initiale si nécessaire
-const setupStatus = checkAndCreateEnv();
-if (!setupStatus.isConfigured) {
-	console.log('⚠️  APPLICATION NOT CONFIGURED');
-	console.log('📝 Please visit http://localhost:3000/setup to complete initial configuration');
-	if (setupStatus.setupToken) {
-		console.log(`🔑 Setup Token: ${setupStatus.setupToken}`);
-	}
-}
+import { initConfig, isConfigured, ensureSetupToken, loadConfigIntoEnv } from './db/configRepository.js';
 
 const fastify = Fastify({
 	logger: {
@@ -136,6 +125,18 @@ fastify.setErrorHandler((error, _request, reply) => {
 
 async function start() {
 	try {
+		// Init DB : s'assure que la ligne de config existe et charge les credentials
+		await initConfig();
+		await loadConfigIntoEnv();
+
+		const configured = await isConfigured();
+		if (!configured) {
+			const setupToken = await ensureSetupToken();
+			console.log('⚠️  APPLICATION NOT CONFIGURED');
+			console.log('📝 Please visit /setup to complete initial configuration');
+			console.log(`🔑 Setup Token: ${setupToken}`);
+		}
+
 		await fastify.listen({
 			port: config.port,
 			host: '0.0.0.0'

@@ -32,6 +32,7 @@ services:
       PORT: 7000
       HOSTNAME: ${HOSTNAME:-localhost}
       ENABLE_SSL: false
+      DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
     env_file:
       - ./backend/srcs/.env
     restart: unless-stopped

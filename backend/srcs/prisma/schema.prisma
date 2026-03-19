@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Configuration {
+  id             Int      @id @default(1)
+  clientId42     String   @default("") @db.Text
+  clientSecret42 String   @default("") @db.Text
+  setupToken     String?  @db.VarChar(128)
+  isConfigured   Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@map("configuration")
+}

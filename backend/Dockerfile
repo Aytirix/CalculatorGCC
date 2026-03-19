@@ -2,44 +2,46 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 
-# Installer openssl et bash
+# Installer openssl et bash (requis par Prisma)
 RUN apk add --no-cache openssl bash
 
 # Copier les fichiers de dépendances
 COPY srcs/package*.json ./
 RUN npm install
 
+# Copier le schema Prisma et générer le client
+COPY srcs/prisma ./prisma
+RUN npx prisma generate
+
 # Copier le code source
 COPY srcs/ ./
 
 # Stage de développement
 FROM base AS development
-# Installer tsx pour le développement avec hot-reload
 CMD ["npm", "run", "dev"]
-#debugging
-#CMD ["npm", "run", "debug"]
-
 
 # Stage de build pour la production
 FROM base AS builder
-# Compiler TypeScript
 RUN npm run build
 
 # Stage de production
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# Copier uniquement les fichiers nécessaires
+RUN apk add --no-cache openssl bash
+
 COPY srcs/package*.json ./
-# Copier le package-lock.json depuis le stage builder
 COPY --from=builder /app/package-lock.json ./
 RUN npm ci --only=production
+
+# Copier le schema et migrations Prisma, puis générer le client
+COPY srcs/prisma ./prisma
+RUN npx prisma generate
 
 # Copier le code compilé
 COPY --from=builder /app/dist ./dist
 
-# Exposer le port
 EXPOSE 7000
 
-# Lancer l'application
-CMD ["npm", "start"]
+# Applique les migrations puis démarre
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
