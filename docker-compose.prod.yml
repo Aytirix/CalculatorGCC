@@ -7,6 +7,8 @@ services:
     depends_on:
       - backend
       - phpmyadmin
+    labels:
+      - "traefik.http.services.nginx.loadbalancer.server.port=3000"
     environment:
       NODE_PROJET: production
       ENABLE_SSL: false
