@@ -14,7 +14,6 @@ services:
       - "3000:3000"
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d:ro
-      - ./nginx/conf/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
       - frontend_build:/var/www/html/frontend:ro
       - ssl_certs:/etc/nginx/ssl
     restart: unless-stopped
