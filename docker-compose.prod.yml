@@ -11,7 +11,7 @@ services:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
     ports:
-      - "443:3000"
+      - "3000:3000"
     volumes:
       - frontend_build:/var/www/html/frontend:ro
       - ssl_certs:/etc/nginx/ssl
