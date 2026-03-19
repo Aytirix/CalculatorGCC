@@ -1,3 +1,21 @@
+# -----------------------------
+# Stage de build du frontend
+# -----------------------------
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Installer les dépendances
+COPY srcs/package*.json ./
+RUN npm install
+COPY srcs/ ./
+
+# Build de l'app
+RUN npm run build
+
+# -----------------------------
+# Stage Nginx prod
+# -----------------------------
+
 # Utiliser l'image officielle de Nginx
 FROM nginx:alpine
 
@@ -17,6 +35,9 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 	-keyout /etc/nginx/ssl/certificates/server.key \
 	-out /etc/nginx/ssl/certificates/server.crt \
 	-subj "/C=FR/ST=France/L=Paris/O=Simulator/CN=localhost"
+
+# Copier le frontend buildé
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copier le script d'entrée
 COPY entrypoint.sh /entrypoint.sh

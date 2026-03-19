@@ -12,8 +12,8 @@ services:
       ENABLE_SSL: false
     ports:
       - "3000:3000"
+    # plus besoin de volumes frontend_build
     volumes:
-      - frontend_build:/var/www/html/frontend:ro
       - ssl_certs:/etc/nginx/ssl
     restart: unless-stopped
     networks:
@@ -35,19 +35,6 @@ services:
     restart: unless-stopped
     networks:
       - calculatorGCC_network
-
-  # Service temporaire pour builder le frontend
-  frontend_builder:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: builder
-    container_name: calculatorGCC_frontend_builder
-    environment:
-      VITE_HOSTNAME: ${HOSTNAME:-localhost}
-      VITE_ENABLE_SSL: false
-    volumes:
-      - frontend_build:/app/dist
 
   mariadb:
     image: mariadb:latest
@@ -82,6 +69,5 @@ networks:
     driver: bridge
 
 volumes:
-  frontend_build:
   ssl_certs:
   mariadb_data:
