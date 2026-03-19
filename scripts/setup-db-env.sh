@@ -66,6 +66,7 @@
 		PROTOCOL="http"
 	fi
 
+	cp "$ENV_FILE" "/artifacts/build-time.env"
 	echo "Pour accéder à phpMyAdmin: $PROTOCOL://$HOSTNAME:3000/phpmyadmin"
 	echo "  - Utilisateur: root"
 	echo "  - Mot de passe: (voir DB_ROOT_PASSWORD dans .env)"
