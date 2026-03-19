@@ -17,35 +17,38 @@
 	fi
 
 	# Vérifier si DB_ROOT_PASSWORD est vide ou non défini
-	if ! grep -q "^DB_ROOT_PASSWORD=.\+" "$ENV_FILE" 2>/dev/null; then
+	# Priorité : variable d'environnement > fichier .env > génération aléatoire
+	if [ -n "$DB_ROOT_PASSWORD" ]; then
+		echo "✓ Mot de passe root récupéré depuis l'environnement"
+		sed -i "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD|" "$ENV_FILE" || \
+			echo "DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD" >> "$ENV_FILE"
+	elif ! grep -q "^DB_ROOT_PASSWORD=.\+" "$ENV_FILE" 2>/dev/null; then
 		echo "Génération du mot de passe root MariaDB..."
-		DB_ROOT_PWD=$(generate_password)
-		
-		# Remplacer ou ajouter DB_ROOT_PASSWORD dans .env
+		DB_ROOT_PASSWORD=$(generate_password)
 		if grep -q "^DB_ROOT_PASSWORD=" "$ENV_FILE"; then
-			sed -i "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=$DB_ROOT_PWD|" "$ENV_FILE"
+			sed -i "s|^DB_ROOT_PASSWORD=.*|DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD|" "$ENV_FILE"
 		else
-			echo "DB_ROOT_PASSWORD=$DB_ROOT_PWD" >> "$ENV_FILE"
+			echo "DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD" >> "$ENV_FILE"
 		fi
-		
-		echo "✓ Mot de passe root généré: $DB_ROOT_PWD"
+		echo "✓ Mot de passe root généré: $DB_ROOT_PASSWORD"
 	else
 		echo "✓ Mot de passe root déjà configuré"
 	fi
 
 	# Vérifier si DB_PASSWORD est vide ou non défini
-	if ! grep -q "^DB_PASSWORD=.\+" "$ENV_FILE" 2>/dev/null; then
+	if [ -n "$DB_PASSWORD" ]; then
+		echo "✓ Mot de passe utilisateur récupéré depuis l'environnement"
+		sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|" "$ENV_FILE" || \
+			echo "DB_PASSWORD=$DB_PASSWORD" >> "$ENV_FILE"
+	elif ! grep -q "^DB_PASSWORD=.\+" "$ENV_FILE" 2>/dev/null; then
 		echo "Génération du mot de passe utilisateur MariaDB..."
-		DB_USER_PWD=$(generate_password)
-		
-		# Remplacer ou ajouter DB_PASSWORD dans .env
+		DB_PASSWORD=$(generate_password)
 		if grep -q "^DB_PASSWORD=" "$ENV_FILE"; then
-			sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_USER_PWD|" "$ENV_FILE"
+			sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|" "$ENV_FILE"
 		else
-			echo "DB_PASSWORD=$DB_USER_PWD" >> "$ENV_FILE"
+			echo "DB_PASSWORD=$DB_PASSWORD" >> "$ENV_FILE"
 		fi
-		
-		echo "✓ Mot de passe utilisateur généré: $DB_USER_PWD"
+		echo "✓ Mot de passe utilisateur généré: $DB_PASSWORD"
 	else
 		echo "✓ Mot de passe utilisateur déjà configuré"
 	fi
