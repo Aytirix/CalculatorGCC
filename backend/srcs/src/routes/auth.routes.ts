@@ -4,8 +4,8 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
   // Initie l'authentification OAuth 42
-  fastify.get('/auth/42', async (_request, reply) => {
-    return AuthController.initiateOAuth(reply);
+  fastify.get('/auth/42', async (request, reply) => {
+    return AuthController.initiateOAuth(request, reply);
   });
 
   // Callback OAuth 42

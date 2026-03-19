@@ -6,10 +6,14 @@ export class AuthController {
   /**
    * Redirige vers la page d'authentification 42
    */
-  static initiateOAuth(reply: FastifyReply) {
+  static initiateOAuth(request: FastifyRequest, reply: FastifyReply) {
+    const proto = request.headers['x-forwarded-proto'] || 'http';
+    const host = request.headers['x-forwarded-host'] || request.headers.host;
+    const redirectUri = `${proto}://${host}/api/auth/callback`;
+
     const authUrl = new URL(config.oauth42.authUrl);
     authUrl.searchParams.append('client_id', config.oauth42.clientId);
-    authUrl.searchParams.append('redirect_uri', config.oauth42.redirectUri);
+    authUrl.searchParams.append('redirect_uri', redirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('scope', 'public');
 
@@ -21,6 +25,9 @@ export class AuthController {
    */
   static async handleCallback(request: any, reply: FastifyReply) {
     const { code } = request.query as { code?: string };
+    const proto = request.headers['x-forwarded-proto'] || 'http';
+    const host = request.headers['x-forwarded-host'] || request.headers.host;
+    const redirectUri = `${proto}://${host}/api/auth/callback`;
 
     console.log('[Auth Controller] OAuth callback received with code:', code);
 
@@ -35,7 +42,7 @@ export class AuthController {
         client_id: config.oauth42.clientId,
         client_secret: config.oauth42.clientSecret,
         code,
-        redirect_uri: config.oauth42.redirectUri,
+        redirect_uri: redirectUri,
       });
 
       const { access_token, expires_in, refresh_token } = tokenResponse.data;
