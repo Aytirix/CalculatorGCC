@@ -10,7 +10,7 @@ services:
       - phpmyadmin
     environment:
       NODE_PROJET: dev
-      ENABLE_SSL: ${ENABLE_SSL:-true}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
     ports:
       - "0.0.0.0:3000:3000"
     volumes:
