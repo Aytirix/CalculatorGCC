@@ -13,7 +13,6 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./nginx/conf:/etc/nginx/conf.d:ro
       - frontend_build:/var/www/html/frontend:ro
       - ssl_certs:/etc/nginx/ssl
     restart: unless-stopped
