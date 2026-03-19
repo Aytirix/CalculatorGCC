@@ -5,12 +5,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Installer les dépendances
-COPY ../../frontend/package*.json ./
+COPY frontend/srcs/package*.json ./
 RUN npm install
-COPY ../../frontend/. ./
-RUN npm run build
-
-# Build de l'app
+COPY frontend/srcs/. ./
 RUN npm run build
 
 # -----------------------------
@@ -41,12 +38,12 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copier le script d'entrée
-COPY entrypoint.sh /entrypoint.sh
+COPY nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Dockerfile Nginx
-COPY ./conf /etc/nginx/conf.d
-COPY ./conf/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY nginx/conf /etc/nginx/conf.d
+COPY nginx/conf/nginx.conf.template /etc/nginx/nginx.conf.template
 
 # Assurer les bonnes permissions
 RUN chown -R nginx:nginx /etc/nginx && \
