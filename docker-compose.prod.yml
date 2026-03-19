@@ -9,7 +9,7 @@ services:
       - phpmyadmin
     environment:
       NODE_PROJET: production
-      ENABLE_SSL: ${ENABLE_SSL:-true}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
     ports:
       - "3000:3000"
     volumes:
@@ -29,7 +29,7 @@ services:
       NODE_ENV: production
       PORT: 7000
       HOSTNAME: ${HOSTNAME:-localhost}
-      ENABLE_SSL: ${ENABLE_SSL:-true}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
     env_file:
       - ./backend/srcs/.env
     restart: unless-stopped
@@ -45,7 +45,7 @@ services:
     container_name: calculatorGCC_frontend_builder
     environment:
       VITE_HOSTNAME: ${HOSTNAME:-localhost}
-      VITE_ENABLE_SSL: ${ENABLE_SSL:-true}
+      VITE_ENABLE_SSL: ${ENABLE_SSL:-false}
     volumes:
       - frontend_build:/app/dist
 
