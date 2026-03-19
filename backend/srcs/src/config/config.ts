@@ -16,7 +16,8 @@ if (fs.existsSync(envPath)) {
 // Helper pour construire les URLs avec le bon protocole
 const buildUrl = (hostname: string, port: number, useSSL: boolean): string => {
 	const protocol = useSSL ? 'https' : 'http';
-	return `${protocol}://${hostname}:${port}`;
+	const hasPort = hostname.includes(':');
+	return hasPort ? `${protocol}://${hostname}` : `${protocol}://${hostname}:${port}`;
 };
 
 // Récupérer les valeurs de l'environnement de manière dynamique
