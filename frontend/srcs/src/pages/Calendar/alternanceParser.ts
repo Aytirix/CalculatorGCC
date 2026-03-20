@@ -2,11 +2,18 @@ import * as XLSX from 'xlsx';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export interface AlternanceLegend {
+	entreprise: string | null;
+	ecole: string | null;
+	distanciel: string | null;
+}
+
 export interface AlternanceData {
 	/** 'YYYY-MM-DD' → hex color '#RRGGBB' */
 	days: Record<string, string>;
 	contractStart: Date | null;
 	contractEnd: Date | null;
+	legend: AlternanceLegend;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -134,5 +141,26 @@ export async function parseAlternanceXlsx(file: File): Promise<AlternanceData> {
 		}
 	}
 
-	return { days, contractStart, contractEnd };
+	// Extract reference colors for legend (from last processed sheet)
+	let legendSheet: XLSX.WorkSheet | undefined;
+	for (const sheetName of wb.SheetNames) {
+		const year = parseInt(sheetName, 10);
+		if (!isNaN(year) && year >= 2000 && year <= 2100) {
+			legendSheet = wb.Sheets[sheetName];
+			break;
+		}
+	}
+
+	const getRefCell = (r: number, c: number) =>
+		legendSheet
+			? (legendSheet[XLSX.utils.encode_cell({ r, c })] as XLSX.CellObject | undefined)
+			: undefined;
+
+	const legend: AlternanceLegend = {
+		entreprise: extractCellColor(getRefCell(20, 13)),
+		ecole: extractCellColor(getRefCell(21, 13)),
+		distanciel: extractCellColor(getRefCell(22, 13)),
+	};
+
+	return { days, contractStart, contractEnd, legend };
 }

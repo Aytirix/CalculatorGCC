@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Header from '@/components/Header/Header';
 import { RNCP_DATA } from '@/data/rncp.data';
 import type { SimulatorProject } from '@/types/rncp.types';
-import { parseAlternanceXlsx } from './alternanceParser';
+import { parseAlternanceXlsx, type AlternanceLegend } from './alternanceParser';
 import { calendarService } from '@/services/calendar.service';
 import './Calendar.scss';
 
@@ -26,6 +27,7 @@ const STORAGE_KEY = 'calendar_projects';
 const RANGE_KEY = 'calendar_range';
 const VIEW_KEY = 'calendar_view';
 const ALTERNANCE_KEY = 'calendar_alternance';
+const LEGEND_KEY = 'calendar_alternance_legend';
 
 function loadAlternanceDays(): Record<string, string> {
 	try {
@@ -35,6 +37,19 @@ function loadAlternanceDays(): Record<string, string> {
 
 function saveAlternanceDays(days: Record<string, string>) {
 	localStorage.setItem(ALTERNANCE_KEY, JSON.stringify(days));
+}
+
+function loadAlternanceLegend(): AlternanceLegend | null {
+	try {
+		const raw = localStorage.getItem(LEGEND_KEY);
+		if (!raw) return null;
+		return JSON.parse(raw) as AlternanceLegend;
+	} catch { return null; }
+}
+
+function saveAlternanceLegend(legend: AlternanceLegend | null) {
+	if (legend) localStorage.setItem(LEGEND_KEY, JSON.stringify(legend));
+	else localStorage.removeItem(LEGEND_KEY);
 }
 
 const PROJECT_COLORS = [
@@ -199,7 +214,8 @@ function saveDateRange(start: Date, end: Date) {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const WEEK_WIDTH = 120;
+const ZOOM_LEVELS = [60, 120, 240] as const;
+const ZOOM_LABELS = ['Mois', 'Semaine', 'Jour'] as const;
 const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 70;
 
@@ -223,6 +239,10 @@ const Calendar: React.FC = () => {
 		originalStart: Date; originalEnd: Date; originalRow: number;
 	} | null>(null);
 	const [alternanceDays, setAlternanceDays] = useState<Record<string, string>>(loadAlternanceDays);
+	const [alternanceLegend, setAlternanceLegend] = useState<AlternanceLegend | null>(loadAlternanceLegend);
+	const [hoveredProject, setHoveredProject] = useState<{ proj: PlacedProject; rect: DOMRect } | null>(null);
+	const [zoomIndex, setZoomIndex] = useState(1);
+	const weekWidth = ZOOM_LEVELS[zoomIndex];
 	const [contractPrompt, setContractPrompt] = useState<{ start: Date; end: Date } | null>(null);
 	const [importError, setImportError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -237,6 +257,7 @@ const Calendar: React.FC = () => {
 	useEffect(() => { saveDateRange(dateRange.start, dateRange.end); }, [dateRange]);
 	useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
 	useEffect(() => { saveAlternanceDays(alternanceDays); }, [alternanceDays]);
+	useEffect(() => { saveAlternanceLegend(alternanceLegend); }, [alternanceLegend]);
 
 	// ── DB sync ────────────────────────────────────────────────────────────
 
@@ -320,6 +341,7 @@ const Calendar: React.FC = () => {
 			}
 
 			setAlternanceDays(data.days);
+		setAlternanceLegend(data.legend);
 
 			// Check if contract dates differ from current calendar range
 			if (data.contractStart && data.contractEnd) {
@@ -343,7 +365,22 @@ const Calendar: React.FC = () => {
 
 	const handleContractDecline = () => setContractPrompt(null);
 
-	const handleClearAlternance = () => setAlternanceDays({});
+	const handleClearAlternance = () => {
+		setAlternanceDays({});
+		setAlternanceLegend(null);
+		calendarService.save({
+			placedProjects: placedProjects.map(p => ({
+				...p,
+				startDate: p.startDate.toISOString(),
+				endDate: p.endDate.toISOString(),
+			})),
+			dateRange: {
+				start: formatDate(dateRange.start),
+				end: formatDate(dateRange.end),
+			},
+			alternanceDays: {},
+		}).catch(() => {});
+	};
 
 	// ── Navigation ─────────────────────────────────────────────────────────
 
@@ -377,24 +414,33 @@ const Calendar: React.FC = () => {
 
 	const weeks = useMemo(() => getWeeks(dateRange.start, dateRange.end), [dateRange]);
 	const monthSpans = useMemo(() => getMonthSpans(weeks), [weeks]);
-	const totalWidth = weeks.length * WEEK_WIDTH;
+	const totalWidth = weeks.length * weekWidth;
 	const maxRow = useMemo(() =>
 		placedProjects.length === 0 ? 0 : Math.max(...placedProjects.map(p => p.row)),
 		[placedProjects]
 	);
-	const rowCount = Math.max(10, maxRow + 2);
+	const rowCount = Math.max(5, maxRow + 2);
 
 	const dateToX = useCallback((date: Date): number => {
 		const rangeStart = startOfWeek(new Date(dateRange.start));
-		return (diffDays(rangeStart, date) / 7) * WEEK_WIDTH;
-	}, [dateRange.start]);
+		return (diffDays(rangeStart, date) / 7) * weekWidth;
+	}, [dateRange.start, weekWidth]);
 
 	const xToDate = useCallback((x: number): Date => {
 		const rangeStart = startOfWeek(new Date(dateRange.start));
-		return addDays(rangeStart, Math.round((x / WEEK_WIDTH) * 7));
-	}, [dateRange.start]);
+		return addDays(rangeStart, Math.round((x / weekWidth) * 7));
+	}, [dateRange.start, weekWidth]);
 
 	const yToRow = useCallback((y: number): number => Math.max(0, Math.floor(y / ROW_HEIGHT)), []);
+
+	// ── Scroll to today (on mount and when switching back to chronologie) ────
+
+	useEffect(() => {
+		if (view !== 'chronologie' || !gridRef.current) return;
+		const todayX = dateToX(new Date());
+		const center = todayX - gridRef.current.clientWidth / 2;
+		gridRef.current.scrollTo({ left: Math.max(0, center), behavior: 'instant' });
+	}, [view, dateToX]);
 
 	// ── Drag helpers ───────────────────────────────────────────────────────
 
@@ -444,12 +490,13 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		setHoveredProject(null);
 		setResizing({ id: projectId, edge, startX: e.clientX, originalStart: proj.startDate, originalEnd: proj.endDate });
 	};
 
 	const handleMouseMove = useCallback((e: MouseEvent) => {
 		if (resizing) {
-			const daysDelta = Math.round(((e.clientX - resizing.startX) / WEEK_WIDTH) * 7);
+			const daysDelta = Math.round(((e.clientX - resizing.startX) / weekWidth) * 7);
 			setPlacedProjects(prev => prev.map(p => {
 				if (p.id !== resizing.id) return p;
 				if (resizing.edge === 'left') {
@@ -463,7 +510,7 @@ const Calendar: React.FC = () => {
 			}));
 		}
 		if (moving) {
-			const daysDelta = Math.round(((e.clientX - moving.startX) / WEEK_WIDTH) * 7);
+			const daysDelta = Math.round(((e.clientX - moving.startX) / weekWidth) * 7);
 			const rowDelta = Math.round((e.clientY - moving.startY) / ROW_HEIGHT);
 			setPlacedProjects(prev => prev.map(p => {
 				if (p.id !== moving.id) return p;
@@ -495,6 +542,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		setHoveredProject(null);
 		setMoving({ id: projectId, startX: e.clientX, startY: e.clientY, originalStart: proj.startDate, originalEnd: proj.endDate, originalRow: proj.row });
 	};
 
@@ -686,6 +734,7 @@ const Calendar: React.FC = () => {
 	const showSidebar = view !== 'agenda';
 
 	return (
+		<>
 		<div className="calendar-page">
 			<Header />
 			<div className="calendar-container">
@@ -739,6 +788,28 @@ const Calendar: React.FC = () => {
 					) : null}
 
 					<div className="calendar-right-controls">
+						{alternanceLegend && Object.values(alternanceLegend).some(Boolean) && (
+							<div className="alternance-legend">
+								{alternanceLegend.entreprise && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.entreprise }} />
+										<span className="alternance-legend-label">Entreprise</span>
+									</div>
+								)}
+								{alternanceLegend.ecole && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.ecole }} />
+										<span className="alternance-legend-label">École</span>
+									</div>
+								)}
+								{alternanceLegend.distanciel && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.distanciel }} />
+										<span className="alternance-legend-label">Distanciel</span>
+									</div>
+								)}
+							</div>
+						)}
 						<div className="alternance-import-group">
 							<input
 								ref={fileInputRef}
@@ -790,7 +861,6 @@ const Calendar: React.FC = () => {
 				)}
 
 				<div className="calendar-layout">
-					{/* Sidebar */}
 					{showSidebar && (
 						<div className="calendar-sidebar">
 							<h3 className="sidebar-title">Projets simulés</h3>
@@ -818,6 +888,20 @@ const Calendar: React.FC = () => {
 
 					{/* Chronologie (Gantt) */}
 					{view === 'chronologie' && (
+						<>
+						<div className="grid-zoom-bar">
+							<div className="zoom-group">
+								{ZOOM_LABELS.map((label, i) => (
+									<button
+										key={label}
+										className={`zoom-btn ${zoomIndex === i ? 'active' : ''}`}
+										onClick={() => setZoomIndex(i)}
+									>
+										{label}
+									</button>
+								))}
+							</div>
+						</div>
 						<div
 							className="calendar-grid-wrapper"
 							ref={gridRef}
@@ -829,27 +913,29 @@ const Calendar: React.FC = () => {
 								style={{ width: totalWidth, minHeight: rowCount * ROW_HEIGHT + HEADER_HEIGHT }}
 							>
 								<div className="month-headers" style={{ height: 32 }}>
-									{monthSpans.map((span, i) => (
-										<div
-											key={i}
-											className="month-header"
-											style={{ left: span.startWeekIndex * WEEK_WIDTH, width: span.weekCount * WEEK_WIDTH }}
-										>
-											{span.label}
-										</div>
-									))}
+									{monthSpans.map((span, i) => {
+										const label = span.weekCount <= 1
+											? span.label.replace(/^(.+)\s+(\d{4})$/, (_, m, y) => `${m} '${y.slice(2)}`)
+											: span.label;
+										return (
+											<div
+												key={i}
+												className="month-header"
+												style={{ left: span.startWeekIndex * weekWidth, width: span.weekCount * weekWidth }}
+											>
+												{label}
+											</div>
+										);
+									})}
 								</div>
 								<div className="week-headers" style={{ top: 32, height: 38 }}>
 									{weeks.map((w, i) => {
 										const endOfWeek = addDays(w, 6);
 										return (
-											<div key={i} className="week-header" style={{ left: i * WEEK_WIDTH, width: WEEK_WIDTH }}>
+											<div key={i} className="week-header" style={{ left: i * weekWidth, width: weekWidth }}>
 												<span className="week-day">{w.getDate()}</span>
 												<span className="week-sep">–</span>
 												<span className="week-day">{endOfWeek.getDate()}</span>
-												<span className="week-month">
-													{w.toLocaleDateString('fr-FR', { month: 'short' })}
-												</span>
 											</div>
 										);
 									})}
@@ -859,7 +945,7 @@ const Calendar: React.FC = () => {
 									{Object.entries(alternanceDays).map(([dateKey, color]) => {
 										const day = parseDate(dateKey);
 										const x = dateToX(day);
-										const dayWidth = WEEK_WIDTH / 7;
+										const dayWidth = weekWidth / 7;
 										if (x < -dayWidth || x > totalWidth) return null;
 										return (
 											<div
@@ -869,11 +955,17 @@ const Calendar: React.FC = () => {
 											/>
 										);
 									})}
+									{/* Today indicator */}
+									{(() => {
+										const todayX = dateToX(new Date());
+										if (todayX < 0 || todayX > totalWidth) return null;
+										return <div className="grid-today-line" style={{ left: todayX }} />;
+									})()}
 									{weeks.map((_, i) => (
 										<div
 											key={`vl-${i}`}
 											className={`grid-vline ${i > 0 && monthSpans.some(s => s.startWeekIndex === i) ? 'month-border' : ''}`}
-											style={{ left: i * WEEK_WIDTH }}
+											style={{ left: i * weekWidth }}
 										/>
 									))}
 									{Array.from({ length: rowCount }, (_, i) => (
@@ -892,21 +984,35 @@ const Calendar: React.FC = () => {
 												className={`placed-project ${resizing?.id === proj.id || moving?.id === proj.id ? 'active' : ''}`}
 												style={{ left: x, width: Math.max(w, 30), top: y + 4, height: ROW_HEIGHT - 8, backgroundColor: color }}
 												onMouseDown={handleMoveStart(proj.id)}
+												onMouseEnter={(e) => {
+													if (!moving && !resizing) setHoveredProject({ proj, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
+												}}
+												onMouseLeave={() => setHoveredProject(null)}
 											>
 												<div className="resize-handle resize-left" onMouseDown={handleResizeStart(proj.id, 'left')} />
 												<div className="placed-project-content">
 													<span className="placed-project-name">{proj.name}</span>
-													<span className="placed-project-duration">
-														{durationWeeks <= 1 ? `${durationDays}j` : `${durationWeeks}sem`}
-													</span>
+													<div className="placed-project-right">
+														<button
+															className="placed-project-remove"
+															onClick={handleRemoveProject(proj.id)}
+															title="Retirer"
+														>
+															×
+														</button>
+													</div>
 												</div>
-												<button
-													className="placed-project-remove"
-													onClick={handleRemoveProject(proj.id)}
-													title="Retirer"
-												>
-													×
-												</button>
+												{(moving?.id === proj.id || resizing?.id === proj.id) && (
+													<div className="drag-tooltip">
+														<span className={resizing?.id === proj.id && resizing.edge === 'left' ? 'drag-tooltip-active' : ''}>
+															{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+														</span>
+														{" → "}
+														<span className={resizing?.id === proj.id && resizing.edge === 'right' ? 'drag-tooltip-active' : ''}>
+															{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+														</span>
+													</div>
+												)}
 												<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')} />
 											</div>
 										);
@@ -914,6 +1020,7 @@ const Calendar: React.FC = () => {
 								</div>
 							</div>
 						</div>
+						</>
 					)}
 
 					{view === 'mois' && renderMoisView()}
@@ -922,6 +1029,61 @@ const Calendar: React.FC = () => {
 				</div>
 			</div>
 		</div>
+
+		{/* Hover tooltip — portal so it escapes overflow:auto containers */}
+		{hoveredProject && !moving && !resizing && (() => {
+			const { proj, rect } = hoveredProject;
+			const today = new Date(); today.setHours(0, 0, 0, 0);
+			const durationDays = diffDays(proj.startDate, proj.endDate);
+			const daysLeft = diffDays(today, proj.endDate);
+			const schoolColors = new Set(
+				[alternanceLegend?.ecole, alternanceLegend?.distanciel].filter(Boolean) as string[]
+			);
+			const schoolDaysLeft = Object.entries(alternanceDays).filter(([dateKey, color]) => {
+				if (!schoolColors.has(color)) return false;
+				const d = new Date(dateKey + 'T00:00:00');
+				return d >= today && d < proj.endDate;
+			}).length;
+			const tooltipX = rect.left + rect.width / 2;
+			const tooltipY = rect.top - 8;
+			return createPortal(
+				<div
+					className="project-hover-tooltip"
+					style={{ position: 'fixed', left: tooltipX, top: tooltipY, transform: 'translate(-50%, -100%)' }}
+				>
+					<div className="hover-tooltip-row">
+						<span className="hover-tooltip-label">Début</span>
+						<span>{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+					</div>
+					<div className="hover-tooltip-row">
+						<span className="hover-tooltip-label">Fin</span>
+						<span>{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+					</div>
+					<div className="hover-tooltip-row">
+						<span className="hover-tooltip-label">Durée</span>
+						<span>{durationDays} jour{durationDays > 1 ? 's' : ''}</span>
+					</div>
+					<div className="hover-tooltip-row">
+						<span className="hover-tooltip-label">Reste</span>
+						<span>
+							{daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? 's' : ''}` : daysLeft === 0 ? "Aujourd'hui" : 'Terminé'}
+						</span>
+					</div>
+					{schoolColors.size > 0 && (
+						<div className="hover-tooltip-row">
+							<span className="hover-tooltip-label">J. école restants</span>
+							<span>{schoolDaysLeft}</span>
+						</div>
+					)}
+					<div className="hover-tooltip-row">
+						<span className="hover-tooltip-label">XP</span>
+						<span>{proj.xp.toLocaleString()}</span>
+					</div>
+				</div>,
+				document.body,
+			);
+		})()}
+		</>
 	);
 };
 
