@@ -823,6 +823,15 @@ const Dashboard: React.FC = () => {
     });
     const simulatedProjectsWithSubs = [...simulatedProjects, ...fullySimulatedParents];
 
+    // Fusionner completedSubProjects (validés par l'API) avec simulatedSubProjects pour le calcul XP
+    const mergedSubProjects: Record<string, string[]> = {};
+    for (const [id, subs] of Object.entries(completedSubProjects) as [string, string[]][]) {
+      mergedSubProjects[id] = [...subs];
+    }
+    for (const [id, subs] of Object.entries(simulatedSubProjects) as [string, string[]][]) {
+      mergedSubProjects[id] = [...new Set([...(mergedSubProjects[id] || []), ...subs])];
+    }
+
     return rncpDataWithCustom.map(rncp => {
       return xpService.validateRNCP(
         rncp,
@@ -834,10 +843,10 @@ const Dashboard: React.FC = () => {
         projectPercentages,
         completedProjectsPercentages,
         coalitionBoosts,
-        simulatedSubProjects
+        mergedSubProjects
       );
     });
-  }, [userProgress, projectedLevel, simulatedProjects, simulatedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
+  }, [userProgress, projectedLevel, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
 
   if (loading) {
     return (

@@ -148,6 +148,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		if (hasSubProjects) {
 			// Pour les projets avec sous-projets, on est simulé seulement si tous les sous-projets sont simulés
 			if (allSubProjectsSimulated) return 'simulated';
+			if (completedSubProjectIds.length > 0) return 'partial';
 		} else {
 			if (isSimulated) return 'simulated';
 		}
@@ -194,7 +195,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								onClick={handleIconClick}
 								title={allSubProjectsSimulated ? 'Décocher tous les sous-projets' : 'Cocher tous les sous-projets'}
 							>
-								{allSubProjectsSimulated ? '🎯' : '⭕'}
+								{allSubProjectsSimulated ? '🎯' : completedSubProjectIds.length > 0 ? '🟢' : '⭕'}
 							</div>
 						)}
 						<div className="project-info">

@@ -12,6 +12,7 @@ export const DEV_USERS: DevUser[] = [
 	{ login: 'sspina', id: 97753 },
 	{ login: 'thibnguy', id: 117570 },
 	{ login: 'mberger', id: 92546 },
+	{ login: 'hanmpark', id: 133888 },
 ];
 
 export const isDev = import.meta.env.DEV;

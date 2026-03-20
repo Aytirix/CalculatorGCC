@@ -43,6 +43,19 @@
     }
   }
 
+  &.partial {
+    border-color: #86efac;
+    background-color: rgba(34, 197, 94, 0.03);
+
+    &::before {
+      background: linear-gradient(to bottom, #86efac, #4ade80);
+    }
+
+    .project-name {
+      color: #16a34a;
+    }
+  }
+
   &.simulated {
     border-color: #3b82f6;
     background-color: rgba(59, 130, 246, 0.05);
