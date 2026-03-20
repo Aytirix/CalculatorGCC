@@ -49,7 +49,7 @@ export const isProjectCompleted = (localSlug: string, apiIdentifiers: string[]):
   );
   
   if (exactMatch) {
-    console.log(`✅ Match exact trouvé: "${localSlug}"`);
+    // console.log(`✅ Match exact trouvé: "${localSlug}"`);
     return true;
   }
   

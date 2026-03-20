@@ -11,28 +11,30 @@ interface AddExperienceModalProps {
   onClose: () => void;
   onAdd: (experience: Omit<ProfessionalExperience, 'id'>) => void;
   editingExperience?: ProfessionalExperience | null;
+  initialType?: 'stage' | 'alternance';
 }
 
 type ExperienceType = 'stage' | 'alternance' | null;
 
-const AddExperienceModal: React.FC<AddExperienceModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onAdd, 
-  editingExperience 
+const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
+  isOpen,
+  onClose,
+  onAdd,
+  editingExperience,
+  initialType,
 }) => {
   const [selectedType, setSelectedType] = useState<ExperienceType>(
-    editingExperience?.type || null
+    editingExperience?.type || initialType || null
   );
 
   const handleClose = () => {
-    setSelectedType(null);
+    setSelectedType(initialType || null);
     onClose();
   };
 
   const handleAdd = (experience: Omit<ProfessionalExperience, 'id'>) => {
     onAdd(experience);
-    setSelectedType(null);
+    setSelectedType(initialType || null);
   };
 
   // Réinitialiser le type sélectionné quand l'expérience en édition change
@@ -40,9 +42,9 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
     if (editingExperience) {
       setSelectedType(editingExperience.type);
     } else {
-      setSelectedType(null);
+      setSelectedType(initialType || null);
     }
-  }, [editingExperience]);
+  }, [editingExperience, initialType]);
 
   if (!isOpen) return null;
 

@@ -111,7 +111,8 @@ export const xpService = {
     simulatedProjects: string[],
     projectPercentages?: Record<string, number>,
     completedProjectsPercentages?: Record<string, number>,
-    coalitionBoosts?: Record<string, boolean>
+    coalitionBoosts?: Record<string, boolean>,
+    simulatedSubProjects?: Record<string, string[]>
   ): RNCPValidation => {
     const allValidatedProjects = [...completedProjects, ...simulatedProjects];
 
@@ -127,11 +128,12 @@ export const xpService = {
     // Valider chaque catégorie
     const categoriesValidation: CategoryValidation[] = rncp.categories.map((category) => {
       return xpService.validateCategory(
-        category, 
-        allValidatedProjects, 
-        projectPercentages, 
-        completedProjectsPercentages, 
-        coalitionBoosts
+        category,
+        allValidatedProjects,
+        projectPercentages,
+        completedProjectsPercentages,
+        coalitionBoosts,
+        simulatedSubProjects
       );
     });
 
@@ -154,26 +156,50 @@ export const xpService = {
 
   // Valider une catégorie
   validateCategory: (
-    category: ProjectCategory, 
+    category: ProjectCategory,
     validatedProjects: string[],
     projectPercentages?: Record<string, number>,
     completedProjectsPercentages?: Record<string, number>,
-    coalitionBoosts?: Record<string, boolean>
+    coalitionBoosts?: Record<string, boolean>,
+    simulatedSubProjects?: Record<string, string[]>
   ): CategoryValidation => {
     // Trouver les projets validés de cette catégorie
     const categoryValidatedProjects = category.projects.filter((project) => {
       const projectSlug = project.slug || project.id;
-      // Utiliser la fonction de matching plus permissive
-      return isProjectCompleted(projectSlug, validatedProjects);
+      if (isProjectCompleted(projectSlug, validatedProjects)) return true;
+      // Piscine : compter comme validé si tous les sous-projets sont cochés
+      if (project.subProjects && simulatedSubProjects?.[project.id]) {
+        const checkedSubs = simulatedSubProjects[project.id];
+        return project.subProjects.every(sub => checkedSubs.includes(sub.id));
+      }
+      return false;
     });
 
     const currentCount = categoryValidatedProjects.length;
-    const currentXP = xpService.calculateTotalXP(
-      categoryValidatedProjects, 
-      projectPercentages, 
-      completedProjectsPercentages, 
+    let currentXP = xpService.calculateTotalXP(
+      categoryValidatedProjects,
+      projectPercentages,
+      completedProjectsPercentages,
       coalitionBoosts
     );
+
+    // Ajouter l'XP des sous-projets partiellement cochés (projets pas encore comptés comme validés)
+    if (simulatedSubProjects && Object.keys(simulatedSubProjects).length > 0) {
+      for (const project of category.projects) {
+        if (!project.subProjects) continue;
+        const key = project.id;
+        const checkedSubs = simulatedSubProjects[key];
+        if (categoryValidatedProjects.includes(project)) {
+			console.log(` [sub-projects] Le projet "${project.name}" est déjà validé, les sous-projets cochés ne sont pas comptés séparément.`);
+			continue;}
+        if (!checkedSubs || checkedSubs.length === 0) {console.log(` [sub-projects] Aucun sous-projet coché pour "${project.name}"`); continue;}
+        const subXP = project.subProjects
+          .filter(sub => checkedSubs.includes(sub.id))
+          .reduce((sum, sub) => sum + sub.xp, 0);
+		console.log(` [sub-projects] Projet "${project.name}" - XP des sous-projets cochés: ${subXP} XP (cochés: ${checkedSubs.length}/${project.subProjects.length})`);
+        currentXP += subXP;
+      }
+    }
 
     const isValid =
       currentCount >= category.requiredCount &&

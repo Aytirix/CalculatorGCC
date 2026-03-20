@@ -18,7 +18,7 @@ COPY srcs/ ./
 
 # Stage de développement
 FROM base AS development
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]
 
 # Stage de build pour la production
 FROM base AS builder

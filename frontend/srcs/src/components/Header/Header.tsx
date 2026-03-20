@@ -54,13 +54,6 @@ const Header: React.FC = () => {
           >
             Projets
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/professional-experience')}
-            className="nav-button"
-          >
-            Expérience professionnelle
-          </Button>
         </motion.div>
 
         <motion.div

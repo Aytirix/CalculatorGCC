@@ -3,11 +3,14 @@ import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
 import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomProjectModal';
+import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
 import { RNCP_DATA } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
+import type { Project42 } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted } from '@/utils/projectMatcher';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import './Dashboard.scss';
 
@@ -29,6 +32,14 @@ const Dashboard: React.FC = () => {
     editProject: SimulatorProject | null;
   }>({ isOpen: false, editProject: null });
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [apiStages, setApiStages] = useState<Project42[]>([]);
+  const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
+  const [apiExpPercentages, setApiExpPercentages] = useState<Record<number, number>>(() => {
+    const saved = localStorage.getItem('api_exp_percentages');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
+  const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
 
   // Charger les projets simulés depuis le localStorage
   useEffect(() => {
@@ -189,7 +200,11 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
-            
+            setApiStages((userData.allProjects as Project42[]).filter(p =>
+              p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
+              p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
+            ));
+
             const professionalExpXP = professionalExperienceStorage.getRealXP();
             const professionalExpCount = professionalExperienceStorage.getRealCount();
             const progress: UserProgress = {
@@ -200,7 +215,7 @@ const Dashboard: React.FC = () => {
               completedProjects: completedProjectSlugs,
               simulatedProjects: [],
             };
-            
+
             setUserProgress(progress);
             setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
             setLoading(false);
@@ -222,7 +237,11 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
-            
+            setApiStages((userData.allProjects as Project42[]).filter(p =>
+              p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
+              p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
+            ));
+
             const professionalExpXP = professionalExperienceStorage.getRealXP();
             const professionalExpCount = professionalExperienceStorage.getRealCount();
             const progress: UserProgress = {
@@ -279,7 +298,11 @@ const Dashboard: React.FC = () => {
         }
       });
       setCompletedProjectsPercentages(realPercentages);
-      
+      setApiStages(userData.allProjects.filter(p =>
+        p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
+        p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
+      ));
+
       // Créer la progression utilisateur
       const professionalExpXP = professionalExperienceStorage.getRealXP();
       const professionalExpCount = professionalExperienceStorage.getRealCount();
@@ -396,18 +419,16 @@ const Dashboard: React.FC = () => {
                 addedXP = Math.round(addedXP * 1.042);
               }
 
-              console.log(`✅ Piscine complète: ${project.name} +${addedXP} XP (base: ${project.xp}, %: ${percentage}, boost: ${coalitionBoosts[project.id] ? 'yes' : 'no'})`);
               totalXP += addedXP;
+            } else {
+              // Ajouter l'XP de chaque sous-projet validé individuellement (partiel)
+              subProjectIds.forEach(subId => {
+                const subProject = project.subProjects?.find(s => s.id === subId);
+                if (subProject && subProject.xp > 0) {
+                  totalXP += subProject.xp;
+                }
+              });
             }
-
-            // Ajouter l'XP de chaque sous-projet validé individuellement (sans boost coalition)
-            subProjectIds.forEach(subId => {
-              const subProject = project.subProjects?.find(s => s.id === subId);
-              if (subProject && subProject.xp > 0) {
-                console.log(`  📚 Sous-projet: ${subProject.name} +${subProject.xp} XP`);
-                totalXP += subProject.xp;
-              }
-            });
 
             countedProjects.add(projectId);
             break; // On sort de la boucle des catégories
@@ -417,16 +438,27 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // Ajouter l'XP des expériences professionnelles
+    // Ajouter l'XP des expériences professionnelles manuelles
     const professionalExperiencesXP = professionalExperienceStorage.getTotalXP();
     totalXP += professionalExperiencesXP;
-    console.log(`👔 XP des expériences professionnelles: ${professionalExperiencesXP}`);
 
-    console.log(`💡 XP Total calculé: ${totalXP}`);
+    // Ajouter l'XP des alternances API en cours (avec % éditable)
+    const isEval = (name: string) => name.toLowerCase().includes('évaluation') || name.toLowerCase().includes('evaluation');
+    const apiEntries = apiStages.filter(p => !isEval(p.project.name) && !p.validated && p.project.name.toLowerCase().includes('alternance'));
+    for (const p of apiEntries) {
+      const evalsForEntry = apiStages.filter(e => isEval(e.project.name) && (p.created_at ? new Date(p.created_at).getFullYear() : 0) === (e.created_at ? new Date(e.created_at).getFullYear() : 0));
+      const marks = evalsForEntry.map(e => e.final_mark).filter((m): m is number => m != null);
+      const defaultPct = marks.length > 0 ? Math.min(100, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length)) : 100;
+      const pct = apiExpPercentages[p.id] ?? defaultPct;
+      const nameL = p.project.name.toLowerCase();
+      const match = nameL.match(/(\d+)\s*an/);
+      const years = match ? parseInt(match[1]) : 1;
+      totalXP += Math.round(90000 * years * (pct / 100));
+    }
+
     const newLevel = xpService.getLevelFromXP(totalXP);
-    console.log(`📊 Niveau projeté: ${newLevel}`);
     setProjectedLevel(newLevel);
-  }, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts]);
+  }, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages]);
 
   const handleToggleSimulation = (projectId: string) => {
     setSimulatedProjects(prev => {
@@ -655,6 +687,20 @@ const Dashboard: React.FC = () => {
       return rncp;
     });
 
+    // Ajouter les projets dont tous les sous-projets sont simulés
+    const fullySimulatedParents: string[] = [];
+    Object.entries(simulatedSubProjects).forEach(([projectId, subIds]) => {
+      for (const rncp of RNCP_DATA) {
+        for (const category of rncp.categories) {
+          const project = category.projects.find(p => p.id === projectId);
+          if (project?.subProjects && project.subProjects.every(sub => (subIds as string[]).includes(sub.id))) {
+            fullySimulatedParents.push(project.slug || project.id);
+          }
+        }
+      }
+    });
+    const simulatedProjectsWithSubs = [...simulatedProjects, ...fullySimulatedParents];
+
     return rncpDataWithCustom.map(rncp => {
       return xpService.validateRNCP(
         rncp,
@@ -662,13 +708,14 @@ const Dashboard: React.FC = () => {
         userProgress.events,
         userProgress.professionalExperience,
         userProgress.completedProjects,
-        simulatedProjects,
+        simulatedProjectsWithSubs,
         projectPercentages,
         completedProjectsPercentages,
-        coalitionBoosts
+        coalitionBoosts,
+        simulatedSubProjects
       );
     });
-  }, [userProgress, projectedLevel, simulatedProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
+  }, [userProgress, projectedLevel, simulatedProjects, simulatedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
 
   if (loading) {
     return (
@@ -728,6 +775,48 @@ const Dashboard: React.FC = () => {
   const selectedRNCP = rncpDataWithCustom[selectedRNCPIndex];
   const selectedValidation = rncpValidations[selectedRNCPIndex];
 
+  // Grouper les évaluations d'alternance/stage pour l'affichage
+  const getEntryYear = (p: Project42) =>
+    p.created_at ? new Date(p.created_at).getFullYear() : 0;
+
+  // On cache toutes les évaluations ("Évaluation entreprise finale/intermédiaire...")
+  // On garde : les entrées principales ("FR - Alternance - RNCP7 - 2 ans") et les stages
+  const isEvalEntry = (name: string) => {
+    const lower = name.toLowerCase();
+    return lower.includes('évaluation') || lower.includes('evaluation');
+  };
+  const profExpDisplayEntries = apiStages.filter((p: Project42) => !isEvalEntry(p.project.name));
+  // Pour chaque entrée principale, récupérer toutes les évaluations (finale + intermédiaires) par année
+  const evalsByYear: Record<number, Project42[]> = {};
+  apiStages.filter((p: Project42) => isEvalEntry(p.project.name)).forEach((p: Project42) => {
+    const y = getEntryYear(p);
+    if (!evalsByYear[y]) evalsByYear[y] = [];
+    evalsByYear[y].push(p);
+  });
+
+  // XP simulé des alternances API (entrées non validées avec pourcentage éditable)
+  const getApiEntryXP = (name: string, pct: number): number => {
+    const lower = name.toLowerCase();
+    if (lower.includes('alternance')) {
+      const match = lower.match(/(\d+)\s*an/);
+      const years = match ? parseInt(match[1]) : 1;
+      return Math.round(90000 * years * (pct / 100));
+    }
+    return 0;
+  };
+  const getEvalsAvg = (evals: Project42[]): number => {
+    const marks = evals.map(ev => ev.final_mark).filter((m): m is number => m != null);
+    if (marks.length === 0) return 100;
+    return Math.min(100, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length));
+  };
+  const apiExpXP = profExpDisplayEntries
+    .filter((p: Project42) => !p.validated && p.project.name.toLowerCase().includes('alternance'))
+    .reduce((sum: number, p: Project42) => {
+      const evals = evalsByYear[getEntryYear(p)] || [];
+      const pct = apiExpPercentages[p.id] ?? getEvalsAvg(evals);
+      return sum + getApiEntryXP(p.project.name, pct);
+    }, 0);
+
   return (
     <div className="dashboard-page">
       <Header />
@@ -746,7 +835,7 @@ const Dashboard: React.FC = () => {
                   <span className="label">Niveau actuel</span>
                   <span className="value">{userProgress.currentLevel.toFixed(2)}</span>
                 </div>
-                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceStorage.getTotalXP() > 0) && (
+                {(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceStorage.getTotalXP() > 0 || apiExpXP > 0) && (
                   <>
                     <span className="arrow">→</span>
                     <div className="level-projected">
@@ -819,6 +908,50 @@ const Dashboard: React.FC = () => {
           })}
         </motion.div>
 
+        {/* Expériences professionnelles */}
+        <motion.div
+          className="prof-exp-section"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+        >
+          <div className="prof-exp-header">
+            <h2 className="prof-exp-title">Expériences professionnelles</h2>
+            <div className="prof-exp-add-buttons">
+              <button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('stage')} title="Ajouter un stage">
+                + Stage
+              </button>
+              <button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('alternance')} title="Ajouter une alternance">
+                + Alternance
+              </button>
+            </div>
+          </div>
+
+          <ProfExpList
+            entries={profExpDisplayEntries}
+            evalsByYear={evalsByYear}
+            manualExperiences={manualExperiences}
+            getEntryYear={getEntryYear}
+            apiExpPercentages={apiExpPercentages}
+            onApiExpPercentageChange={(id, pct) => {
+              const updated = { ...apiExpPercentages, [id]: pct };
+              setApiExpPercentages(updated);
+              localStorage.setItem('api_exp_percentages', JSON.stringify(updated));
+            }}
+            onDeleteManual={(id) => {
+              professionalExperienceStorage.remove(id);
+              setManualExperiences(professionalExperienceStorage.getAll());
+              if (userProgress) {
+                setProjectedLevel(xpService.getLevelFromXP(userProgress.currentXP + professionalExperienceStorage.getTotalXP()));
+              }
+            }}
+            onEditManual={(exp) => {
+              setEditingExperience(exp);
+              setShowProfExpForm(exp.type);
+            }}
+          />
+        </motion.div>
+
         {/* Contenu du RNCP sélectionné */}
         <motion.div
           className="dashboard-content"
@@ -872,6 +1005,27 @@ const Dashboard: React.FC = () => {
             note: projectNotes[customProjectModal.editProject.id] || '',
             hasCoalitionBoost: coalitionBoosts[customProjectModal.editProject.id] || false,
           } : null}
+        />
+
+        {/* Modal ajout expérience professionnelle */}
+        <AddExperienceModal
+          isOpen={showProfExpForm !== null}
+          initialType={showProfExpForm ?? undefined}
+          editingExperience={editingExperience}
+          onClose={() => { setShowProfExpForm(null); setEditingExperience(null); }}
+          onAdd={(exp) => {
+            if (editingExperience) {
+              professionalExperienceStorage.update({ ...exp, id: editingExperience.id });
+            } else {
+              professionalExperienceStorage.add({ ...exp, id: `manual-${Date.now()}` });
+            }
+            setManualExperiences(professionalExperienceStorage.getAll());
+            setShowProfExpForm(null);
+            setEditingExperience(null);
+            if (userProgress) {
+              setProjectedLevel(xpService.getLevelFromXP(userProgress.currentXP + professionalExperienceStorage.getTotalXP()));
+            }
+          }}
         />
       </div>
     </div>

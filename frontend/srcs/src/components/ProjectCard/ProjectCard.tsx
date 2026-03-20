@@ -121,6 +121,22 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		}
 	};
 
+	const handleStarClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (isCompleted) return;
+		if (projectPercentage === 125) {
+			onPercentageChange?.(project.id, 100);
+		} else {
+			if (!isSimulated) onToggleSimulation(project.id);
+			onPercentageChange?.(project.id, 125);
+		}
+	};
+
+	const handlePctInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const v = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+		onPercentageChange?.(project.id, Math.min(125, v));
+	};
+
 	const allSubProjectsSimulated = hasSubProjects
 		? project.subProjects!.every((sub) => simulatedSubProjects.includes(sub.id))
 		: false;
@@ -159,15 +175,26 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					transition={{ duration: 0.2 }}
 				>
 					<div className="project-header">
-						<div
-							className={`project-status-icon ${hasSubProjects && !isCompleted ? 'clickable' : ''}`}
-							onClick={handleIconClick}
-							title={hasSubProjects && !isCompleted ? (allSubProjectsSimulated ? 'Décocher tous les sous-projets' : 'Cocher tous les sous-projets') : ''}
-						>
-							{isCompleted && '✅'}
-							{status === 'simulated' && '🎯'}
-							{status === 'available' && '⭕'}
-						</div>
+						{isCompleted ? (
+							<div className="project-status-icon">✅</div>
+						) : !hasSubProjects ? (
+							<button
+								className={`project-star ${projectPercentage === 125 ? 'active' : ''}`}
+								onClick={handleStarClick}
+								title="Simuler à 125%"
+							>
+								{projectPercentage === 125 ? '★' : '☆'}
+							</button>
+						) : null}
+						{hasSubProjects && !isCompleted && (
+							<div
+								className="project-status-icon clickable"
+								onClick={handleIconClick}
+								title={allSubProjectsSimulated ? 'Décocher tous les sous-projets' : 'Cocher tous les sous-projets'}
+							>
+								{allSubProjectsSimulated ? '🎯' : '⭕'}
+							</div>
+						)}
 						<div className="project-info">
 							<h4 className="project-name">{project.name}</h4>
 							<div className="project-xp-container">
@@ -186,6 +213,27 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								)}
 							</div>
 						</div>
+						{status === 'simulated' && !hasSubProjects && (
+							<div className="project-sim-controls" onClick={(e) => e.stopPropagation()}>
+								<div className="project-pct-wrapper">
+									<input
+										type="text"
+										inputMode="numeric"
+										className="project-pct-input"
+										value={projectPercentage}
+										onChange={handlePctInput}
+									/>
+									<span className="project-pct-symbol">%</span>
+								</div>
+								<button
+									className={`project-boost-btn ${hasCoalitionBoost ? 'active' : ''}`}
+									onClick={(e) => { e.stopPropagation(); onToggleCoalitionBoost?.(project.id); }}
+									title="Boost coalition +4.2%"
+								>
+									⚡
+								</button>
+							</div>
+						)}
 						{hasSubProjects && (
 							<div className="expand-icon">
 								{isExpanded ? '▼' : '▶'}

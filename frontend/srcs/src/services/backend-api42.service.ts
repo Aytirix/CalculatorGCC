@@ -14,6 +14,8 @@ export interface Project42 {
   validated: boolean;
   marked: boolean;
   status: string;
+  created_at?: string;
+  marked_at?: string;
 }
 
 export interface CursusUser {

@@ -5,7 +5,7 @@ export async function requireConfigured(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  if (request.url.startsWith('/api/setup')) {
+  if (request.url.startsWith('/setup') || request.url.startsWith('/api/setup')) {
     return;
   }
 

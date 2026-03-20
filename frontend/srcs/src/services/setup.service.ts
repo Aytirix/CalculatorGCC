@@ -36,7 +36,7 @@ class SetupService {
    * Vérifie l'état de configuration de l'application
    */
   async getStatus(): Promise<SetupStatus> {
-    const response = await api.get<SetupStatus>('/api/setup/status');
+    const response = await api.get<SetupStatus>('/setup/status');
     return response.data;
   }
 
@@ -45,7 +45,7 @@ class SetupService {
    * Ce token est nécessaire pour configurer l'application
    */
   async getSetupToken(): Promise<string> {
-    const response = await api.get<SetupTokenResponse>('/api/setup/token');
+    const response = await api.get<SetupTokenResponse>('/setup/token');
     return response.data.setupToken;
   }
 
@@ -53,7 +53,7 @@ class SetupService {
    * Configure l'application avec les credentials 42 API
    */
   async configure(config: ConfigureRequest): Promise<ConfigureResponse> {
-    const response = await api.post<ConfigureResponse>('/api/setup/configure', config);
+    const response = await api.post<ConfigureResponse>('/setup/configure', config);
     return response.data;
   }
 }
