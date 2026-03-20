@@ -17,3 +17,36 @@ model Configuration {
 
   @@map("configuration")
 }
+
+model UserSimulation {
+  id                    Int      @id @default(autoincrement())
+  userId42              Int      @unique
+  login                 String   @db.VarChar(64)
+  simulatedSubProjects  Json?    // Record<string, string[]>
+  customProjects        Json?    // SimulatorProject[]
+  manualExperiences     Json?    // ProfessionalExperience[]
+  apiExpPercentages     Json?    // Record<number, number>
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+
+  simulatedProjects SimulatedProject[]
+
+  @@map("user_simulation")
+}
+
+model SimulatedProject {
+  id              Int      @id @default(autoincrement())
+  userId42        Int
+  projectId       String   @db.VarChar(128)
+  percentage      Int      @default(100)
+  coalitionBoost  Boolean  @default(false)
+  note            String?  @db.Text
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  userSimulation  UserSimulation @relation(fields: [userId42], references: [userId42], onDelete: Cascade)
+
+  @@unique([userId42, projectId])
+  @@index([projectId])
+  @@map("simulated_project")
+}

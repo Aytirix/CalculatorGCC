@@ -1,0 +1,19 @@
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { authenticate } from '../middlewares/auth.middleware.js';
+import { SimulationController } from '../controllers/simulation.controller.js';
+
+export async function simulationRoutes(fastify: FastifyInstance) {
+	// Récupérer la simulation de l'utilisateur
+	fastify.get('/simulation', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.get(request, reply);
+	});
+
+	// Sauvegarder la simulation de l'utilisateur
+	fastify.put('/simulation', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.save(request, reply);
+	});
+}

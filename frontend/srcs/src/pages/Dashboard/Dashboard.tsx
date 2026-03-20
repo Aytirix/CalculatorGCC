@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
@@ -10,6 +10,8 @@ import type { Project42 } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted } from '@/utils/projectMatcher';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import { simulationService } from '@/services/simulation.service';
+import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import './Dashboard.scss';
@@ -41,67 +43,80 @@ const Dashboard: React.FC = () => {
   const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
   const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
 
-  // Charger les projets simulés depuis le localStorage
+  // Flag pour éviter de sauvegarder pendant le chargement initial
+  const isInitialLoad = useRef(true);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Charger les données de simulation (backend puis fallback localStorage)
   useEffect(() => {
-    const saved = localStorage.getItem('simulated_projects');
-    if (saved) {
+    const loadSimulation = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        setSimulatedProjects(parsed);
+        const data = await simulationService.load();
+        // Reconstituer l'état depuis les données backend
+        const projectIds = data.simulatedProjects.map((p) => p.projectId);
+        const percentages: Record<string, number> = {};
+        const boosts: Record<string, boolean> = {};
+        const notes: Record<string, string> = {};
+        for (const p of data.simulatedProjects) {
+          percentages[p.projectId] = p.percentage;
+          if (p.coalitionBoost) boosts[p.projectId] = true;
+          if (p.note) notes[p.projectId] = p.note;
+        }
+        setSimulatedProjects(projectIds);
+        setProjectPercentages(percentages);
+        setCoalitionBoosts(boosts);
+        setProjectNotes(notes);
+        setSimulatedSubProjects(data.simulatedSubProjects ?? {});
+        setCustomProjects((data.customProjects as SimulatorProject[]) ?? []);
+        if (data.apiExpPercentages && Object.keys(data.apiExpPercentages).length > 0) {
+          const numericKeys: Record<number, number> = {};
+          for (const [k, v] of Object.entries(data.apiExpPercentages)) {
+            numericKeys[Number(k)] = v;
+          }
+          setApiExpPercentages(numericKeys);
+        }
+        if (Array.isArray(data.manualExperiences) && data.manualExperiences.length > 0) {
+          professionalExperienceStorage.saveAll(data.manualExperiences as any);
+          setManualExperiences(professionalExperienceStorage.getAll());
+        }
+        console.log('[Dashboard] Simulation chargée depuis le backend');
+        // Sync localStorage aussi
+        localStorage.setItem('simulated_projects', JSON.stringify(projectIds));
+        localStorage.setItem('simulated_sub_projects', JSON.stringify(data.simulatedSubProjects ?? {}));
+        localStorage.setItem('project_percentages', JSON.stringify(percentages));
+        localStorage.setItem('custom_projects', JSON.stringify(data.customProjects ?? []));
+        localStorage.setItem('project_notes', JSON.stringify(notes));
+        localStorage.setItem('coalition_boosts', JSON.stringify(boosts));
+        localStorage.setItem('api_exp_percentages', JSON.stringify(data.apiExpPercentages ?? {}));
       } catch (err) {
-        console.error('Erreur lors du chargement des projets simulés:', err);
+        console.warn('[Dashboard] Backend indisponible, chargement depuis localStorage', err);
+        // Fallback localStorage
+        loadFromLocalStorage();
       }
-    }
+      isInitialLoad.current = false;
+    };
 
-    const savedSubProjects = localStorage.getItem('simulated_sub_projects');
-    if (savedSubProjects) {
-      try {
-        const parsed = JSON.parse(savedSubProjects);
-        setSimulatedSubProjects(parsed);
-      } catch (err) {
-        console.error('Erreur lors du chargement des sous-projets simulés:', err);
-      }
-    }
+    const loadFromLocalStorage = () => {
+      const saved = localStorage.getItem('simulated_projects');
+      if (saved) try { setSimulatedProjects(JSON.parse(saved)); } catch {}
 
-    const savedPercentages = localStorage.getItem('project_percentages');
-    if (savedPercentages) {
-      try {
-        const parsed = JSON.parse(savedPercentages);
-        setProjectPercentages(parsed);
-      } catch (err) {
-        console.error('Erreur lors du chargement des pourcentages:', err);
-      }
-    }
+      const savedSub = localStorage.getItem('simulated_sub_projects');
+      if (savedSub) try { setSimulatedSubProjects(JSON.parse(savedSub)); } catch {}
 
-    const savedCustomProjects = localStorage.getItem('custom_projects');
-    if (savedCustomProjects) {
-      try {
-        const parsed = JSON.parse(savedCustomProjects);
-        setCustomProjects(parsed);
-      } catch (err) {
-        console.error('Erreur lors du chargement des projets personnalisés:', err);
-      }
-    }
+      const savedPct = localStorage.getItem('project_percentages');
+      if (savedPct) try { setProjectPercentages(JSON.parse(savedPct)); } catch {}
 
-    const savedNotes = localStorage.getItem('project_notes');
-    if (savedNotes) {
-      try {
-        const parsed = JSON.parse(savedNotes);
-        setProjectNotes(parsed);
-      } catch (err) {
-        console.error('Erreur lors du chargement des notes:', err);
-      }
-    }
+      const savedCustom = localStorage.getItem('custom_projects');
+      if (savedCustom) try { setCustomProjects(JSON.parse(savedCustom)); } catch {}
 
-    const savedCoalitionBoosts = localStorage.getItem('coalition_boosts');
-    if (savedCoalitionBoosts) {
-      try {
-        const parsed = JSON.parse(savedCoalitionBoosts);
-        setCoalitionBoosts(parsed);
-      } catch (err) {
-        console.error('Erreur lors du chargement des boosts coalition:', err);
-      }
-    }
+      const savedNotes = localStorage.getItem('project_notes');
+      if (savedNotes) try { setProjectNotes(JSON.parse(savedNotes)); } catch {}
+
+      const savedBoosts = localStorage.getItem('coalition_boosts');
+      if (savedBoosts) try { setCoalitionBoosts(JSON.parse(savedBoosts)); } catch {}
+    };
+
+    loadSimulation();
   }, []);
 
   // Sauvegarder les projets simulés dans localStorage
@@ -148,6 +163,36 @@ const Dashboard: React.FC = () => {
       localStorage.removeItem('project_notes');
     }
   }, [projectNotes]);
+
+  // Sauvegarder la simulation vers le backend (debounced 2s)
+  const saveToBackend = useCallback(() => {
+    if (isInitialLoad.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const data: SimulationData = {
+          simulatedProjects: simulatedProjects.map((id: string) => ({
+            projectId: id,
+            percentage: projectPercentages[id] ?? 100,
+            coalitionBoost: coalitionBoosts[id] ?? false,
+            note: projectNotes[id],
+          })),
+          simulatedSubProjects,
+          customProjects,
+          manualExperiences: professionalExperienceStorage.getAll(),
+          apiExpPercentages,
+        };
+        await simulationService.save(data);
+        console.log('[Dashboard] Simulation sauvegardée vers le backend');
+      } catch (err) {
+        console.warn('[Dashboard] Erreur sauvegarde backend:', err);
+      }
+    }, 2000);
+  }, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages]);
+
+  useEffect(() => {
+    saveToBackend();
+  }, [saveToBackend]);
 
   const loadUserData = async (forceRefresh = false) => {
     try {
@@ -517,13 +562,20 @@ const Dashboard: React.FC = () => {
   };
 
   const handleResetModifications = () => {
-    if (window.confirm('Êtes-vous sûr de vouloir réinitialiser toutes les modifications (projets simulés et pourcentages personnalisés) ?')) {
+    if (window.confirm('Êtes-vous sûr de vouloir réinitialiser toutes les modifications (projets simulés, pourcentages, notes, boosts et projets personnalisés) ?')) {
       setSimulatedProjects([]);
       setSimulatedSubProjects({});
       setProjectPercentages({});
+      setCustomProjects([]);
+      setProjectNotes({});
+      setCoalitionBoosts({});
       localStorage.removeItem('simulated_projects');
       localStorage.removeItem('simulated_sub_projects');
       localStorage.removeItem('project_percentages');
+      localStorage.removeItem('custom_projects');
+      localStorage.removeItem('project_notes');
+      localStorage.removeItem('coalition_boosts');
+      // Le debounced save enverra l'état vide au backend automatiquement
     }
   };
 
