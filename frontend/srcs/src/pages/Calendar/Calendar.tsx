@@ -3,6 +3,7 @@ import Header from '@/components/Header/Header';
 import { RNCP_DATA } from '@/data/rncp.data';
 import type { SimulatorProject } from '@/types/rncp.types';
 import { parseAlternanceXlsx } from './alternanceParser';
+import { calendarService } from '@/services/calendar.service';
 import './Calendar.scss';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -236,6 +237,52 @@ const Calendar: React.FC = () => {
 	useEffect(() => { saveDateRange(dateRange.start, dateRange.end); }, [dateRange]);
 	useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
 	useEffect(() => { saveAlternanceDays(alternanceDays); }, [alternanceDays]);
+
+	// ── DB sync ────────────────────────────────────────────────────────────
+
+	const [dbSynced, setDbSynced] = useState(false);
+
+	// Load from DB on mount (overrides localStorage if data exists)
+	useEffect(() => {
+		calendarService.load().then(data => {
+			if (!data) return;
+			setPlacedProjects(data.placedProjects.map(p => ({
+				...p,
+				startDate: new Date(p.startDate),
+				endDate: new Date(p.endDate),
+			})));
+			setDateRange({
+				start: parseDate(data.dateRange.start),
+				end: parseDate(data.dateRange.end),
+			});
+			if (data.alternanceDays && Object.keys(data.alternanceDays).length > 0) {
+				setAlternanceDays(data.alternanceDays);
+			}
+		}).catch(() => {
+			// Not authenticated or network error — keep localStorage data
+		}).finally(() => setDbSynced(true));
+	}, []);
+
+	// Debounced save to DB (2s after last change)
+	useEffect(() => {
+		if (!dbSynced) return;
+		const timer = setTimeout(() => {
+			calendarService.save({
+				placedProjects: placedProjects.map(p => ({
+					...p,
+					startDate: p.startDate.toISOString(),
+					endDate: p.endDate.toISOString(),
+				})),
+				dateRange: {
+					start: formatDate(dateRange.start),
+					end: formatDate(dateRange.end),
+				},
+				alternanceDays,
+			}).catch(() => { /* silent — localStorage still holds data */ });
+		}, 2000);
+		return () => clearTimeout(timer);
+	}, [placedProjects, dateRange, alternanceDays, dbSynced]);
+
 
 	// ── Colors ─────────────────────────────────────────────────────────────
 

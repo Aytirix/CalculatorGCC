@@ -1,4 +1,4 @@
-.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status
+.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status prisma-generate prisma-push prisma-migrate prisma-studio restart-backend
 
 # Détecter la commande docker compose disponible
 DOCKER_COMPOSE := $(shell docker compose version > /dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
@@ -203,6 +203,33 @@ db-show-password: ## Afficher les informations de connexion à la base de donné
 		echo "$(RED)❌ Fichier .env non trouvé$(RESET)"; \
 	fi
 	@echo ""
+
+##@ Prisma
+
+prisma-generate: ## Régénérer le client Prisma (après modif du schema)
+	@echo "$(BLUE)⚙️  Génération du client Prisma...$(RESET)"
+	@docker exec calculatorGCC_backend_dev npx prisma generate
+	@echo "$(GREEN)✅ Client Prisma régénéré$(RESET)"
+	@echo "$(YELLOW)⚠️  Redémarre le backend : make restart-backend$(RESET)"
+
+prisma-push: ## Appliquer le schema Prisma à la DB (dev uniquement, sans migration)
+	@echo "$(BLUE)📤 Application du schema Prisma...$(RESET)"
+	@docker exec calculatorGCC_backend_dev npx prisma db push
+	@echo "$(GREEN)✅ Schema appliqué$(RESET)"
+
+prisma-migrate: ## Créer et appliquer une migration Prisma
+	@printf "$(YELLOW)Nom de la migration : $(RESET)"; \
+	read name; \
+	docker exec -it calculatorGCC_backend_dev npx prisma migrate dev --name "$$name"
+
+prisma-studio: ## Ouvrir Prisma Studio (interface DB graphique)
+	@echo "$(BLUE)🔍 Ouverture de Prisma Studio sur http://localhost:5555 ...$(RESET)"
+	@docker exec -it calculatorGCC_backend_dev npx prisma studio
+
+restart-backend: ## Redémarrer uniquement le conteneur backend dev
+	@echo "$(YELLOW)🔄 Redémarrage du backend...$(RESET)"
+	@docker restart calculatorGCC_backend_dev
+	@echo "$(GREEN)✅ Backend redémarré$(RESET)"
 
 ##@ Par défaut
 

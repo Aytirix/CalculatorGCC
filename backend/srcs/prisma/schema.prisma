@@ -26,6 +26,7 @@ model UserSimulation {
   customProjects        Json?    // SimulatorProject[]
   manualExperiences     Json?    // ProfessionalExperience[]
   apiExpPercentages     Json?    // Record<number, number>
+  calendarData          Json?    // CalendarData { placedProjects, dateRange, alternanceDays }
   updatedAt             DateTime @updatedAt
   createdAt             DateTime @default(now())
 

@@ -8,6 +8,7 @@ import { authRoutes } from './routes/auth.routes.js';
 import { api42Routes } from './routes/api42.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { simulationRoutes } from './routes/simulation.routes.js';
+import { calendarRoutes } from './routes/calendar.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
 import { initConfig, isConfigured, ensureSetupToken, loadConfigIntoEnv } from './db/configRepository.js';
 
@@ -94,6 +95,7 @@ await fastify.register(setupRoutes);
 await fastify.register(authRoutes);
 await fastify.register(api42Routes);
 await fastify.register(simulationRoutes);
+await fastify.register(calendarRoutes);
 
 // ===== ERROR HANDLER =====
 
