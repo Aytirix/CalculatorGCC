@@ -709,9 +709,6 @@ const Calendar: React.FC = () => {
 								</button>
 							)}
 						</div>
-						<div className="calendar-info">
-							{placedProjects.length} projet{placedProjects.length !== 1 ? 's' : ''} planifié{placedProjects.length !== 1 ? 's' : ''}
-						</div>
 					</div>
 				</div>
 
