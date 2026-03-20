@@ -27,6 +27,9 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: calculatorGCC_backend_prod
+    depends_on:
+      mariadb:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 7000
@@ -50,6 +53,12 @@ services:
     volumes:
       - /data/calculatorgcc/mariadb:/var/lib/mysql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - calculatorGCC_network
 
