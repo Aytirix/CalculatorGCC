@@ -194,6 +194,31 @@ const Dashboard: React.FC = () => {
     saveToBackend();
   }, [saveToBackend]);
 
+  const stageFilter = (p: Project42) => {
+    const slug = p.project.slug?.toLowerCase() || '';
+    const name = p.project.name?.toLowerCase() || '';
+    return slug.includes('stage') || slug.includes('alternance') ||
+      slug.includes('internship') || slug.startsWith('work-experience') ||
+      slug.startsWith('fr-alternance') ||
+      name.includes('stage') || name.includes('alternance') ||
+      name.includes('internship') || name.includes('work experience');
+  };
+
+  // Compte les stages/alternances API principaux validés
+  const countApiProfExp = (allProjects: Project42[]) => {
+    return allProjects.filter(p => {
+      if (!stageFilter(p)) return false;
+      if (!p.validated) return false;
+      const slug = p.project.slug?.toLowerCase() || '';
+      const name = p.project.name.toLowerCase();
+      // Exclure les sous-évaluations
+      if (slug.startsWith('work-experience-') && slug.includes('-work-experience-', 16)) return false;
+      if (name.includes('évaluation') || name.includes('evaluation')) return false;
+      if (name.includes('peer video') || name.includes('contract upload') || name.includes('duration')) return false;
+      return true;
+    }).length;
+  };
+
   const loadUserData = async (forceRefresh = false) => {
     try {
       // Throttle : éviter les appels trop rapprochés (moins de 30 secondes)
@@ -245,13 +270,10 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
-            setApiStages((userData.allProjects as Project42[]).filter(p =>
-              p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
-              p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
-            ));
+            setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
 
             const professionalExpXP = professionalExperienceStorage.getRealXP();
-            const professionalExpCount = professionalExperienceStorage.getRealCount();
+            const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
             const progress: UserProgress = {
               currentLevel: userData.level,
               currentXP: xpService.getXPFromLevel(userData.level),
@@ -282,13 +304,10 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
-            setApiStages((userData.allProjects as Project42[]).filter(p =>
-              p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
-              p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
-            ));
+            setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
 
             const professionalExpXP = professionalExperienceStorage.getRealXP();
-            const professionalExpCount = professionalExperienceStorage.getRealCount();
+            const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
             const progress: UserProgress = {
               currentLevel: userData.level,
               currentXP: xpService.getXPFromLevel(userData.level),
@@ -343,14 +362,12 @@ const Dashboard: React.FC = () => {
         }
       });
       setCompletedProjectsPercentages(realPercentages);
-      setApiStages(userData.allProjects.filter(p =>
-        p.project.slug?.includes('stage') || p.project.slug?.includes('alternance') ||
-        p.project.name?.toLowerCase().includes('stage') || p.project.name?.toLowerCase().includes('alternance')
-      ));
+      const filtered = userData.allProjects.filter(stageFilter);
+      setApiStages(filtered);
 
       // Créer la progression utilisateur
       const professionalExpXP = professionalExperienceStorage.getRealXP();
-      const professionalExpCount = professionalExperienceStorage.getRealCount();
+      const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
       const progress: UserProgress = {
         currentLevel: userData.level,
         currentXP: xpService.getXPFromLevel(userData.level),
@@ -831,28 +848,57 @@ const Dashboard: React.FC = () => {
   const getEntryYear = (p: Project42) =>
     p.created_at ? new Date(p.created_at).getFullYear() : 0;
 
-  // On cache toutes les évaluations ("Évaluation entreprise finale/intermédiaire...")
-  // On garde : les entrées principales ("FR - Alternance - RNCP7 - 2 ans") et les stages
-  const isEvalEntry = (name: string) => {
-    const lower = name.toLowerCase();
-    return lower.includes('évaluation') || lower.includes('evaluation');
+  // Détecte si c'est une entrée principale (work-experience-i, work-experience-ii, fr-alternance-rncp7-1-an)
+  // vs une sous-évaluation (work-experience-i-work-experience-i-peer-video, évaluation entreprise...)
+  const isMainEntry = (p: Project42) => {
+    const slug = p.project.slug?.toLowerCase() || '';
+    const name = p.project.name.toLowerCase();
+    // Work Experience principal : slug = "work-experience-i" ou "work-experience-ii" (pas de double occurrence)
+    if (slug.startsWith('work-experience-')) {
+      // Les sous-évals ont le pattern "work-experience-X-work-experience-X-..."
+      return !slug.includes('-work-experience-', slug.indexOf('-', 16));
+    }
+    // Alternance FR principale (pas les évaluations)
+    if (slug.startsWith('fr-alternance')) {
+      return !name.includes('évaluation') && !name.includes('evaluation');
+    }
+    // Stages classiques
+    if (name.includes('stage') || name.includes('internship')) {
+      return !name.includes('évaluation') && !name.includes('evaluation');
+    }
+    return true;
   };
-  const profExpDisplayEntries = apiStages.filter((p: Project42) => !isEvalEntry(p.project.name));
-  // Pour chaque entrée principale, récupérer toutes les évaluations (finale + intermédiaires) par année
-  const evalsByYear: Record<number, Project42[]> = {};
-  apiStages.filter((p: Project42) => isEvalEntry(p.project.name)).forEach((p: Project42) => {
-    const y = getEntryYear(p);
-    if (!evalsByYear[y]) evalsByYear[y] = [];
-    evalsByYear[y].push(p);
+  const profExpDisplayEntries = apiStages.filter((p: Project42) => isMainEntry(p));
+  // Grouper les sous-évaluations par entrée parente
+  // Pour work-experience : on extrait le préfixe (work-experience-i, work-experience-ii)
+  // Pour alternance FR : on groupe par année
+  const getParentKey = (p: Project42): string => {
+    const slug = p.project.slug?.toLowerCase() || '';
+    if (slug.startsWith('work-experience-')) {
+      const match = slug.match(/^(work-experience-[ivxlc]+)/);
+      return match ? match[1] : slug;
+    }
+    return String(getEntryYear(p));
+  };
+  const evalsByParent: Record<string, Project42[]> = {};
+  apiStages.filter((p: Project42) => !isMainEntry(p)).forEach((p: Project42) => {
+    const key = getParentKey(p);
+    if (!evalsByParent[key]) evalsByParent[key] = [];
+    evalsByParent[key].push(p);
   });
 
-  // XP simulé des alternances API (entrées non validées avec pourcentage éditable)
-  const getApiEntryXP = (name: string, pct: number): number => {
-    const lower = name.toLowerCase();
+  // XP simulé des stages/alternances API (entrées non validées avec pourcentage éditable)
+  const getApiEntryXP = (p: Project42, pct: number): number => {
+    const lower = p.project.name.toLowerCase();
+    const slug = p.project.slug?.toLowerCase() || '';
     if (lower.includes('alternance')) {
       const match = lower.match(/(\d+)\s*an/);
       const years = match ? parseInt(match[1]) : 1;
       return Math.round(90000 * years * (pct / 100));
+    }
+    // Stage / Work Experience (6 mois par défaut)
+    if (slug.startsWith('work-experience') || lower.includes('stage')) {
+      return Math.round(10500 * 6 * (pct / 100));
     }
     return 0;
   };
@@ -862,11 +908,11 @@ const Dashboard: React.FC = () => {
     return Math.min(100, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length));
   };
   const apiExpXP = profExpDisplayEntries
-    .filter((p: Project42) => !p.validated && p.project.name.toLowerCase().includes('alternance'))
+    .filter((p: Project42) => !p.validated)
     .reduce((sum: number, p: Project42) => {
-      const evals = evalsByYear[getEntryYear(p)] || [];
+      const evals = evalsByParent[getParentKey(p)] || [];
       const pct = apiExpPercentages[p.id] ?? getEvalsAvg(evals);
-      return sum + getApiEntryXP(p.project.name, pct);
+      return sum + getApiEntryXP(p, pct);
     }, 0);
 
   return (
@@ -981,9 +1027,9 @@ const Dashboard: React.FC = () => {
 
           <ProfExpList
             entries={profExpDisplayEntries}
-            evalsByYear={evalsByYear}
+            evalsByParent={evalsByParent}
             manualExperiences={manualExperiences}
-            getEntryYear={getEntryYear}
+            getParentKey={getParentKey}
             apiExpPercentages={apiExpPercentages}
             onApiExpPercentageChange={(id, pct) => {
               const updated = { ...apiExpPercentages, [id]: pct };

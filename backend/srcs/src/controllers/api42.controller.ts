@@ -1,6 +1,25 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { API42Service } from '../services/api42.service.js';
 
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+/**
+ * En mode dev, permet d'override le user_id_42 via ?target_user_id=XXX
+ */
+function getEffectiveUserId(request: FastifyRequest): number {
+  if (IS_DEV) {
+    const { target_user_id } = request.query as { target_user_id?: string };
+    if (target_user_id) {
+      const id = parseInt(target_user_id, 10);
+      if (!isNaN(id) && id > 0) {
+        console.log(`[DEV] Impersonating user ID: ${id} (real: ${request.user.user_id_42})`);
+        return id;
+      }
+    }
+  }
+  return request.user.user_id_42;
+}
+
 /**
  * Gère les erreurs de l'API 42
  */
@@ -49,11 +68,12 @@ export class API42Controller {
    */
   static async getAllProjects(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token, user_id_42 } = request.user;
+      const { api_token } = request.user;
+      const userId = getEffectiveUserId(request);
 
-      const projects = await API42Service.getUserProjects(user_id_42, api_token);
+      const projects = await API42Service.getUserProjects(userId, api_token);
 
-      fastify.log.info(`[API42 Controller] Fetched ${projects.length} total projects for user ${user_id_42}`);
+      fastify.log.info(`[API42 Controller] Fetched ${projects.length} total projects for user ${userId}`);
 
       return projects;
     } catch (error: any) {
@@ -67,11 +87,12 @@ export class API42Controller {
    */
   static async getCursus(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token, user_id_42 } = request.user;
+      const { api_token } = request.user;
+      const userId = getEffectiveUserId(request);
 
-      const cursus = await API42Service.getUserCursus(user_id_42, api_token);
+      const cursus = await API42Service.getUserCursus(userId, api_token);
 
-      fastify.log.info(`[API42 Controller] Fetched ${cursus.length} cursus for user ${user_id_42}`);
+      fastify.log.info(`[API42 Controller] Fetched ${cursus.length} cursus for user ${userId}`);
 
       return cursus;
     } catch (error: any) {
@@ -85,11 +106,12 @@ export class API42Controller {
    */
   static async getEvents(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token, user_id_42 } = request.user;
+      const { api_token } = request.user;
+      const userId = getEffectiveUserId(request);
 
-      const events = await API42Service.getUserEvents(user_id_42, api_token);
+      const events = await API42Service.getUserEvents(userId, api_token);
 
-      fastify.log.info(`[API42 Controller] Fetched ${events.length} events for user ${user_id_42}`);
+      fastify.log.info(`[API42 Controller] Fetched ${events.length} events for user ${userId}`);
 
       return events;
     } catch (error: any) {
@@ -103,13 +125,14 @@ export class API42Controller {
    */
   static async getUserData(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token, user_id_42 } = request.user;
+      const { api_token } = request.user;
+      const userId = getEffectiveUserId(request);
       const { refresh } = request.query as { refresh?: string };
 
-      fastify.log.info(`[API42 Controller] Fetching user data for user ${user_id_42}`);
+      fastify.log.info(`[API42 Controller] Fetching user data for user ${userId}`);
 
       const data = await API42Service.getUserData(
-        user_id_42,
+        userId,
         api_token,
         refresh === 'true'
       );

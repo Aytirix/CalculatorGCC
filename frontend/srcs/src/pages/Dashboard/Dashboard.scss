@@ -442,9 +442,19 @@
       color: var(--text-primary);
     }
 
+    &__marks {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
     &__mark {
       color: var(--text-secondary);
       font-weight: 500;
+      font-size: 0.75rem;
+      padding: 0.1rem 0.35rem;
+      background: var(--bg-card);
+      border-radius: 4px;
     }
 
     &__status {

@@ -4,21 +4,26 @@ import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/Prof
 
 interface ProfExpListProps {
   entries: Project42[];
-  evalsByYear: Record<number, Project42[]>;
+  evalsByParent: Record<string, Project42[]>;
   manualExperiences: ProfessionalExperience[];
-  getEntryYear: (p: Project42) => number;
+  getParentKey: (p: Project42) => string;
   onDeleteManual: (id: string) => void;
   onEditManual: (exp: ProfessionalExperience) => void;
   apiExpPercentages: Record<number, number>;
   onApiExpPercentageChange: (id: number, percentage: number) => void;
 }
 
-function getApiEntryXP(name: string, percentage: number): number {
-  const lower = name.toLowerCase();
+function getApiEntryXP(p: Project42, percentage: number): number {
+  const lower = p.project.name.toLowerCase();
+  const slug = p.project.slug?.toLowerCase() || '';
   if (lower.includes('alternance')) {
     const match = lower.match(/(\d+)\s*an/);
     const years = match ? parseInt(match[1]) : 1;
     return Math.round(90000 * years * (percentage / 100));
+  }
+  // Stage / Work Experience (6 mois par défaut)
+  if (slug.startsWith('work-experience') || lower.includes('stage')) {
+    return Math.round(10500 * 6 * (percentage / 100));
   }
   return 0;
 }
@@ -32,9 +37,9 @@ function getDefaultPercentage(evals: Project42[]): number {
 
 const ProfExpList: React.FC<ProfExpListProps> = ({
   entries,
-  evalsByYear,
+  evalsByParent,
   manualExperiences,
-  getEntryYear,
+  getParentKey,
   onDeleteManual,
   onEditManual,
   apiExpPercentages,
@@ -45,12 +50,13 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
       <p className="prof-exp-empty">Aucune expérience professionnelle détectée.</p>
     )}
     {entries.map((p) => {
-      const evals = evalsByYear[getEntryYear(p)] || [];
+      const evals = evalsByParent[getParentKey(p)] || [];
       const isAlt = p.project.name.toLowerCase().includes('alternance');
+      const isStage = !isAlt;
       const defaultPct = getDefaultPercentage(evals);
-      const pct = apiExpPercentages[p.id] ?? defaultPct;
+      const pct = apiExpPercentages[p.id] ?? (p.validated ? p.final_mark || 100 : defaultPct);
 
-      const xp = getApiEntryXP(p.project.name, pct);
+      const xp = getApiEntryXP(p, pct);
       return (
         <div key={p.id} className="prof-exp-item">
           <span className="prof-exp-item__type">{isAlt ? '💼' : '🎓'}</span>
@@ -66,7 +72,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
               </span>
             ))}
           </div>
-          {isAlt && (
+          {!p.validated && (isAlt || isStage) && (
             <div className="prof-exp-item__pct-edit">
               <div className="prof-exp-item__pct-wrapper">
                 <input
@@ -75,7 +81,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
                   value={pct}
                   onChange={(e) => {
                     const v = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-                    onApiExpPercentageChange(p.id, Math.min(100, v));
+                    onApiExpPercentageChange(p.id, Math.min(125, v));
                   }}
                   className="prof-exp-item__pct-input"
                 />
@@ -85,7 +91,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
             </div>
           )}
           <span className={`prof-exp-item__status ${p.validated ? 'validated' : 'pending'}`}>
-            {p.validated ? 'Validé' : 'En cours'}
+            {p.validated ? `Validé (${p.final_mark}%)` : 'En cours'}
           </span>
         </div>
       );

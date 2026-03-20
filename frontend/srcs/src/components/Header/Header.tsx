@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
@@ -11,11 +11,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { DEV_USERS, isDev } from '@/config/devUsers';
+import { setDevTargetUserId, getDevTargetUserId } from '@/services/backend-api42.service';
+import { simulationService } from '@/services/simulation.service';
 import './Header.scss';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [devUserId, setDevUserId] = useState<number>(getDevTargetUserId());
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -62,6 +66,47 @@ const Header: React.FC = () => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
         >
+          {isDev && DEV_USERS.length > 0 && (
+            <select
+              className="dev-user-select"
+              value={devUserId}
+              onChange={async (e: React.ChangeEvent<HTMLSelectElement>) => {
+                const id = Number(e.target.value);
+                setDevUserId(id);
+                setDevTargetUserId(id);
+                // Reset la simulation en DB pour repartir à zéro
+                try {
+                  await simulationService.save({
+                    simulatedProjects: [],
+                    simulatedSubProjects: {},
+                    customProjects: [],
+                    manualExperiences: [],
+                    apiExpPercentages: {},
+                  });
+                } catch {}
+                // Nettoyer tout le localStorage simulation
+                localStorage.removeItem('simulated_projects');
+                localStorage.removeItem('simulated_sub_projects');
+                localStorage.removeItem('project_percentages');
+                localStorage.removeItem('custom_projects');
+                localStorage.removeItem('project_notes');
+                localStorage.removeItem('coalition_boosts');
+                localStorage.removeItem('api_exp_percentages');
+                localStorage.removeItem('professional_experiences');
+                localStorage.removeItem('user_data_cache');
+                // Recharger pour refetch les données du nouvel utilisateur
+                window.location.reload();
+              }}
+            >
+              <option value={0}>Mon compte</option>
+              {DEV_USERS.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.login} ({u.id})
+                </option>
+              ))}
+            </select>
+          )}
+
           <Button
             variant="ghost"
             size="icon"

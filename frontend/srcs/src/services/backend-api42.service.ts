@@ -1,7 +1,27 @@
 import { backendAuthService } from './backend-auth.service';
 import { config } from '@/config/config';
+import { isDev } from '@/config/devUsers';
 
 const BACKEND_URL = config.backendUrl;
+
+// ID de l'utilisateur impersonné en mode dev (0 = pas d'impersonation)
+const DEV_USER_KEY = 'dev_target_user_id';
+let _devTargetUserId = isDev ? parseInt(localStorage.getItem(DEV_USER_KEY) || '0', 10) : 0;
+
+export function setDevTargetUserId(id: number) {
+  _devTargetUserId = id;
+  if (isDev) {
+    if (id > 0) {
+      localStorage.setItem(DEV_USER_KEY, String(id));
+    } else {
+      localStorage.removeItem(DEV_USER_KEY);
+    }
+  }
+}
+
+export function getDevTargetUserId(): number {
+  return _devTargetUserId;
+}
 
 export interface Project42 {
   id: number;
@@ -56,7 +76,14 @@ export class BackendAPI42Service {
       throw new Error('No authentication token available. Please login first.');
     }
 
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+    // En dev, ajouter target_user_id si un utilisateur est sélectionné
+    let url = `${BACKEND_URL}${endpoint}`;
+    if (isDev && _devTargetUserId > 0) {
+      const separator = url.includes('?') ? '&' : '?';
+      url += `${separator}target_user_id=${_devTargetUserId}`;
+    }
+
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },

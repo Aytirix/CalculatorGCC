@@ -58,53 +58,36 @@ const RNCPCard = ({
   const completedProjectSlugs = completedProjects.map(p => p.slug || p.id);
   const simulatedProjectSlugs = simulatedProjects.map(p => p.slug || p.id);
 
-  // Calculer le pourcentage de validation réel (sans simulations)
-  const calculateRealValidationPercentage = (): number => {
+  // Calculer le pourcentage de validation basé sur les résultats de validateRNCP
+  const calculateValidationPercentage = (): number => {
     let totalCriteria = 0;
     let validatedCriteria = 0;
 
-    // 1. Niveau (1 critère) - Utiliser le niveau actuel réel, pas le projeté
+    // 1. Niveau
     totalCriteria++;
-    if (userProgress.currentLevel >= rncp.level) validatedCriteria++;
+    if (validation.isLevelValid) validatedCriteria++;
 
-    // 2. Événements (1 critère)
+    // 2. Événements
     totalCriteria++;
     if (validation.isEventsValid) validatedCriteria++;
 
-    // 3. Expérience professionnelle (1 critère)
+    // 3. Expérience professionnelle
     totalCriteria++;
     if (validation.isProfessionalExperienceValid) validatedCriteria++;
 
     // 4. Catégories (2 critères par catégorie : nombre de projets + XP minimum)
-    // Recalculer en ne comptant que les projets complétés (pas simulés)
-    rncp.categories.forEach(category => {
-      // Trouver les projets complétés réels (non simulés) de cette catégorie
-      const realCompletedProjects = category.projects.filter(project => {
-        const projectSlug = project.slug || project.id;
-        // Le projet est complété s'il est dans completedProjects mais PAS dans simulatedProjects
-        return completedProjectSlugs.includes(projectSlug) && !simulatedProjectSlugs.includes(projectSlug);
-      });
-
-      const realCount = realCompletedProjects.length;
-      const realXP = realCompletedProjects.reduce((sum, project) => sum + project.xp, 0);
-
-      // Critère: nombre de projets requis
+    validation.categoriesValidation.forEach((catValidation: CategoryValidation) => {
       totalCriteria++;
-      if (realCount >= category.requiredCount) {
-        validatedCriteria++;
-      }
+      if (catValidation.currentCount >= catValidation.requiredCount) validatedCriteria++;
 
-      // Critère: XP minimum requis
       totalCriteria++;
-      if (realXP >= category.requiredXP) {
-        validatedCriteria++;
-      }
+      if (catValidation.currentXP >= catValidation.requiredXP) validatedCriteria++;
     });
 
     return totalCriteria > 0 ? Math.round((validatedCriteria / totalCriteria) * 100) : 0;
   };
 
-  const validationPercentage = calculateRealValidationPercentage();
+  const validationPercentage = calculateValidationPercentage();
   const isGlobalRNCP = rncp.id === 'rncp-global';
 
   return (
