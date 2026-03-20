@@ -9,6 +9,7 @@ import Callback from '@/pages/Callback/Callback';
 import Dashboard from '@/pages/Dashboard/Dashboard';
 import Settings from '@/pages/Settings/Settings';
 import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import Calendar from '@/pages/Calendar/Calendar';
 import Setup from '@/pages/Setup/Setup';
 import { useSetupCheck } from '@/hooks/useSetupCheck';
 
@@ -66,6 +67,14 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <ProfessionalExperience />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar"
+        element={
+          <ProtectedRoute>
+            <Calendar />
           </ProtectedRoute>
         }
       />

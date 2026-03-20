@@ -1,0 +1,395 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.calendar-page {
+	min-height: 100vh;
+	background-color: var(--bg-primary);
+	color: var(--text-primary);
+}
+
+.calendar-container {
+	max-width: 1600px;
+	margin: 0 auto;
+	padding: $spacing-lg $spacing-xl;
+}
+
+// ── Controls bar ──────────────────────────────────────────────────────────
+
+.calendar-controls {
+	@include flex-between;
+	margin-bottom: $spacing-lg;
+	flex-wrap: wrap;
+	gap: $spacing-md;
+}
+
+.date-range-picker {
+	display: flex;
+	align-items: center;
+	gap: $spacing-lg;
+
+	label {
+		display: flex;
+		align-items: center;
+		gap: $spacing-sm;
+
+		span {
+			font-size: 0.85rem;
+			color: var(--text-muted);
+			font-weight: 500;
+		}
+
+		input[type="date"] {
+			padding: 0.4rem 0.6rem;
+			border: 1px solid var(--border-color);
+			border-radius: $radius-md;
+			background: var(--bg-card);
+			color: var(--text-primary);
+			font-size: 0.85rem;
+			outline: none;
+			transition: border-color $transition-fast;
+
+			&:focus {
+				border-color: var(--color-primary);
+			}
+		}
+	}
+}
+
+.calendar-info {
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	padding: 0.4rem 0.8rem;
+	background: var(--bg-card);
+	border-radius: $radius-md;
+	border: 1px solid var(--border-color);
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────
+
+.calendar-layout {
+	display: flex;
+	gap: $spacing-lg;
+	flex-direction: column;
+	align-items: stretch;
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────
+
+.calendar-sidebar {
+	width: 100%;
+	min-width: unset;
+	background: var(--bg-card);
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	padding: $spacing-md;
+	max-height: 190px;
+	overflow: hidden;
+}
+
+.sidebar-title {
+	font-size: 0.9rem;
+	font-weight: 700;
+	margin: 0 0 $spacing-md 0;
+	color: var(--text-primary);
+}
+
+.sidebar-empty {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	margin: 0;
+	line-height: 1.4;
+}
+
+.sidebar-projects {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	gap: $spacing-xs;
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding-bottom: $spacing-xs;
+	@include smooth-scroll;
+}
+
+.sidebar-project {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.45rem 0.6rem;
+	background: var(--bg-primary);
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	cursor: grab;
+	transition: all $transition-fast;
+	user-select: none;
+	flex: 0 0 auto;
+	min-width: 220px;
+
+	&:hover {
+		border-color: var(--color-primary);
+		background: rgba(59, 130, 246, 0.05);
+		transform: translateY(-1px);
+	}
+
+	&:active {
+		cursor: grabbing;
+	}
+}
+
+.sidebar-project-name {
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: var(--text-primary);
+	@include text-truncate;
+	max-width: 160px;
+}
+
+.sidebar-project-xp {
+	font-size: 0.7rem;
+	color: var(--text-muted);
+	white-space: nowrap;
+	margin-left: $spacing-xs;
+}
+
+// ── Grid wrapper ──────────────────────────────────────────────────────────
+
+.calendar-grid-wrapper {
+	flex: 1;
+	overflow-x: auto;
+	overflow-y: auto;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	background: var(--bg-card);
+	max-height: calc(100vh - 200px);
+	@include smooth-scroll;
+}
+
+.calendar-grid {
+	position: relative;
+	min-width: 100%;
+}
+
+// ── Month headers ─────────────────────────────────────────────────────────
+
+.month-headers {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	display: flex;
+	background: var(--bg-card);
+}
+
+.month-header {
+	position: absolute;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.85rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	text-transform: capitalize;
+	border-bottom: 2px solid var(--color-primary);
+	border-right: 1px solid var(--border-color);
+	background: var(--bg-card);
+	box-sizing: border-box;
+
+	&:first-child {
+		border-left: none;
+	}
+}
+
+// ── Week headers ──────────────────────────────────────────────────────────
+
+.week-headers {
+	position: sticky;
+	top: 32px;
+	z-index: 19;
+	display: flex;
+	background: var(--bg-card);
+}
+
+.week-header {
+	position: absolute;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--border-color);
+	border-right: 1px solid var(--border-color);
+	box-sizing: border-box;
+
+	.week-day {
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.week-sep {
+		margin: 0 1px;
+		color: var(--text-muted);
+	}
+
+	.week-month {
+		font-size: 0.65rem;
+		color: var(--text-muted);
+		margin-left: 2px;
+	}
+}
+
+// ── Grid body ─────────────────────────────────────────────────────────────
+
+.grid-body {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.grid-vline {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--border-color);
+	opacity: 0.5;
+	pointer-events: none;
+
+	&.month-border {
+		width: 2px;
+		opacity: 1;
+		background: var(--color-primary);
+		opacity: 0.3;
+	}
+}
+
+.grid-hline {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: var(--border-color);
+	opacity: 0.3;
+	pointer-events: none;
+}
+
+// ── Placed project bars ───────────────────────────────────────────────────
+
+.placed-project {
+	position: absolute;
+	border-radius: $radius-md;
+	display: flex;
+	align-items: center;
+	cursor: grab;
+	user-select: none;
+	z-index: 10;
+	transition: box-shadow $transition-fast, opacity $transition-fast;
+	overflow: hidden;
+
+	&:hover {
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+		z-index: 11;
+
+		.resize-handle {
+			opacity: 1;
+		}
+
+		.placed-project-remove {
+			opacity: 1;
+		}
+	}
+
+	&.active {
+		opacity: 0.85;
+		cursor: grabbing;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+		z-index: 12;
+	}
+}
+
+.placed-project-content {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 0.5rem;
+	min-width: 0;
+	gap: $spacing-xs;
+}
+
+.placed-project-name {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: white;
+	@include text-truncate;
+}
+
+.placed-project-duration {
+	font-size: 0.65rem;
+	color: rgba(255, 255, 255, 0.8);
+	white-space: nowrap;
+}
+
+.placed-project-remove {
+	position: absolute;
+	top: 2px;
+	right: 12px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	border: none;
+	background: rgba(0, 0, 0, 0.35);
+	color: white;
+	font-size: 0.65rem;
+	font-weight: 700;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity $transition-fast, background $transition-fast;
+	@include flex-center;
+	line-height: 1;
+
+	&:hover {
+		background: rgba(220, 38, 38, 0.8);
+	}
+}
+
+// ── Resize handles ────────────────────────────────────────────────────────
+
+.resize-handle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 8px;
+	cursor: col-resize;
+	opacity: 0;
+	transition: opacity $transition-fast, background $transition-fast;
+	z-index: 2;
+
+	&:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	&.resize-left {
+		left: 0;
+		border-radius: $radius-md 0 0 $radius-md;
+	}
+
+	&.resize-right {
+		right: 0;
+		border-radius: 0 $radius-md $radius-md 0;
+	}
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────
+
+@media (max-width: $breakpoint-md) {
+	.calendar-sidebar {
+		max-height: 200px;
+	}
+
+	.calendar-grid-wrapper {
+		max-height: calc(100vh - 400px);
+	}
+}

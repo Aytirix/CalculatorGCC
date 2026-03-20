@@ -58,6 +58,13 @@ const Header: React.FC = () => {
           >
             Projets
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/calendar')}
+            className="nav-button"
+          >
+            Calendrier
+          </Button>
         </motion.div>
 
         <motion.div

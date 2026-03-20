@@ -62,7 +62,6 @@ else
 	PROTOCOL="http"
 fi
 
-cp "$ENV_FILE" "/artifacts/build-time.env"
 echo ""
 echo "Configuration de la base de données terminée!"
 echo "Pour accéder à phpMyAdmin: $PROTOCOL://$HOSTNAME:3000/phpmyadmin"
