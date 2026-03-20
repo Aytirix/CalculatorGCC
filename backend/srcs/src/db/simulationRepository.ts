@@ -1,4 +1,5 @@
 import { prisma } from './connection.js';
+import type { Prisma } from '@prisma/client';
 import { isValidProjectId, isValidSubProjectId } from '../data/validProjects.js';
 
 export interface SimulatedProjectData {
@@ -99,17 +100,17 @@ export const simulationRepository = {
 			create: {
 				userId42,
 				login,
-				simulatedSubProjects: data.simulatedSubProjects,
-				customProjects: data.customProjects,
-				manualExperiences: data.manualExperiences,
-				apiExpPercentages: data.apiExpPercentages,
+				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
+				customProjects: data.customProjects as Prisma.InputJsonValue,
+				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
 			},
 			update: {
 				login,
-				simulatedSubProjects: data.simulatedSubProjects,
-				customProjects: data.customProjects,
-				manualExperiences: data.manualExperiences,
-				apiExpPercentages: data.apiExpPercentages,
+				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
+				customProjects: data.customProjects as Prisma.InputJsonValue,
+				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
 			},
 		});
 
