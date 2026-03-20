@@ -13,14 +13,295 @@
 	padding: $spacing-lg $spacing-xl;
 }
 
-// ── Controls bar ──────────────────────────────────────────────────────────
+// ── Controls bar ───────────────────────────────────────────────────────────
 
 .calendar-controls {
-	@include flex-between;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
 	margin-bottom: $spacing-lg;
-	flex-wrap: wrap;
 	gap: $spacing-md;
+	flex-wrap: wrap;
 }
+
+// ── View switcher ──────────────────────────────────────────────────────────
+
+.view-switcher {
+	display: flex;
+	background: var(--bg-card);
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	padding: 3px;
+	gap: 2px;
+}
+
+.view-btn {
+	padding: 0.35rem 0.85rem;
+	border: none;
+	border-radius: $radius-md;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.82rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all $transition-fast;
+	white-space: nowrap;
+
+	&:hover {
+		color: var(--text-primary);
+		background: var(--bg-primary);
+	}
+
+	&.active {
+		background: var(--color-primary);
+		color: white;
+		font-weight: 600;
+	}
+}
+
+// ── Right controls (import + info) ────────────────────────────────────────
+
+.calendar-right-controls {
+	display: flex;
+	align-items: center;
+	gap: $spacing-sm;
+}
+
+.alternance-import-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.import-btn {
+	padding: 0.38rem 0.75rem;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	background: var(--bg-card);
+	color: var(--text-primary);
+	font-size: 0.82rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all $transition-fast;
+	white-space: nowrap;
+
+	&:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+}
+
+.clear-alternance-btn {
+	width: 28px;
+	height: 28px;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	background: var(--bg-card);
+	color: var(--text-muted);
+	font-size: 1rem;
+	cursor: pointer;
+	@include flex-center;
+	transition: all $transition-fast;
+
+	&:hover {
+		border-color: #dc2626;
+		color: #dc2626;
+		background: rgba(220, 38, 38, 0.06);
+	}
+}
+
+// ── Import error ────────────────────────────────────────────────────────────
+
+.import-error {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: $spacing-md;
+	padding: 0.6rem $spacing-md;
+	background: rgba(220, 38, 38, 0.08);
+	border: 1px solid rgba(220, 38, 38, 0.3);
+	border-radius: $radius-md;
+	margin-bottom: $spacing-md;
+	font-size: 0.83rem;
+	color: #dc2626;
+
+	button {
+		border: none;
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+		font-size: 1rem;
+		line-height: 1;
+		opacity: 0.7;
+		flex-shrink: 0;
+
+		&:hover { opacity: 1; }
+	}
+}
+
+// ── Contract prompt ─────────────────────────────────────────────────────────
+
+.contract-prompt {
+	display: flex;
+	align-items: flex-start;
+	gap: $spacing-md;
+	padding: $spacing-md $spacing-lg;
+	background: var(--bg-card);
+	border: 1px solid var(--color-primary);
+	border-radius: $radius-lg;
+	margin-bottom: $spacing-lg;
+	box-shadow: 0 2px 12px rgba(59, 130, 246, 0.12);
+}
+
+.contract-prompt-icon {
+	font-size: 1.5rem;
+	flex-shrink: 0;
+	line-height: 1;
+	margin-top: 2px;
+}
+
+.contract-prompt-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.contract-prompt-title {
+	font-size: 0.88rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	margin: 0 0 4px 0;
+}
+
+.contract-prompt-text {
+	font-size: 0.82rem;
+	color: var(--text-muted);
+	margin: 0;
+	line-height: 1.5;
+
+	strong {
+		color: var(--text-primary);
+	}
+}
+
+.contract-prompt-actions {
+	display: flex;
+	gap: $spacing-xs;
+	flex-shrink: 0;
+	align-self: center;
+}
+
+.prompt-btn-confirm {
+	padding: 0.4rem 1rem;
+	border: none;
+	border-radius: $radius-md;
+	background: var(--color-primary);
+	color: white;
+	font-size: 0.82rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity $transition-fast;
+
+	&:hover { opacity: 0.85; }
+}
+
+.prompt-btn-cancel {
+	padding: 0.4rem 1rem;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.82rem;
+	cursor: pointer;
+	transition: all $transition-fast;
+
+	&:hover {
+		border-color: var(--text-muted);
+		color: var(--text-primary);
+	}
+}
+
+// ── Alternance day background (Chronologie) ────────────────────────────────
+
+.alternance-day-bg {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	opacity: 1;
+	pointer-events: none;
+	z-index: 0;
+
+	.dark & {
+		opacity: 0.5;
+	}
+}
+
+// ── Alternance color strip (Mois / Semaine) ────────────────────────────────
+
+.alternance-strip {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 4px;
+	border-radius: $radius-md $radius-md 0 0;
+	pointer-events: none;
+	z-index: 1;
+}
+
+// ── Navigation (mois / semaine) ────────────────────────────────────────────
+
+.calendar-nav {
+	display: flex;
+	align-items: center;
+	gap: $spacing-sm;
+}
+
+.nav-arrow {
+	width: 32px;
+	height: 32px;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	background: var(--bg-card);
+	color: var(--text-primary);
+	font-size: 1.1rem;
+	line-height: 1;
+	cursor: pointer;
+	@include flex-center;
+	transition: all $transition-fast;
+
+	&:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+}
+
+.nav-today {
+	padding: 0.35rem 0.75rem;
+	border: 1px solid var(--border-color);
+	border-radius: $radius-md;
+	background: var(--bg-card);
+	color: var(--text-primary);
+	font-size: 0.82rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all $transition-fast;
+
+	&:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+}
+
+.nav-label {
+	font-size: 0.92rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	text-transform: capitalize;
+	min-width: 220px;
+	text-align: center;
+}
+
+// ── Date range picker (chronologie) ───────────────────────────────────────
 
 .date-range-picker {
 	display: flex;
@@ -55,6 +336,8 @@
 	}
 }
 
+// ── Info badge ─────────────────────────────────────────────────────────────
+
 .calendar-info {
 	font-size: 0.85rem;
 	color: var(--text-muted);
@@ -62,9 +345,10 @@
 	background: var(--bg-card);
 	border-radius: $radius-md;
 	border: 1px solid var(--border-color);
+	white-space: nowrap;
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────
+// ── Layout ─────────────────────────────────────────────────────────────────
 
 .calendar-layout {
 	display: flex;
@@ -73,11 +357,10 @@
 	align-items: stretch;
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────
+// ── Sidebar ────────────────────────────────────────────────────────────────
 
 .calendar-sidebar {
 	width: 100%;
-	min-width: unset;
 	background: var(--bg-card);
 	border: 1px solid var(--border-color);
 	border-radius: $radius-lg;
@@ -151,7 +434,7 @@
 	margin-left: $spacing-xs;
 }
 
-// ── Grid wrapper ──────────────────────────────────────────────────────────
+// ── Chronologie (Gantt) ────────────────────────────────────────────────────
 
 .calendar-grid-wrapper {
 	flex: 1;
@@ -169,8 +452,6 @@
 	min-width: 100%;
 }
 
-// ── Month headers ─────────────────────────────────────────────────────────
-
 .month-headers {
 	position: sticky;
 	top: 0;
@@ -182,9 +463,7 @@
 .month-header {
 	position: absolute;
 	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	@include flex-center;
 	font-size: 0.85rem;
 	font-weight: 700;
 	color: var(--text-primary);
@@ -193,13 +472,7 @@
 	border-right: 1px solid var(--border-color);
 	background: var(--bg-card);
 	box-sizing: border-box;
-
-	&:first-child {
-		border-left: none;
-	}
 }
-
-// ── Week headers ──────────────────────────────────────────────────────────
 
 .week-headers {
 	position: sticky;
@@ -212,9 +485,7 @@
 .week-header {
 	position: absolute;
 	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	@include flex-center;
 	gap: 2px;
 	font-size: 0.72rem;
 	color: var(--text-muted);
@@ -239,8 +510,6 @@
 	}
 }
 
-// ── Grid body ─────────────────────────────────────────────────────────────
-
 .grid-body {
 	position: absolute;
 	left: 0;
@@ -256,12 +525,12 @@
 	background: var(--border-color);
 	opacity: 0.5;
 	pointer-events: none;
+	z-index: 1;
 
 	&.month-border {
 		width: 2px;
-		opacity: 1;
-		background: var(--color-primary);
 		opacity: 0.3;
+		background: var(--color-primary);
 	}
 }
 
@@ -273,9 +542,8 @@
 	background: var(--border-color);
 	opacity: 0.3;
 	pointer-events: none;
+	z-index: 1;
 }
-
-// ── Placed project bars ───────────────────────────────────────────────────
 
 .placed-project {
 	position: absolute;
@@ -292,10 +560,7 @@
 		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 		z-index: 11;
 
-		.resize-handle {
-			opacity: 1;
-		}
-
+		.resize-handle,
 		.placed-project-remove {
 			opacity: 1;
 		}
@@ -342,20 +607,17 @@
 	border: none;
 	background: rgba(0, 0, 0, 0.35);
 	color: white;
-	font-size: 0.65rem;
+	font-size: 0.8rem;
 	font-weight: 700;
 	cursor: pointer;
 	opacity: 0;
 	transition: opacity $transition-fast, background $transition-fast;
 	@include flex-center;
-	line-height: 1;
 
 	&:hover {
 		background: rgba(220, 38, 38, 0.8);
 	}
 }
-
-// ── Resize handles ────────────────────────────────────────────────────────
 
 .resize-handle {
 	position: absolute;
@@ -382,9 +644,352 @@
 	}
 }
 
-// ── Responsive ────────────────────────────────────────────────────────────
+// ── Vue Mois ───────────────────────────────────────────────────────────────
+
+.view-mois {
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	background: var(--bg-card);
+	overflow: hidden;
+}
+
+.mois-day-names {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	border-bottom: 2px solid var(--color-primary);
+}
+
+.mois-day-name {
+	padding: 0.6rem;
+	text-align: center;
+	font-size: 0.78rem;
+	font-weight: 700;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.mois-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	grid-template-rows: repeat(6, minmax(110px, 1fr));
+	border-top: 1px solid var(--border-color);
+}
+
+.mois-day-cell {
+	position: relative;
+	border-right: 1px solid var(--border-color);
+	border-bottom: 1px solid var(--border-color);
+	padding: 0.4rem 0.5rem;
+	background: var(--bg-card);
+	transition: background $transition-fast;
+	min-height: 110px;
+
+	&:nth-child(7n) {
+		border-right: none;
+	}
+
+	&:hover {
+		background: rgba(59, 130, 246, 0.04);
+	}
+
+	&.today {
+		background: rgba(59, 130, 246, 0.06);
+
+		.mois-day-number {
+			background: var(--color-primary);
+			color: white;
+			border-radius: 50%;
+			width: 26px;
+			height: 26px;
+			@include flex-center;
+		}
+	}
+
+	&.outside-month {
+		background: var(--bg-primary);
+		opacity: 0.45;
+	}
+}
+
+.mois-day-number {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	width: 26px;
+	height: 26px;
+	margin-bottom: 4px;
+}
+
+.mois-day-projects {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.mois-project-chip {
+	border-radius: 3px;
+	padding: 1px 5px;
+	font-size: 0.7rem;
+	font-weight: 500;
+	color: white;
+	@include text-truncate;
+	cursor: default;
+	transition: opacity $transition-fast;
+
+	&:hover {
+		opacity: 0.85;
+	}
+}
+
+.mois-project-more {
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	padding-left: 2px;
+}
+
+// ── Vue Semaine ────────────────────────────────────────────────────────────
+
+.view-semaine {
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	background: var(--bg-card);
+	overflow: hidden;
+}
+
+.semaine-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	min-height: 400px;
+}
+
+.semaine-day-col {
+	border-right: 1px solid var(--border-color);
+	display: flex;
+	flex-direction: column;
+	transition: background $transition-fast;
+
+	&:last-child {
+		border-right: none;
+	}
+
+	&:hover {
+		background: rgba(59, 130, 246, 0.03);
+	}
+
+	&.today {
+		background: rgba(59, 130, 246, 0.05);
+	}
+}
+
+.semaine-day-header {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 0.75rem 0.5rem 0.6rem;
+	border-bottom: 2px solid var(--color-primary);
+	gap: 4px;
+	overflow: hidden;
+}
+
+.semaine-day-name {
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.semaine-day-num {
+	font-size: 1.2rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	width: 36px;
+	height: 36px;
+	@include flex-center;
+	border-radius: 50%;
+
+	&.today-badge {
+		background: var(--color-primary);
+		color: white;
+	}
+}
+
+.semaine-day-body {
+	flex: 1;
+	padding: $spacing-sm;
+	display: flex;
+	flex-direction: column;
+	gap: $spacing-xs;
+}
+
+.semaine-drop-hint {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	text-align: center;
+	padding: $spacing-lg 0;
+	opacity: 0.5;
+}
+
+.semaine-project-chip {
+	border-radius: $radius-md;
+	padding: 0.5rem 0.6rem;
+	cursor: default;
+	transition: opacity $transition-fast, transform $transition-fast;
+
+	&:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
+	}
+}
+
+.semaine-chip-name {
+	display: block;
+	font-size: 0.77rem;
+	font-weight: 600;
+	color: white;
+	@include text-truncate;
+}
+
+.semaine-chip-meta {
+	display: block;
+	font-size: 0.67rem;
+	color: rgba(255, 255, 255, 0.75);
+	margin-top: 2px;
+}
+
+// ── Vue Agenda ─────────────────────────────────────────────────────────────
+
+.view-agenda {
+	max-width: 720px;
+	display: flex;
+	flex-direction: column;
+	gap: $spacing-xl;
+}
+
+.agenda-empty {
+	text-align: center;
+	padding: $spacing-xxl;
+	color: var(--text-muted);
+
+	.agenda-empty-icon {
+		font-size: 3rem;
+		margin-bottom: $spacing-md;
+	}
+
+	p {
+		margin: 0.25rem 0;
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+}
+
+.agenda-month-group {
+	display: flex;
+	flex-direction: column;
+	gap: $spacing-xs;
+}
+
+.agenda-month-label {
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--color-primary);
+	margin: 0 0 $spacing-sm 0;
+	padding-bottom: $spacing-xs;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.agenda-item {
+	display: flex;
+	align-items: center;
+	gap: $spacing-md;
+	padding: 0.75rem $spacing-md;
+	background: var(--bg-card);
+	border: 1px solid var(--border-color);
+	border-radius: $radius-lg;
+	transition: all $transition-fast;
+
+	&:hover {
+		border-color: rgba(59, 130, 246, 0.3);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	}
+}
+
+.agenda-item-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.agenda-item-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.agenda-item-name {
+	font-size: 0.88rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	@include text-truncate;
+	margin-bottom: 3px;
+}
+
+.agenda-item-meta {
+	display: flex;
+	align-items: center;
+	gap: $spacing-xs;
+	font-size: 0.77rem;
+	color: var(--text-muted);
+}
+
+.agenda-meta-sep {
+	opacity: 0.4;
+}
+
+.agenda-item-remove {
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 1.1rem;
+	cursor: pointer;
+	@include flex-center;
+	flex-shrink: 0;
+	transition: all $transition-fast;
+
+	&:hover {
+		background: rgba(220, 38, 38, 0.12);
+		color: #dc2626;
+	}
+}
+
+// ── Responsive ─────────────────────────────────────────────────────────────
 
 @media (max-width: $breakpoint-md) {
+	.calendar-controls {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.nav-label {
+		min-width: 160px;
+		font-size: 0.85rem;
+	}
+
+	.semaine-grid {
+		overflow-x: auto;
+		grid-template-columns: repeat(7, minmax(120px, 1fr));
+	}
+
 	.calendar-sidebar {
 		max-height: 200px;
 	}
