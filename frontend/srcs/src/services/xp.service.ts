@@ -3,216 +3,213 @@ import { isProjectCompleted } from '@/utils/projectMatcher';
 import type { SimulationResult, RNCP, ProjectCategory, RNCPValidation, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 
 interface LevelData {
-  lvl: number;
-  xp: number;
+	lvl: number;
+	xp: number;
 }
 
 const levels: LevelData[] = levelData as LevelData[];
 
 export const xpService = {
-  // Calculer l'XP total à partir du niveau
-  getXPFromLevel: (level: number): number => {
-    const floorLevel = Math.floor(level);
-    const decimal = level - floorLevel;
-    
-    const currentLevelData = levels.find((l) => l.lvl === floorLevel);
-    const nextLevelData = levels.find((l) => l.lvl === floorLevel + 1);
+	// Calculer l'XP total à partir du niveau
+	getXPFromLevel: (level: number): number => {
+		const floorLevel = Math.floor(level);
+		const decimal = level - floorLevel;
 
-    if (!currentLevelData) return 0;
-    if (!nextLevelData) return currentLevelData.xp;
+		const currentLevelData = levels.find((l) => l.lvl === floorLevel);
+		const nextLevelData = levels.find((l) => l.lvl === floorLevel + 1);
 
-    const xpDiff = nextLevelData.xp - currentLevelData.xp;
-    return currentLevelData.xp + Math.floor(xpDiff * decimal);
-  },
+		if (!currentLevelData) return 0;
+		if (!nextLevelData) return currentLevelData.xp;
 
-  // Calculer le niveau à partir de l'XP
-  getLevelFromXP: (xp: number): number => {
-    let level = 0;
+		const xpDiff = nextLevelData.xp - currentLevelData.xp;
+		return currentLevelData.xp + Math.floor(xpDiff * decimal);
+	},
 
-    for (let i = 0; i < levels.length; i++) {
-      if (xp >= levels[i].xp) {
-        level = levels[i].lvl;
+	// Calculer le niveau à partir de l'XP
+	getLevelFromXP: (xp: number): number => {
+		let level = 0;
 
-        // Calculer la progression vers le niveau suivant
-        if (i < levels.length - 1) {
-          const currentLevelXP = levels[i].xp;
-          const nextLevelXP = levels[i + 1].xp;
-          const xpDiff = nextLevelXP - currentLevelXP;
-          const xpProgress = xp - currentLevelXP;
-          const decimal = xpProgress / xpDiff;
+		for (let i = 0; i < levels.length; i++) {
+			if (xp >= levels[i].xp) {
+				level = levels[i].lvl;
 
-          level += decimal;
-        }
-      } else {
-        break;
-      }
-    }
+				// Calculer la progression vers le niveau suivant
+				if (i < levels.length - 1) {
+					const currentLevelXP = levels[i].xp;
+					const nextLevelXP = levels[i + 1].xp;
+					const xpDiff = nextLevelXP - currentLevelXP;
+					const xpProgress = xp - currentLevelXP;
+					const decimal = xpProgress / xpDiff;
 
-    return level;
-  },
+					level += decimal;
+				}
+			} else {
+				break;
+			}
+		}
 
-  // Simuler l'ajout de projets et calculer le nouveau niveau
-  simulateProjects: (currentLevel: number, projectsXP: number[]): SimulationResult => {
-    const currentXP = xpService.getXPFromLevel(currentLevel);
-    const additionalXP = projectsXP.reduce((sum, xp) => sum + xp, 0);
-    const totalXP = currentXP + additionalXP;
-    const projectedLevel = xpService.getLevelFromXP(totalXP);
+		return level;
+	},
 
-    // Trouver l'XP nécessaire pour le prochain niveau entier
-    const nextWholeLevel = Math.ceil(projectedLevel);
-    const nextLevelData = levels.find((l) => l.lvl === nextWholeLevel);
-    const missingXP = nextLevelData ? nextLevelData.xp - totalXP : 0;
+	// Simuler l'ajout de projets et calculer le nouveau niveau
+	simulateProjects: (currentLevel: number, projectsXP: number[]): SimulationResult => {
+		const currentXP = xpService.getXPFromLevel(currentLevel);
+		const additionalXP = projectsXP.reduce((sum, xp) => sum + xp, 0);
+		const totalXP = currentXP + additionalXP;
+		const projectedLevel = xpService.getLevelFromXP(totalXP);
 
-    return {
-      totalXP,
-      projectedLevel,
-      progressPercentage: ((projectedLevel / 21) * 100),
-      missingXP: Math.max(0, missingXP),
-    };
-  },
+		// Trouver l'XP nécessaire pour le prochain niveau entier
+		const nextWholeLevel = Math.ceil(projectedLevel);
+		const nextLevelData = levels.find((l) => l.lvl === nextWholeLevel);
+		const missingXP = nextLevelData ? nextLevelData.xp - totalXP : 0;
 
-  // Calculer l'XP total d'une liste de projets
-  calculateTotalXP: (
-    projects: SimulatorProject[], 
-    projectPercentages?: Record<string, number>,
-    completedProjectsPercentages?: Record<string, number>,
-    coalitionBoosts?: Record<string, boolean>
-  ): number => {
-    return projects.reduce((total, project) => {
-      let projectXP = project.xp;
-      
-      // Si le projet a des sous-projets, on prend l'XP total du projet parent
-      // car dans les données, l'XP est déjà le total
-      if (project.subProjects && project.subProjects.length > 0) {
-        // L'XP du projet parent est déjà la somme
-        projectXP = project.xp;
-      }
+		return {
+			totalXP,
+			projectedLevel,
+			progressPercentage: ((projectedLevel / 21) * 100),
+			missingXP: Math.max(0, missingXP),
+		};
+	},
 
-      // Appliquer le pourcentage du projet (simulé ou complété)
-      const percentage = projectPercentages?.[project.id] ?? completedProjectsPercentages?.[project.id] ?? 100;
-      projectXP = Math.round((projectXP * percentage) / 100);
+	// Calculer l'XP total d'une liste de projets
+	calculateTotalXP: (
+		projects: SimulatorProject[],
+		projectPercentages?: Record<string, number>,
+		completedProjectsPercentages?: Record<string, number>,
+		coalitionBoosts?: Record<string, boolean>
+	): number => {
+		return projects.reduce((total, project) => {
+			let projectXP = project.xp;
 
-      // Appliquer le boost de coalition si activé (+4.2%)
-      if (coalitionBoosts?.[project.id]) {
-        projectXP = Math.round(projectXP * 1.042);
-      }
-      
-      return total + projectXP;
-    }, 0);
-  },
+			// Si le projet a des sous-projets, on prend l'XP total du projet parent
+			// car dans les données, l'XP est déjà le total
+			if (project.subProjects && project.subProjects.length > 0) {
+				// L'XP du projet parent est déjà la somme
+				projectXP = project.xp;
+			}
 
-  // Valider un RNCP pour un utilisateur
-  validateRNCP: (
-    rncp: RNCP,
-    userLevel: number,
-    userEvents: number,
-    userProfessionalExp: number,
-    completedProjects: string[],
-    simulatedProjects: string[],
-    projectPercentages?: Record<string, number>,
-    completedProjectsPercentages?: Record<string, number>,
-    coalitionBoosts?: Record<string, boolean>,
-    simulatedSubProjects?: Record<string, string[]>
-  ): RNCPValidation => {
-    const allValidatedProjects = [...completedProjects, ...simulatedProjects];
+			// Appliquer le pourcentage du projet (simulé ou complété)
+			const percentage = projectPercentages?.[project.id] ?? completedProjectsPercentages?.[project.id] ?? 100;
+			projectXP = Math.round((projectXP * percentage) / 100);
 
-    // Valider le niveau
-    const isLevelValid = userLevel >= rncp.level;
+			// Appliquer le boost de coalition si activé (+4.2%)
+			if (coalitionBoosts?.[project.id]) {
+				projectXP = Math.round(projectXP * 1.042);
+			}
 
-    // Valider les événements
-    const isEventsValid = userEvents >= rncp.requiredEvents;
+			return total + projectXP;
+		}, 0);
+	},
 
-    // Valider l'expérience professionnelle
-    const isProfessionalExperienceValid = userProfessionalExp >= rncp.requiredProfessionalExperience;
+	// Valider un RNCP pour un utilisateur
+	validateRNCP: (
+		rncp: RNCP,
+		userLevel: number,
+		userEvents: number,
+		userProfessionalExp: number,
+		completedProjects: string[],
+		simulatedProjects: string[],
+		projectPercentages?: Record<string, number>,
+		completedProjectsPercentages?: Record<string, number>,
+		coalitionBoosts?: Record<string, boolean>,
+		simulatedSubProjects?: Record<string, string[]>
+	): RNCPValidation => {
+		const allValidatedProjects = [...completedProjects, ...simulatedProjects];
 
-    // Valider chaque catégorie
-    const categoriesValidation: CategoryValidation[] = rncp.categories.map((category) => {
-      return xpService.validateCategory(
-        category,
-        allValidatedProjects,
-        projectPercentages,
-        completedProjectsPercentages,
-        coalitionBoosts,
-        simulatedSubProjects
-      );
-    });
+		// Valider le niveau
+		const isLevelValid = userLevel >= rncp.level;
 
-    // Le RNCP est valide si toutes les conditions sont remplies
-    const overallValid =
-      isLevelValid &&
-      isEventsValid &&
-      isProfessionalExperienceValid &&
-      categoriesValidation.every((cv) => cv.isValid);
+		// Valider les événements
+		const isEventsValid = userEvents >= rncp.requiredEvents;
 
-    return {
-      rncpId: rncp.id,
-      isLevelValid,
-      isEventsValid,
-      isProfessionalExperienceValid,
-      categoriesValidation,
-      overallValid,
-    };
-  },
+		// Valider l'expérience professionnelle
+		const isProfessionalExperienceValid = userProfessionalExp >= rncp.requiredProfessionalExperience;
 
-  // Valider une catégorie
-  validateCategory: (
-    category: ProjectCategory,
-    validatedProjects: string[],
-    projectPercentages?: Record<string, number>,
-    completedProjectsPercentages?: Record<string, number>,
-    coalitionBoosts?: Record<string, boolean>,
-    simulatedSubProjects?: Record<string, string[]>
-  ): CategoryValidation => {
-    // Trouver les projets validés de cette catégorie
-    const categoryValidatedProjects = category.projects.filter((project) => {
-      const projectSlug = project.slug || project.id;
-      if (isProjectCompleted(projectSlug, validatedProjects)) return true;
-      // Piscine : compter comme validé si tous les sous-projets sont cochés
-      if (project.subProjects && simulatedSubProjects?.[project.id]) {
-        const checkedSubs = simulatedSubProjects[project.id];
-        return project.subProjects.every(sub => checkedSubs.includes(sub.id));
-      }
-      return false;
-    });
+		// Valider chaque catégorie
+		const categoriesValidation: CategoryValidation[] = rncp.categories.map((category) => {
+			return xpService.validateCategory(
+				category,
+				allValidatedProjects,
+				projectPercentages,
+				completedProjectsPercentages,
+				coalitionBoosts,
+				simulatedSubProjects
+			);
+		});
 
-    const currentCount = categoryValidatedProjects.length;
-    let currentXP = xpService.calculateTotalXP(
-      categoryValidatedProjects,
-      projectPercentages,
-      completedProjectsPercentages,
-      coalitionBoosts
-    );
+		// Le RNCP est valide si toutes les conditions sont remplies
+		const overallValid =
+			isLevelValid &&
+			isEventsValid &&
+			isProfessionalExperienceValid &&
+			categoriesValidation.every((cv) => cv.isValid);
 
-    // Ajouter l'XP des sous-projets partiellement cochés (projets pas encore comptés comme validés)
-    if (simulatedSubProjects && Object.keys(simulatedSubProjects).length > 0) {
-      for (const project of category.projects) {
-        if (!project.subProjects) continue;
-        const key = project.id;
-        const checkedSubs = simulatedSubProjects[key];
-        if (categoryValidatedProjects.includes(project)) {
-			console.log(` [sub-projects] Le projet "${project.name}" est déjà validé, les sous-projets cochés ne sont pas comptés séparément.`);
-			continue;}
-        if (!checkedSubs || checkedSubs.length === 0) {console.log(` [sub-projects] Aucun sous-projet coché pour "${project.name}"`); continue;}
-        const subXP = project.subProjects
-          .filter(sub => checkedSubs.includes(sub.id))
-          .reduce((sum, sub) => sum + sub.xp, 0);
-		console.log(` [sub-projects] Projet "${project.name}" - XP des sous-projets cochés: ${subXP} XP (cochés: ${checkedSubs.length}/${project.subProjects.length})`);
-        currentXP += subXP;
-      }
-    }
+		return {
+			rncpId: rncp.id,
+			isLevelValid,
+			isEventsValid,
+			isProfessionalExperienceValid,
+			categoriesValidation,
+			overallValid,
+		};
+	},
 
-    const isValid =
-      currentCount >= category.requiredCount &&
-      currentXP >= category.requiredXP;
+	// Valider une catégorie
+	validateCategory: (
+		category: ProjectCategory,
+		validatedProjects: string[],
+		projectPercentages?: Record<string, number>,
+		completedProjectsPercentages?: Record<string, number>,
+		coalitionBoosts?: Record<string, boolean>,
+		simulatedSubProjects?: Record<string, string[]>
+	): CategoryValidation => {
+		// Trouver les projets validés de cette catégorie
+		const categoryValidatedProjects = category.projects.filter((project) => {
+			const projectSlug = project.slug || project.id;
+			if (isProjectCompleted(projectSlug, validatedProjects)) return true;
+			// Piscine : compter comme validé si tous les sous-projets sont cochés
+			if (project.subProjects && simulatedSubProjects?.[project.id]) {
+				const checkedSubs = simulatedSubProjects[project.id];
+				return project.subProjects.every(sub => checkedSubs.includes(sub.id));
+			}
+			return false;
+		});
 
-    return {
-      categoryId: category.id,
-      requiredCount: category.requiredCount,
-      currentCount,
-      requiredXP: category.requiredXP,
-      currentXP,
-      isValid,
-      validatedProjects: categoryValidatedProjects.map((p) => p.id),
-    };
-  },
+		const currentCount = categoryValidatedProjects.length;
+		let currentXP = xpService.calculateTotalXP(
+			categoryValidatedProjects,
+			projectPercentages,
+			completedProjectsPercentages,
+			coalitionBoosts
+		);
+
+		// Ajouter l'XP des sous-projets partiellement cochés (projets pas encore comptés comme validés)
+		if (simulatedSubProjects && Object.keys(simulatedSubProjects).length > 0) {
+			for (const project of category.projects) {
+				if (!project.subProjects) continue;
+				const key = project.id;
+				const checkedSubs = simulatedSubProjects[key];
+				if (categoryValidatedProjects.includes(project)) continue;
+				if (!checkedSubs || checkedSubs.length === 0) continue;
+				const subXP = project.subProjects
+					.filter(sub => checkedSubs.includes(sub.id))
+					.reduce((sum, sub) => sum + sub.xp, 0);
+				currentXP += subXP;
+			}
+		}
+
+		const isValid =
+			currentCount >= category.requiredCount &&
+			currentXP >= category.requiredXP;
+
+		return {
+			categoryId: category.id,
+			requiredCount: category.requiredCount,
+			currentCount,
+			requiredXP: category.requiredXP,
+			currentXP,
+			isValid,
+			validatedProjects: categoryValidatedProjects.map((p) => p.id),
+		};
+	},
 };
