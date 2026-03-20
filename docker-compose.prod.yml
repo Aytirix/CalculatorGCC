@@ -11,7 +11,7 @@ services:
       - "traefik.http.services.nginx.loadbalancer.server.port=3000"
     environment:
       NODE_PROJET: production
-      ENABLE_SSL: ${ENABLE_SSL:-true}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
     ports:
       - "3000:3000"
     # plus besoin de volumes frontend_build
@@ -34,7 +34,7 @@ services:
       NODE_ENV: production
       PORT: 7000
       HOSTNAME: ${HOSTNAME:-localhost}
-      ENABLE_SSL: ${ENABLE_SSL:-true}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
     env_file:
       - ./backend/srcs/.env
