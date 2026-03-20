@@ -8,7 +8,7 @@ export interface DevUser {
 }
 
 export const DEV_USERS: DevUser[] = [
-	// Ajouter les utilisateurs de test ici :
+	// Ajouter les utilisateurs de test ici :s
 	{ login: 'sspina', id: 97753 },
 	{ login: 'thibnguy', id: 117570 },
 	{ login: 'mberger', id: 92546 },
