@@ -49,6 +49,17 @@ function validateSimulationData(data: SimulationData): string[] {
 
 export const simulationRepository = {
 	/**
+	 * Retourne les utilisateurs qui ont simulé un projet donné
+	 */
+	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number }[]> {
+		const rows = await prisma.simulatedProject.findMany({
+			where: { projectId },
+			include: { userSimulation: { select: { login: true, userId42: true } } },
+		});
+		return rows.map((r) => ({ login: r.userSimulation.login, userId42: r.userSimulation.userId42 }));
+	},
+
+	/**
 	 * Récupère la simulation d'un utilisateur
 	 */
 	async get(userId42: number): Promise<SimulationData | null> {

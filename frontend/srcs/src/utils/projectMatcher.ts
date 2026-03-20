@@ -6,15 +6,15 @@
  * - Retire les caractères spéciaux
  */
 export const normalizeProjectSlug = (slug: string): string => {
-  return slug
-    .toLowerCase()
-    // Retirer les accents
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    // Retirer tous les tirets, underscores et espaces
-    .replace(/[-_\s]/g, '')
-    // Retirer les caractères spéciaux sauf lettres et chiffres
-    .replace(/[^a-z0-9]/g, '');
+	return slug
+		.toLowerCase()
+		// Retirer les accents
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		// Retirer tous les tirets, underscores et espaces
+		.replace(/[-_\s]/g, '')
+		// Retirer les caractères spéciaux sauf lettres et chiffres
+		.replace(/[^a-z0-9]/g, '');
 };
 
 /**
@@ -26,13 +26,13 @@ export const normalizeProjectSlug = (slug: string): string => {
  * @returns true si le projet local est trouvé dans le slug de l'API
  */
 export const matchesProject = (localSlug: string, apiSlug: string): boolean => {
-  const normalizedLocal = normalizeProjectSlug(localSlug);
-  const normalizedApi = normalizeProjectSlug(apiSlug);
-  
-  // Le projet local doit au moins être contenu dans le slug de l'API
-  const matches = normalizedApi.includes(normalizedLocal);
+	const normalizedLocal = normalizeProjectSlug(localSlug);
+	const normalizedApi = normalizeProjectSlug(apiSlug);
 
-  return matches;
+	// Le projet local doit au moins être contenu dans le slug de l'API
+	const matches = normalizedApi.includes(normalizedLocal);
+
+	return matches;
 };
 
 /**
@@ -43,18 +43,18 @@ export const matchesProject = (localSlug: string, apiSlug: string): boolean => {
  * @returns true si le projet local correspond à au moins un identifiant de l'API
  */
 export const isProjectCompleted = (localSlug: string, apiIdentifiers: string[]): boolean => {
-  // D'abord chercher une correspondance exacte (case-insensitive)
-  const exactMatch = apiIdentifiers.some(apiId => 
-    apiId.toLowerCase() === localSlug.toLowerCase()
-  );
-  
-  if (exactMatch) {
-    // console.log(`✅ Match exact trouvé: "${localSlug}"`);
-    return true;
-  }
-  
-  // Sinon utiliser le matching permissif (normalisé)
-  return apiIdentifiers.some(apiId => matchesProject(localSlug, apiId));
+	// D'abord chercher une correspondance exacte (case-insensitive)
+	const exactMatch = apiIdentifiers.some(apiId =>
+		apiId.toLowerCase() === localSlug.toLowerCase()
+	);
+
+	if (exactMatch) {
+		return true;
+	}
+
+	// Sinon utiliser le matching permissif (normalisé)
+	const matches = apiIdentifiers.some(apiId => matchesProject(localSlug, apiId));
+	return matches;
 };
 
 /**
@@ -67,48 +67,43 @@ export const isProjectCompleted = (localSlug: string, apiIdentifiers: string[]):
  * @returns Le pourcentage trouvé ou la valeur par défaut
  */
 export const findProjectPercentage = (
-  project: { name: string; slug?: string; id: string },
-  percentages: Record<string, number>,
-  defaultValue: number = 100
+	project: { name: string; slug?: string; id: string },
+	percentages: Record<string, number>,
+	defaultValue: number = 100
 ): number => {
-  // 1. Chercher correspondance exacte avec name
-  if (percentages[project.name] !== undefined) {
-    console.log(`📊 Pourcentage trouvé (name exact): ${project.name} = ${percentages[project.name]}%`);
-    return percentages[project.name];
-  }
-  
-  // 2. Chercher correspondance exacte avec slug
-  if (project.slug && percentages[project.slug] !== undefined) {
-    console.log(`📊 Pourcentage trouvé (slug exact): ${project.slug} = ${percentages[project.slug]}%`);
-    return percentages[project.slug];
-  }
-  
-  // 3. Chercher correspondance exacte avec id
-  if (percentages[project.id] !== undefined) {
-    console.log(`📊 Pourcentage trouvé (id exact): ${project.id} = ${percentages[project.id]}%`);
-    return percentages[project.id];
-  }
-  
-  // 4. Chercher avec normalisation
-  const normalizedProjectName = normalizeProjectSlug(project.name);
-  const normalizedProjectSlug = project.slug ? normalizeProjectSlug(project.slug) : '';
-  
-  for (const [key, value] of Object.entries(percentages)) {
-    const normalizedKey = normalizeProjectSlug(key);
-    
-    // Vérifier si le nom normalisé du projet correspond
-    if (normalizedKey === normalizedProjectName || normalizedKey.includes(normalizedProjectName)) {
-      console.log(`📊 Pourcentage trouvé (name normalisé): "${project.name}" (→"${normalizedProjectName}") match "${key}" (→"${normalizedKey}") = ${value}%`);
-      return value;
-    }
-    
-    // Vérifier si le slug normalisé correspond
-    if (normalizedProjectSlug && (normalizedKey === normalizedProjectSlug || normalizedKey.includes(normalizedProjectSlug))) {
-      console.log(`📊 Pourcentage trouvé (slug normalisé): "${project.slug}" (→"${normalizedProjectSlug}") match "${key}" (→"${normalizedKey}") = ${value}%`);
-      return value;
-    }
-  }
-  
-  console.log(`📊 Aucun pourcentage trouvé pour "${project.name}", utilisation de la valeur par défaut: ${defaultValue}%`);
-  return defaultValue;
+	// 1. Chercher correspondance exacte avec name
+	if (percentages[project.name] !== undefined) {
+		return percentages[project.name];
+	}
+
+	// 2. Chercher correspondance exacte avec slug
+	if (project.slug && percentages[project.slug] !== undefined) {
+		return percentages[project.slug];
+	}
+
+	// 3. Chercher correspondance exacte avec id
+	if (percentages[project.id] !== undefined) {
+		return percentages[project.id];
+	}
+
+	// 4. Chercher avec normalisation
+	const normalizedProjectName = normalizeProjectSlug(project.name);
+	const normalizedProjectSlug = project.slug ? normalizeProjectSlug(project.slug) : '';
+
+	for (const [key, value] of Object.entries(percentages)) {
+		const normalizedKey = normalizeProjectSlug(key);
+
+		// Vérifier si le nom normalisé du projet correspond
+		if (normalizedKey === normalizedProjectName || normalizedKey.includes(normalizedProjectName)) {
+			return value;
+		}
+
+		// Vérifier si le slug normalisé correspond
+		if (normalizedProjectSlug && (normalizedKey === normalizedProjectSlug || normalizedKey.includes(normalizedProjectSlug))) {
+			return value;
+		}
+	}
+
+	console.warn(`📊 Aucun pourcentage trouvé pour "${project.name}", utilisation de la valeur par défaut: ${defaultValue}%`);
+	return defaultValue;
 };

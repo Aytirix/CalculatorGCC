@@ -187,4 +187,11 @@ export class BackendAPI42Service {
     const events = await this.getUserEvents();
     return events.length;
   }
+
+  /**
+   * Récupère les utilisateurs inscrits sur un projet depuis l'intra 42
+   */
+  static async getProjectIntraUsers(slug: string): Promise<{ login: string; id: number }[]> {
+    return this.request<{ login: string; id: number }[]>(`/api42/project-users/${encodeURIComponent(slug)}`);
+  }
 }

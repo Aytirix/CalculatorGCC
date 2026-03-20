@@ -143,6 +143,40 @@
     gap: $spacing-sm;
     overflow: hidden;
 
+    .project-card-wrapper {
+      display: flex;
+      align-items: flex-start;
+      gap: $spacing-sm;
+
+      .project-card {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
+    .teammate-btn {
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      margin-top: 0.4rem;
+      background: none;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      padding: 0;
+
+      &:hover {
+        border-color: var(--color-primary);
+        background: rgba(var(--color-primary-rgb), 0.08);
+      }
+    }
+
     .add-custom-project-button {
       background: transparent;
       border: 2px dashed var(--border-color);

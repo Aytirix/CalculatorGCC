@@ -24,6 +24,15 @@ export const SimulationController = {
 	},
 
 	/**
+	 * GET /simulation/project-users/:projectId - Utilisateurs qui ont ce projet simulé
+	 */
+	async getProjectUsers(request: FastifyRequest, reply: FastifyReply) {
+		const { projectId } = request.params as { projectId: string };
+		const users = await simulationRepository.getProjectUsers(projectId);
+		return reply.send(users);
+	},
+
+	/**
 	 * PUT /simulation - Sauvegarde la simulation de l'utilisateur connecté
 	 */
 	async save(request: FastifyRequest, reply: FastifyReply) {

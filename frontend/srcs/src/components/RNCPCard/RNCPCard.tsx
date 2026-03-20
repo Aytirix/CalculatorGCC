@@ -13,6 +13,7 @@ interface RNCPCardProps {
   completedProjects: SimulatorProject[];
   simulatedProjects: SimulatorProject[];
   onToggleSimulation: (projectId: string) => void;
+  completedSubProjects?: Record<string, string[]>;
   simulatedSubProjects?: Record<string, string[]>;
   onToggleSubProject?: (projectId: string, subProjectId: string) => void;
   projectPercentages?: Record<string, number>;
@@ -35,6 +36,7 @@ const RNCPCard = ({
   completedProjects, 
   simulatedProjects, 
   onToggleSimulation,
+  completedSubProjects = {},
   simulatedSubProjects = {},
   onToggleSubProject,
   projectPercentages = {},
@@ -174,6 +176,7 @@ const RNCPCard = ({
               completedProjects={completedProjectSlugs}
               simulatedProjects={simulatedProjectSlugs}
               onToggleSimulation={onToggleSimulation}
+              completedSubProjects={completedSubProjects}
               simulatedSubProjects={simulatedSubProjects}
               onToggleSubProject={onToggleSubProject}
               projectPercentages={projectPercentages}

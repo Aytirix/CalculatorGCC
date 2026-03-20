@@ -8,7 +8,7 @@ import { RNCP_DATA } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42 } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
-import { isProjectCompleted } from '@/utils/projectMatcher';
+import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import { simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
@@ -27,6 +27,7 @@ const Dashboard: React.FC = () => {
   const [customProjects, setCustomProjects] = useState<SimulatorProject[]>([]);
   const [projectNotes, setProjectNotes] = useState<Record<string, string>>({});
   const [coalitionBoosts, setCoalitionBoosts] = useState<Record<string, boolean>>({});
+  const [completedSubProjects, setCompletedSubProjects] = useState<Record<string, string[]>>({});
   const [projectedLevel, setProjectedLevel] = useState<number>(0);
   const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
   const [customProjectModal, setCustomProjectModal] = useState<{
@@ -219,6 +220,26 @@ const Dashboard: React.FC = () => {
     }).length;
   };
 
+  // Calcule quels sous-projets sont validés individuellement via l'API
+  const computeCompletedSubProjects = (completedProjectSlugs: string[]): Record<string, string[]> => {
+    const result: Record<string, string[]> = {};
+    RNCP_DATA.forEach(rncp => {
+      rncp.categories.forEach(cat => {
+        cat.projects.forEach(p => {
+          if (p.subProjects && p.subProjects.length > 0) {
+            const completedSubs = p.subProjects
+              .filter(sub => isProjectCompleted(sub.slug || sub.id, completedProjectSlugs))
+              .map(sub => sub.id);
+            if (completedSubs.length > 0) {
+              result[p.id] = completedSubs;
+            }
+          }
+        });
+      });
+    });
+    return result;
+  };
+
   const loadUserData = async (forceRefresh = false) => {
     try {
       // Throttle : éviter les appels trop rapprochés (moins de 30 secondes)
@@ -270,6 +291,7 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
+            setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
             setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
 
             const professionalExpXP = professionalExperienceStorage.getRealXP();
@@ -288,12 +310,12 @@ const Dashboard: React.FC = () => {
             setLoading(false);
             return;
           }
-          
+
           // Si pas de forceRefresh et cache valide, l'utiliser
           if (!forceRefresh && age < CACHE_TTL) {
             console.log(`[Dashboard] Using cached data (age: ${Math.round(age / 1000)}s)`);
             const userData = data;
-            
+
             // Traiter les données cachées (même logique qu'après l'API)
             const completedProjectSlugs = userData.projects;
             const realPercentages: Record<string, number> = {};
@@ -304,6 +326,7 @@ const Dashboard: React.FC = () => {
               }
             });
             setCompletedProjectsPercentages(realPercentages);
+            setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
             setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
 
             const professionalExpXP = professionalExperienceStorage.getRealXP();
@@ -362,6 +385,7 @@ const Dashboard: React.FC = () => {
         }
       });
       setCompletedProjectsPercentages(realPercentages);
+      setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
       const filtered = userData.allProjects.filter(stageFilter);
       setApiStages(filtered);
 
@@ -703,19 +727,48 @@ const Dashboard: React.FC = () => {
 
   const getCompletedProjects = (): SimulatorProject[] => {
     if (!userProgress) return [];
-    
+
     const projects: SimulatorProject[] = [];
     const apiSlugs = userProgress.completedProjects;
+    const matchedApiSlugs = new Set<string>();
+
     RNCP_DATA.forEach(rncp => {
       rncp.categories.forEach(category => {
         category.projects.forEach(project => {
           const projectSlug = project.slug || project.id;
+
+          // Vérifier si le projet parent est directement validé
           if (isProjectCompleted(projectSlug, apiSlugs)) {
             projects.push(project);
+            apiSlugs.forEach((apiSlug: string) => {
+              if (matchesProject(projectSlug, apiSlug)) matchedApiSlugs.add(apiSlug);
+            });
+            return;
+          }
+
+          // Pour les projets avec sous-projets, vérifier si tous les sous-projets sont validés
+          if (project.subProjects && project.subProjects.length > 0) {
+            const completedSubs = completedSubProjects[project.id] || [];
+            if (completedSubs.length === project.subProjects.length) {
+              projects.push(project);
+              // Marquer les slugs des sous-projets comme matchés
+              project.subProjects.forEach(sub => {
+                apiSlugs.forEach((apiSlug: string) => {
+                  if (matchesProject(sub.slug || sub.id, apiSlug)) matchedApiSlugs.add(apiSlug);
+                });
+              });
+            }
           }
         });
       });
     });
+
+    // Logger les projets validés par l'API qui n'ont pas de correspondance locale
+    const unmatchedSlugs = apiSlugs.filter((slug: string) => !matchedApiSlugs.has(slug) && !stageFilter({ project: { slug, name: slug } } as Project42));
+    if (unmatchedSlugs.length > 0) {
+      console.warn('[RNCP] Projets validés sans correspondance locale:', unmatchedSlugs);
+    }
+
     return projects;
   };
 
@@ -1070,6 +1123,7 @@ const Dashboard: React.FC = () => {
             completedProjects={completedProjects}
             simulatedProjects={simulatedProjectsDetails}
             onToggleSimulation={handleToggleSimulation}
+            completedSubProjects={completedSubProjects}
             simulatedSubProjects={simulatedSubProjects}
             onToggleSubProject={handleToggleSubProject}
             projectPercentages={projectPercentages}

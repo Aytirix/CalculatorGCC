@@ -1,0 +1,124 @@
+.teammate-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.teammate-modal {
+	background: var(--bg-card);
+	border: 1px solid var(--border-color);
+	border-radius: 12px;
+	width: 90%;
+	max-width: 560px;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+
+	&__header {
+		position: relative;
+		padding: 1.25rem 1.5rem 1rem;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	&__title {
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		margin: 0 0 0.25rem 0;
+	}
+
+	&__project {
+		font-size: 0.875rem;
+		color: var(--color-primary);
+		margin: 0;
+	}
+
+	&__close {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		background: none;
+		border: none;
+		font-size: 1.5rem;
+		line-height: 1;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0 0.25rem;
+		transition: color 0.15s;
+
+		&:hover {
+			color: var(--text-primary);
+		}
+	}
+
+	&__body {
+		overflow: hidden;
+		flex: 1;
+	}
+
+	&__section {
+		padding: 1rem 1.25rem;
+		overflow-y: auto;
+		max-height: 50vh;
+	}
+
+	&__section-title {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin: 0 0 0.75rem 0;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	&__count {
+		background: var(--color-primary);
+		color: white;
+		font-size: 0.7rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 10px;
+		font-weight: 700;
+	}
+
+	&__list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	&__item {
+		padding: 0.35rem 0.6rem;
+		background: var(--bg-secondary);
+		border-radius: 6px;
+		border: 1px solid var(--border-color);
+	}
+
+	&__login {
+		font-size: 0.875rem;
+		color: var(--text-primary);
+		font-family: monospace;
+	}
+
+	&__loading,
+	&__empty,
+	&__error {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		margin: 0;
+	}
+
+	&__error {
+		color: var(--color-danger, #ef4444);
+	}
+}

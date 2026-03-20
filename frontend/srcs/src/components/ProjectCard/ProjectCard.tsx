@@ -11,6 +11,7 @@ interface ProjectCardProps {
 	isCompleted: boolean;
 	isSimulated: boolean;
 	onToggleSimulation: (projectId: string) => void;
+	completedSubProjectIds?: string[];
 	simulatedSubProjects?: string[];
 	onToggleSubProject?: (projectId: string, subProjectId: string) => void;
 	projectPercentage?: number;
@@ -26,6 +27,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	isCompleted,
 	isSimulated,
 	onToggleSimulation,
+	completedSubProjectIds = [],
 	simulatedSubProjects = [],
 	onToggleSubProject,
 	projectPercentage = 100,
@@ -253,17 +255,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 						>
 							<div className="sub-projects-list-expanded">
 								{project.subProjects!.map((subProject) => {
+									const isSubCompleted = isCompleted || completedSubProjectIds.includes(subProject.id);
 									const isSubSimulated = simulatedSubProjects.includes(subProject.id);
 									return (
 										<motion.div
 											key={subProject.id}
-											className={`sub-project-item ${isSubSimulated ? 'simulated' : ''}`}
-											onClick={(e) => handleSubProjectClick(e, subProject.id)}
-											whileHover={{ x: 4 }}
-											whileTap={{ scale: 0.98 }}
+											className={`sub-project-item ${isSubCompleted ? 'completed' : isSubSimulated ? 'simulated' : ''}`}
+											onClick={(e) => !isSubCompleted && handleSubProjectClick(e, subProject.id)}
+											whileHover={!isSubCompleted ? { x: 4 } : {}}
+											whileTap={!isSubCompleted ? { scale: 0.98 } : {}}
 										>
 											<div className="sub-project-checkbox">
-												{isSubSimulated ? '✅' : '☐'}
+												{isSubCompleted || isSubSimulated ? '✅' : '☐'}
 											</div>
 											<span className="sub-project-name">{subProject.name}</span>
 											{subProject.xp > 0 && (
@@ -274,8 +277,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								})}
 							</div>
 							<div className="sub-projects-summary">
-								{simulatedSubProjects.length} / {project.subProjects!.length} complété
-								{allSubProjectsSimulated && ' - Piscine validée! 🎉'}
+								{isCompleted
+									? `${project.subProjects!.length} / ${project.subProjects!.length} complété - Piscine validée! 🎉`
+									: `${project.subProjects!.filter(s => completedSubProjectIds.includes(s.id) || simulatedSubProjects.includes(s.id)).length} / ${project.subProjects!.length} complété${allSubProjectsSimulated ? ' - Piscine validée! 🎉' : ''}`
+								}
 							</div>
 						</motion.div>
 					)}

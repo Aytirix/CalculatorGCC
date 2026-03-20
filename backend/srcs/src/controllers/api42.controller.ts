@@ -160,4 +160,23 @@ export class API42Controller {
       return handleAPI42Error(error, reply, fastify);
     }
   }
+
+  /**
+   * GET /api42/project-users/:slug
+   * Récupère les utilisateurs inscrits sur un projet depuis l'intra 42
+   */
+  static async getProjectRegisteredUsers(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      const { api_token } = request.user;
+      const { slug } = request.params as { slug: string };
+
+      const users = await API42Service.getProjectRegisteredUsers(slug, api_token);
+
+      fastify.log.info(`[API42 Controller] Fetched ${users.length} registered users for project ${slug}`);
+
+      return users;
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
 }

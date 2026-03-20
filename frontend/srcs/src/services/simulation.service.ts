@@ -64,4 +64,11 @@ export const simulationService = {
 			body: JSON.stringify(data),
 		});
 	},
+
+	/**
+	 * Récupère les utilisateurs qui ont simulé un projet donné
+	 */
+	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number }[]> {
+		return request<{ login: string; userId42: number }[]>(`/simulation/project-users/${encodeURIComponent(projectId)}`);
+	},
 };

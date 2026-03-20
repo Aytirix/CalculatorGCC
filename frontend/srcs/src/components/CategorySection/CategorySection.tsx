@@ -4,6 +4,7 @@ import type { ProjectCategory, CategoryValidation, SimulatorProject } from '@/ty
 import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
+import TeammateModal from '../TeammateModal/TeammateModal';
 import './CategorySection.scss';
 
 interface CategorySectionProps {
@@ -12,6 +13,7 @@ interface CategorySectionProps {
 	completedProjects: string[];
 	simulatedProjects: string[];
 	onToggleSimulation: (projectId: string) => void;
+	completedSubProjects?: Record<string, string[]>;
 	simulatedSubProjects?: Record<string, string[]>;
 	onToggleSubProject?: (projectId: string, subProjectId: string) => void;
 	projectPercentages?: Record<string, number>;
@@ -33,6 +35,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	completedProjects,
 	simulatedProjects,
 	onToggleSimulation,
+	completedSubProjects = {},
 	simulatedSubProjects = {},
 	onToggleSubProject,
 	projectPercentages = {},
@@ -48,6 +51,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	onToggleCoalitionBoost,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
+	const [teammateProject, setTeammateProject] = useState<SimulatorProject | null>(null);
 
 	const progressPercentage = category.requiredXP > 0
 		? Math.min((validation.currentXP / category.requiredXP) * 100, 100)
@@ -133,19 +137,13 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 								const aSimulated = simulatedProjects.includes(a.id);
 								const bSimulated = simulatedProjects.includes(b.id);
 
-								// Projets validés en premier
 								if (aCompleted && !bCompleted) return -1;
 								if (!aCompleted && bCompleted) return 1;
-
-								// Si les deux sont validés ou les deux non validés, trier par simulés
 								if (aSimulated && !bSimulated) return -1;
 								if (!aSimulated && bSimulated) return 1;
-
-								// Sinon, garder l'ordre original
 								return 0;
 							})
 							.map((project) => {
-								// Si c'est la catégorie "Autres projets", afficher CustomProjectCard
 								if (isOtherProjectsCategory && onEditCustomProject && onDeleteCustomProject) {
 									return (
 										<CustomProjectCard
@@ -159,35 +157,50 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 									);
 								}
 
-								// Sinon, afficher ProjectCard normal
 								const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
-								// Pour les projets complétés, utiliser le pourcentage réel de l'API avec normalisation
-								// Pour les autres, utiliser le pourcentage personnalisé ou 100%
 								const projectPercentage = isCompleted
 									? findProjectPercentage(project, completedProjectsPercentages, 100)
 									: (projectPercentages[project.id] || 100);
 
 								return (
-									<ProjectCard
-										key={project.id}
-										project={project}
-										isCompleted={isCompleted}
-										isSimulated={simulatedProjects.includes(project.id)}
-										onToggleSimulation={onToggleSimulation}
-										simulatedSubProjects={simulatedSubProjects[project.id] || []}
-										onToggleSubProject={onToggleSubProject}
-										projectPercentage={projectPercentage}
-										onPercentageChange={isCompleted ? undefined : onPercentageChange}
-										projectNote={projectNotes[project.id]}
-										onSaveNote={onSaveNote}
-										hasCoalitionBoost={coalitionBoosts[project.id] || false}
-										onToggleCoalitionBoost={onToggleCoalitionBoost}
-									/>
+									<div key={project.id} className="project-card-wrapper">
+										<button
+											className="teammate-btn"
+											onClick={() => setTeammateProject(project)}
+											title="Trouver des teammates"
+										>
+											👥
+										</button>
+										<ProjectCard
+											project={project}
+											isCompleted={isCompleted}
+											isSimulated={simulatedProjects.includes(project.id)}
+											onToggleSimulation={onToggleSimulation}
+											completedSubProjectIds={completedSubProjects[project.id] || []}
+											simulatedSubProjects={simulatedSubProjects[project.id] || []}
+											onToggleSubProject={onToggleSubProject}
+											projectPercentage={projectPercentage}
+											onPercentageChange={isCompleted ? undefined : onPercentageChange}
+											projectNote={projectNotes[project.id]}
+											onSaveNote={onSaveNote}
+											hasCoalitionBoost={coalitionBoosts[project.id] || false}
+											onToggleCoalitionBoost={onToggleCoalitionBoost}
+										/>
+									</div>
 								);
 							})}
 					</motion.div>
 				)}
 			</AnimatePresence>
+
+			{teammateProject && (
+				<TeammateModal
+					isOpen={true}
+					onClose={() => setTeammateProject(null)}
+					projectId={teammateProject.id}
+					projectName={teammateProject.name}
+					/>
+			)}
 		</motion.div>
 	);
 };

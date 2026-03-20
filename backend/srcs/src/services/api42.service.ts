@@ -190,6 +190,30 @@ export class API42Service {
   }
 
   /**
+   * Récupère les utilisateurs inscrits sur un projet depuis l'intra 42
+   * Cherche le projet par slug, puis ses project_users
+   */
+  static async getProjectRegisteredUsers(slug: string, token: string): Promise<{ login: string; id: number }[]> {
+    const projects = await this.request<any[]>(
+      `${config.oauth42.apiUrl}/projects?filter[slug]=${encodeURIComponent(slug)}&page[size]=1`,
+      token
+    );
+
+    if (!projects || projects.length === 0) return [];
+
+    const projectId = projects[0].id;
+
+    const projectUsers = await this.request<any[]>(
+      `${config.oauth42.apiUrl}/projects/${projectId}/projects_users?filter[cursus_id]=21&page[size]=100`,
+      token
+    );
+
+    return (projectUsers || [])
+      .filter((pu: any) => pu.user?.login)
+      .map((pu: any) => ({ login: pu.user.login, id: pu.user.id }));
+  }
+
+  /**
    * Récupère toutes les données utilisateur en une fois (avec cache)
    */
   static async getUserData(userId: number, token: string, forceRefresh: boolean = false): Promise<any> {

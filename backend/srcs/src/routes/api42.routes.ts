@@ -40,4 +40,11 @@ export async function api42Routes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     return API42Controller.getMe(request, reply, fastify);
   });
+
+  // Récupérer les utilisateurs inscrits sur un projet depuis l'intra 42
+  fastify.get('/api42/project-users/:slug', {
+    preHandler: authenticate,
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    return API42Controller.getProjectRegisteredUsers(request, reply, fastify);
+  });
 }
