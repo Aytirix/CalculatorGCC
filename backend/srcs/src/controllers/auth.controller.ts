@@ -78,15 +78,16 @@ export class AuthController {
       console.log('[Auth Controller] JWT preview:', token.substring(0, 50) + '...');
 
       // Rediriger vers le frontend avec le token JWT
-      const redirectUrl = new URL(`${config.frontendUrl}/callback`);
+      const frontendBase = `${proto}://${host}`;
+      const redirectUrl = new URL(`${frontendBase}/callback`);
       redirectUrl.searchParams.append('token', token);
 
       console.log('[Auth Controller] Redirecting to:', redirectUrl.toString().substring(0, 100) + '...');
       return reply.redirect(redirectUrl.toString());
     } catch (error: any) {
       console.error('OAuth error:', error.response?.data || error.message);
-      
-      const errorUrl = new URL(config.frontendUrl);
+
+      const errorUrl = new URL(`${proto}://${host}`);
       errorUrl.searchParams.append('error', 'authentication_failed');
       
       return reply.redirect(errorUrl.toString());
