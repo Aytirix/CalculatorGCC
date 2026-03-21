@@ -90,8 +90,8 @@ export async function parseAlternanceXlsx(file: File): Promise<AlternanceData> {
 		if (!ws) continue;
 
 		// Contract dates: P9 = col 15, row 8 (0-indexed) — Q9 = col 16, row 8
-		const p9 = ws[XLSX.utils.encode_cell({ r: 8, c: 15 })];
-		const q9 = ws[XLSX.utils.encode_cell({ r: 8, c: 16 })];
+		const p9 = ws[XLSX.utils.encode_cell({ r: 8, c: 15 })] as XLSX.CellObject | undefined;
+		const q9 = ws[XLSX.utils.encode_cell({ r: 8, c: 16 })] as XLSX.CellObject | undefined;
 
 		const start = parseCellDate(p9);
 		const end = parseCellDate(q9);
@@ -116,7 +116,7 @@ export async function parseAlternanceXlsx(file: File): Promise<AlternanceData> {
 
 			for (let row = 6; row <= 36; row++) {
 				const addr = XLSX.utils.encode_cell({ r: row, c: col });
-				const cell = ws[addr];
+				const cell = ws[addr] as XLSX.CellObject | undefined;
 
 				if (!cell?.v) continue; // Empty = outside contract period
 

@@ -976,8 +976,6 @@ const Calendar: React.FC = () => {
 										const w = dateToX(proj.endDate) - x;
 										const y = proj.row * ROW_HEIGHT;
 										const color = projectColors[proj.projectId] || '#3b82f6';
-										const durationDays = diffDays(proj.startDate, proj.endDate);
-										const durationWeeks = Math.round(durationDays / 7 * 10) / 10;
 										return (
 											<div
 												key={proj.id}
