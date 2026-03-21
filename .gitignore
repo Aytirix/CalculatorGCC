@@ -40,8 +40,5 @@ nginx/ssl/
 *.pid.lock
 .docker
 
-# Database backups
-backups/
-*.sql
 
 **/package-lock.json
