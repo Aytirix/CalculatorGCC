@@ -49,6 +49,8 @@ COPY nginx/conf/nginx.conf.template /etc/nginx/nginx.conf.template
 RUN chown -R nginx:nginx /etc/nginx && \
 	chmod -R 755 /etc/nginx
 
+EXPOSE 3000
+
 # Lancer le script d'entrée
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
