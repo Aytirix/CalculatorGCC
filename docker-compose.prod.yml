@@ -17,6 +17,12 @@ services:
     # plus besoin de volumes frontend_build
     volumes:
       - ssl_certs:/etc/nginx/ssl
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - calculatorGCC_network

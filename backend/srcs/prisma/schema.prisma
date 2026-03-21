@@ -22,6 +22,7 @@ model UserSimulation {
   id                    Int      @id @default(autoincrement())
   userId42              Int      @unique
   login                 String   @db.VarChar(64)
+  imageUrl              String?  @db.VarChar(512)
   simulatedSubProjects  Json?    // Record<string, string[]>
   customProjects        Json?    // SimulatorProject[]
   manualExperiences     Json?    // ProfessionalExperience[]

@@ -52,12 +52,12 @@ export const simulationRepository = {
 	/**
 	 * Retourne les utilisateurs qui ont simulé un projet donné
 	 */
-	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number }[]> {
+	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number; imageUrl: string | null }[]> {
 		const rows = await prisma.simulatedProject.findMany({
 			where: { projectId },
-			include: { userSimulation: { select: { login: true, userId42: true } } },
+			include: { userSimulation: { select: { login: true, userId42: true, imageUrl: true } } },
 		});
-		return rows.map((r) => ({ login: r.userSimulation.login, userId42: r.userSimulation.userId42 }));
+		return rows.map((r) => ({ login: r.userSimulation.login, userId42: r.userSimulation.userId42, imageUrl: r.userSimulation.imageUrl }));
 	},
 
 	/**
@@ -88,7 +88,7 @@ export const simulationRepository = {
 	/**
 	 * Sauvegarde la simulation d'un utilisateur (upsert)
 	 */
-	async save(userId42: number, login: string, data: SimulationData): Promise<SimulationData> {
+	async save(userId42: number, login: string, imageUrl: string | null, data: SimulationData): Promise<SimulationData> {
 		const errors = validateSimulationData(data);
 		if (errors.length > 0) {
 			throw new Error(`Validation failed: ${errors.join(', ')}`);
@@ -100,6 +100,7 @@ export const simulationRepository = {
 			create: {
 				userId42,
 				login,
+				imageUrl,
 				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
@@ -107,6 +108,7 @@ export const simulationRepository = {
 			},
 			update: {
 				login,
+				imageUrl,
 				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,

@@ -91,6 +91,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		} else {
 			// Sinon on toggle la simulation comme avant
 			if (!isCompleted) {
+				if (isSimulated) onPercentageChange?.(project.id, 100);
 				onToggleSimulation(project.id);
 			}
 		}
@@ -200,21 +201,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 						)}
 						<div className="project-info">
 							<h4 className="project-name">{project.name}</h4>
-							<div className="project-xp-container">
-								{showPercentage && (
-									<span className="project-percentage" title={`${projectPercentage}% de ${project.xp.toLocaleString()} XP`}>
-										{projectPercentage}%
-									</span>
-								)}
-								<span className={`project-xp ${showPercentage ? 'modified' : ''}`}>
-									{modifiedXP.toLocaleString()} XP
-								</span>
-								{showPercentage && (
-									<span className="project-xp-original">
-										({project.xp.toLocaleString()} XP)
-									</span>
-								)}
-							</div>
 						</div>
 						{status === 'simulated' && !hasSubProjects && (
 							<div className="project-sim-controls" onClick={(e) => e.stopPropagation()}>
@@ -237,6 +223,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								</button>
 							</div>
 						)}
+						<span className={`project-xp ${showPercentage ? 'modified' : ''}`}>
+							{modifiedXP.toLocaleString()} XP
+						</span>
 						{hasSubProjects && (
 							<div className="expand-icon">
 								{isExpanded ? '▼' : '▶'}

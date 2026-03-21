@@ -59,6 +59,33 @@
 	&__body {
 		overflow: hidden;
 		flex: 1;
+		display: flex;
+		flex-direction: column;
+	}
+
+	&__search-bar {
+		padding: 0.75rem 1.25rem 0;
+		flex-shrink: 0;
+	}
+
+	&__search-input {
+		width: 100%;
+		padding: 0.45rem 0.75rem;
+		border: 1px solid var(--border-color);
+		border-radius: 6px;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		font-size: 0.875rem;
+		outline: none;
+		box-sizing: border-box;
+
+		&:focus {
+			border-color: var(--color-primary);
+		}
+
+		&::placeholder {
+			color: var(--text-muted);
+		}
 	}
 
 	&__section {
@@ -102,10 +129,32 @@
 		background: var(--bg-secondary);
 		border-radius: 6px;
 		border: 1px solid var(--border-color);
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	&__avatar {
+		width: 100px;
+		height: 100px;
+		border-radius: 50%;
+		object-fit: cover;
+		flex-shrink: 0;
+		padding: 1px;
+
+		&--placeholder {
+			background: var(--color-primary);
+			color: white;
+			font-size: 0.75rem;
+			font-weight: 700;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
 	}
 
 	&__login {
-		font-size: 0.875rem;
+		font-size: 1.25rem;
 		color: var(--text-primary);
 		font-family: monospace;
 	}

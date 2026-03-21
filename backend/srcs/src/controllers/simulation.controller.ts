@@ -36,7 +36,7 @@ export const SimulationController = {
 	 * PUT /simulation - Sauvegarde la simulation de l'utilisateur connecté
 	 */
 	async save(request: FastifyRequest, reply: FastifyReply) {
-		const { user_id_42, login } = request.user;
+		const { user_id_42, login, image_url } = request.user;
 		const body = request.body as any;
 
 		if (!body || typeof body !== 'object') {
@@ -52,7 +52,7 @@ export const SimulationController = {
 		};
 
 		try {
-			const saved = await simulationRepository.save(user_id_42, login, data);
+			const saved = await simulationRepository.save(user_id_42, login, image_url ?? null, data);
 			return reply.send(saved);
 		} catch (err: any) {
 			if (err.message?.startsWith('Validation failed')) {
