@@ -36,6 +36,30 @@ build-dev: ## Rebuild les images en mode développement
 	@echo "$(GREEN)🔨 Reconstruction des images de développement...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
 
+check: ## Vérifier les erreurs de build frontend + backend (TypeScript via Docker)
+	@echo "$(BLUE)🔍 [1/2] Build frontend (TypeScript + Vite)...$(RESET)"
+	@DOCKER_BUILDKIT=1 docker build \
+		--target builder \
+		-f nginx/Dockerfile \
+		--progress=plain \
+		--no-cache \
+		. 2>&1 && FRONTEND_OK=1 || FRONTEND_OK=0; \
+	echo "$(BLUE)🔍 [2/2] Build backend (TypeScript)...$(RESET)"; \
+	DOCKER_BUILDKIT=1 docker build \
+		--target builder \
+		-f backend/Dockerfile \
+		--progress=plain \
+		--no-cache \
+		./backend 2>&1 && BACKEND_OK=1 || BACKEND_OK=0; \
+	echo ""; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	echo "$(BLUE)           Résultats du check$(RESET)"; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	if [ "$$FRONTEND_OK" = "1" ]; then echo "  $(GREEN)✅ Frontend : OK$(RESET)"; else echo "  $(RED)❌ Frontend : ERREUR$(RESET)"; fi; \
+	if [ "$$BACKEND_OK" = "1" ]; then echo "  $(GREEN)✅ Backend  : OK$(RESET)"; else echo "  $(RED)❌ Backend  : ERREUR$(RESET)"; fi; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	[ "$$FRONTEND_OK" = "1" ] && [ "$$BACKEND_OK" = "1" ]
+
 restart-dev: ## Redémarrer les services en mode développement
 	@echo "$(YELLOW)🔄 Redémarrage des services de développement...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml restart
