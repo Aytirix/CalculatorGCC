@@ -72,7 +72,7 @@
 	// La zoom-bar devient la barre unique (projets + zoom)
 	.grid-zoom-bar {
 		flex-shrink: 0;
-		padding: 4px 6px;
+		padding: 4px 48px 4px 6px;
 		gap: 6px;
 		border-bottom: 1px solid var(--border-color);
 		overflow: hidden;

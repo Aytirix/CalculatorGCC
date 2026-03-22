@@ -275,7 +275,7 @@ const Calendar: React.FC = () => {
 	// Transforme les coordonnées touch pour compenser la rotation 90° CW
 	const rotateTouchCoords = (clientX: number, clientY: number) =>
 		chronoFullscreenRef.current
-			? { clientX: -clientY, clientY: clientX }
+			? { clientX: clientY, clientY: -clientX }
 			: { clientX, clientY };
 
 	// ── DB sync ────────────────────────────────────────────────────────────
@@ -580,7 +580,7 @@ const Calendar: React.FC = () => {
 			const handleTouchMove = (e: TouchEvent) => {
 				e.preventDefault();
 				const { clientX, clientY } = chronoFullscreenRef.current
-					? { clientX: -e.touches[0].clientY, clientY: e.touches[0].clientX }
+					? { clientX: e.touches[0].clientY, clientY: -e.touches[0].clientX }
 					: { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
 				handleMouseMove({ clientX, clientY } as MouseEvent);
 			};
