@@ -13,21 +13,24 @@ interface StageFormProps {
 }
 
 const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues }) => {
-  const [months, setMonths] = useState(initialValues?.duration || 1);
-  const [validationPercentage, setValidationPercentage] = useState(initialValues?.validationPercentage ?? 100);
+  const [months, setMonths] = useState(String(initialValues?.duration || 1));
+  const [validationPercentage, setValidationPercentage] = useState(String(initialValues?.validationPercentage ?? 100));
   const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
   const [calculatedXP, setCalculatedXP] = useState(0);
 
+  const monthsNum = parseInt(months) || 0;
+  const validationNum = Math.min(125, Math.max(0, parseInt(validationPercentage) || 0));
+
   useEffect(() => {
-    const baseXP = 10500 * months * (validationPercentage / 100);
+    const baseXP = 10500 * monthsNum * (validationNum / 100);
     const finalXP = baseXP + (coalitionBoost ? (baseXP * 4.2 / 100) : 0);
     setCalculatedXP(Math.round(finalXP));
-  }, [months, validationPercentage, coalitionBoost]);
+  }, [monthsNum, validationNum, coalitionBoost]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (months < 1) {
+    if (monthsNum < 1) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -35,8 +38,8 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
     onSubmit({
       type: 'stage',
       startDate: '',
-      duration: months,
-      validationPercentage,
+      duration: monthsNum,
+      validationPercentage: validationNum,
       coalitionBoost: coalitionBoost ? 4.2 : 0,
       isSimulation: false,
       xpEarned: calculatedXP,
@@ -58,7 +61,10 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
           min="1"
           max="12"
           value={months}
-          onChange={(e) => setMonths(parseInt(e.target.value) || 1)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9]/g, '');
+            setMonths(raw === '' ? '' : String(Math.min(12, parseInt(raw))));
+          }}
           required
         />
       </div>
@@ -72,7 +78,10 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             min="0"
             max="125"
             value={validationPercentage}
-            onChange={(e) => setValidationPercentage(Math.min(125, Math.max(0, parseInt(e.target.value) || 0)))}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9]/g, '');
+              setValidationPercentage(raw === '' ? '' : String(Math.min(125, parseInt(raw))));
+            }}
           />
           <span className="percentage-symbol">%</span>
         </div>
@@ -80,8 +89,8 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
           type="range"
           min="0"
           max="125"
-          value={validationPercentage}
-          onChange={(e) => setValidationPercentage(parseInt(e.target.value))}
+          value={validationNum}
+          onChange={(e) => setValidationPercentage(e.target.value)}
           className="percentage-slider"
         />
       </div>

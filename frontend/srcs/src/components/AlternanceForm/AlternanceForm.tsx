@@ -15,16 +15,18 @@ interface AlternanceFormProps {
 const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, initialValues }) => {
   const [duration, setDuration] = useState<1 | 2>((initialValues?.duration as 1 | 2) || 1);
   const [validationPercentage, setValidationPercentage] = useState(
-    Math.min(100, initialValues?.validationPercentage ?? 100)
+    String(Math.min(100, initialValues?.validationPercentage ?? 100))
   );
   const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
   const [calculatedXP, setCalculatedXP] = useState(0);
 
+  const validationNum = Math.min(100, Math.max(0, parseInt(validationPercentage) || 0));
+
   useEffect(() => {
-    const baseXP = 90000 * duration * (validationPercentage / 100);
+    const baseXP = 90000 * duration * (validationNum / 100);
     const finalXP = baseXP + (coalitionBoost ? (baseXP * 4.2 / 100) : 0);
     setCalculatedXP(Math.round(finalXP));
-  }, [duration, validationPercentage, coalitionBoost]);
+  }, [duration, validationNum, coalitionBoost]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +35,7 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
       type: 'alternance',
       startDate: '',
       duration,
-      validationPercentage,
+      validationPercentage: validationNum,
       coalitionBoost: coalitionBoost ? 4.2 : 0,
       isSimulation: false,
       xpEarned: calculatedXP,
@@ -78,7 +80,10 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
             min="0"
             max="100"
             value={validationPercentage}
-            onChange={(e) => setValidationPercentage(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9]/g, '');
+              setValidationPercentage(raw === '' ? '' : String(Math.min(100, parseInt(raw))));
+            }}
           />
           <span className="percentage-symbol">%</span>
         </div>
@@ -86,8 +91,8 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
           type="range"
           min="0"
           max="100"
-          value={validationPercentage}
-          onChange={(e) => setValidationPercentage(parseInt(e.target.value))}
+          value={validationNum}
+          onChange={(e) => setValidationPercentage(e.target.value)}
           className="percentage-slider"
         />
       </div>
