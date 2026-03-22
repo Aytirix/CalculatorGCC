@@ -8,6 +8,14 @@
   padding: $spacing-md;
   box-shadow: 0 2px 8px var(--shadow-color);
   height: fit-content;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: $spacing-sm;
+    border-radius: $radius-md;
+  }
 
   .category-header {
     cursor: pointer;
@@ -147,6 +155,8 @@
       display: flex;
       align-items: flex-start;
       gap: $spacing-sm;
+      min-width: 0;
+      overflow: hidden;
 
       .project-card {
         flex: 1;

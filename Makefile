@@ -1,4 +1,4 @@
-.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status prisma-generate prisma-push prisma-migrate prisma-studio restart-backend
+.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status check check-build prisma-generate prisma-push prisma-migrate prisma-studio restart-backend
 
 # Détecter la commande docker compose disponible
 DOCKER_COMPOSE := $(shell docker compose version > /dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
@@ -36,7 +36,21 @@ build-dev: ## Rebuild les images en mode développement
 	@echo "$(GREEN)🔨 Reconstruction des images de développement...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
 
-check: ## Vérifier les erreurs de build frontend + backend (TypeScript via Docker)
+check: ## Vérifier les erreurs TypeScript dans les conteneurs déjà lancés (rapide)
+	@echo "$(BLUE)🔍 [1/2] TypeScript frontend...$(RESET)"; \
+	docker exec calculatorGCC_frontend_dev npx tsc --noEmit 2>&1 && FRONTEND_OK=1 || FRONTEND_OK=0; \
+	echo "$(BLUE)🔍 [2/2] TypeScript backend...$(RESET)"; \
+	docker exec calculatorGCC_backend_dev npx tsc --noEmit 2>&1 && BACKEND_OK=1 || BACKEND_OK=0; \
+	echo ""; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	echo "$(BLUE)           Résultats du check$(RESET)"; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	if [ "$$FRONTEND_OK" = "1" ]; then echo "  $(GREEN)✅ Frontend : OK$(RESET)"; else echo "  $(RED)❌ Frontend : ERREUR$(RESET)"; fi; \
+	if [ "$$BACKEND_OK" = "1" ]; then echo "  $(GREEN)✅ Backend  : OK$(RESET)"; else echo "  $(RED)❌ Backend  : ERREUR$(RESET)"; fi; \
+	echo "$(BLUE)═══════════════════════════════════$(RESET)"; \
+	[ "$$FRONTEND_OK" = "1" ] && [ "$$BACKEND_OK" = "1" ]
+
+check-build: ## Vérifier via docker build complet (lent, sans conteneurs lancés)
 	@echo "$(BLUE)🔍 [1/2] Build frontend (TypeScript + Vite)...$(RESET)"
 	@DOCKER_BUILDKIT=1 docker build \
 		--target builder \

@@ -8,6 +8,8 @@
   transition: all $transition-fast;
   position: relative;
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
 
   .project-main {
     padding: $spacing-sm $spacing-md;
@@ -382,5 +384,46 @@
     border-top: 1px solid var(--border-color);
     background-color: var(--bg-accent);
     font-weight: 500;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-card {
+    .project-main {
+      padding: $spacing-xs $spacing-sm;
+      min-height: 44px;
+    }
+
+    .project-header {
+      gap: $spacing-xs;
+    }
+
+    .project-name {
+      font-size: 0.82rem;
+    }
+
+    .project-xp {
+      font-size: 0.7rem;
+      padding: 2px 5px;
+    }
+
+    .project-sim-controls {
+      gap: 0.2rem;
+    }
+
+    .project-pct-input {
+      width: 3rem;
+      font-size: 0.7rem;
+      padding: 0.1rem 1rem 0.1rem 0.25rem;
+    }
+
+    .project-pct-symbol {
+      font-size: 0.65rem;
+      right: 0.2rem;
+    }
+
+    .project-boost-btn {
+      font-size: 0.95rem;
+    }
   }
 }
