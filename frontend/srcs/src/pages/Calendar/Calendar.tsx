@@ -939,9 +939,6 @@ const Calendar: React.FC = () => {
 				)}
 
 				<div className={`calendar-layout${chronoFullscreen ? ' chrono-landscape' : ''}`}>
-					{chronoFullscreen && (
-						<button className="chrono-landscape-close" onClick={handleChronoFullscreen} title="Réduire">✕</button>
-					)}
 					{showSidebar && !chronoFullscreen && (
 						<div className="calendar-sidebar">
 							<h3 className="sidebar-title">Projets simulés</h3>
