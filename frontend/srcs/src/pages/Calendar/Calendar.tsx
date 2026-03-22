@@ -265,11 +265,18 @@ const Calendar: React.FC = () => {
 
 	useEffect(() => { chronoFullscreenRef.current = chronoFullscreen; }, [chronoFullscreen]);
 
-	const handleChronoFullscreen = useCallback(() => {
+	const handleChronoFullscreen = useCallback(async () => {
 		setChronoFullscreen(prev => {
 			if (!prev) setView('chronologie');
 			return !prev;
 		});
+		try {
+			if (!document.fullscreenElement) {
+				await document.documentElement.requestFullscreen();
+			} else {
+				await document.exitFullscreen();
+			}
+		} catch { /* non supporté sur certains navigateurs */ }
 	}, []);
 
 	// Transforme les coordonnées touch pour compenser la rotation 90° CW
