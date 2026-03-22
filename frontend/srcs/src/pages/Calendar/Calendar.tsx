@@ -245,6 +245,7 @@ const Calendar: React.FC = () => {
 	const weekWidth = ZOOM_LEVELS[zoomIndex];
 	const [contractPrompt, setContractPrompt] = useState<{ start: Date; end: Date } | null>(null);
 	const [importError, setImportError] = useState<string | null>(null);
+	const [chronoFullscreen, setChronoFullscreen] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const gridRef = useRef<HTMLDivElement>(null);
 
@@ -258,6 +259,15 @@ const Calendar: React.FC = () => {
 	useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
 	useEffect(() => { saveAlternanceDays(alternanceDays); }, [alternanceDays]);
 	useEffect(() => { saveAlternanceLegend(alternanceLegend); }, [alternanceLegend]);
+
+	// ── Chrono fullscreen (in-app landscape) ───────────────────────────────
+
+	const handleChronoFullscreen = useCallback(() => {
+		setChronoFullscreen(prev => {
+			if (!prev) setView('chronologie');
+			return !prev;
+		});
+	}, []);
 
 	// ── DB sync ────────────────────────────────────────────────────────────
 
@@ -454,19 +464,39 @@ const Calendar: React.FC = () => {
 		e.dataTransfer.dropEffect = 'copy';
 	};
 
-	const dropProject = (startDate: Date, row: number) => {
-		if (!dragData) return;
+	const dropProjectDirect = useCallback((data: { projectId: string; name: string; xp: number }, startDate: Date, row: number) => {
 		setPlacedProjects(prev => [...prev, {
-			id: `${dragData.projectId}-${Date.now()}`,
-			projectId: dragData.projectId,
-			name: dragData.name,
-			xp: dragData.xp,
+			id: `${data.projectId}-${Date.now()}`,
+			projectId: data.projectId,
+			name: data.name,
+			xp: data.xp,
 			startDate,
 			endDate: addDays(startDate, 14),
 			row,
 		}]);
+	}, []);
+
+	const dropProject = (startDate: Date, row: number) => {
+		if (!dragData) return;
+		dropProjectDirect(dragData, startDate, row);
 		setDragData(null);
 	};
+
+	// Mobile: tap sidebar project → place at center of currently visible grid area
+	const handleSidebarTap = (project: SimulatorProject) => () => {
+		let defaultDate: Date;
+		if (gridRef.current) {
+			const centerX = gridRef.current.scrollLeft + gridRef.current.clientWidth / 2;
+			defaultDate = xToDate(centerX);
+		} else {
+			const today = new Date();
+			defaultDate = today >= dateRange.start && today <= dateRange.end
+				? today
+				: new Date(dateRange.start);
+		}
+		dropProjectDirect({ projectId: project.id, name: project.name, xp: project.xp }, defaultDate, 0);
+	};
+
 
 	const handleGridDrop = (e: React.DragEvent) => {
 		e.preventDefault();
@@ -492,6 +522,15 @@ const Calendar: React.FC = () => {
 		if (!proj) return;
 		setHoveredProject(null);
 		setResizing({ id: projectId, edge, startX: e.clientX, originalStart: proj.startDate, originalEnd: proj.endDate });
+	};
+
+	const handleResizeTouchStart = (projectId: string, edge: 'left' | 'right') => (e: React.TouchEvent) => {
+		e.stopPropagation();
+		e.preventDefault();
+		const proj = placedProjects.find(p => p.id === projectId);
+		if (!proj) return;
+		setHoveredProject(null);
+		setResizing({ id: projectId, edge, startX: e.touches[0].clientX, originalStart: proj.startDate, originalEnd: proj.endDate });
 	};
 
 	const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -528,11 +567,20 @@ const Calendar: React.FC = () => {
 
 	useEffect(() => {
 		if (resizing || moving) {
+			const handleTouchMove = (e: TouchEvent) => {
+				e.preventDefault();
+				handleMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY } as MouseEvent);
+			};
+			const handleTouchEnd = () => handleMouseUp();
 			window.addEventListener('mousemove', handleMouseMove);
 			window.addEventListener('mouseup', handleMouseUp);
+			window.addEventListener('touchmove', handleTouchMove, { passive: false });
+			window.addEventListener('touchend', handleTouchEnd);
 			return () => {
 				window.removeEventListener('mousemove', handleMouseMove);
 				window.removeEventListener('mouseup', handleMouseUp);
+				window.removeEventListener('touchmove', handleTouchMove);
+				window.removeEventListener('touchend', handleTouchEnd);
 			};
 		}
 	}, [resizing, moving, handleMouseMove, handleMouseUp]);
@@ -544,6 +592,15 @@ const Calendar: React.FC = () => {
 		if (!proj) return;
 		setHoveredProject(null);
 		setMoving({ id: projectId, startX: e.clientX, startY: e.clientY, originalStart: proj.startDate, originalEnd: proj.endDate, originalRow: proj.row });
+	};
+
+	const handleMoveTouchStart = (projectId: string) => (e: React.TouchEvent) => {
+		if ((e.target as HTMLElement).classList.contains('resize-handle')) return;
+		e.preventDefault();
+		const proj = placedProjects.find(p => p.id === projectId);
+		if (!proj) return;
+		setHoveredProject(null);
+		setMoving({ id: projectId, startX: e.touches[0].clientX, startY: e.touches[0].clientY, originalStart: proj.startDate, originalEnd: proj.endDate, originalRow: proj.row });
 	};
 
 	const handleRemoveProject = (projectId: string) => (e: React.MouseEvent) => {
@@ -860,8 +917,11 @@ const Calendar: React.FC = () => {
 					</div>
 				)}
 
-				<div className="calendar-layout">
-					{showSidebar && (
+				<div className={`calendar-layout${chronoFullscreen ? ' chrono-landscape' : ''}`}>
+					{chronoFullscreen && (
+						<button className="chrono-landscape-close" onClick={handleChronoFullscreen} title="Réduire">✕</button>
+					)}
+					{showSidebar && !chronoFullscreen && (
 						<div className="calendar-sidebar">
 							<h3 className="sidebar-title">Projets simulés</h3>
 							{availableProjects.length === 0 ? (
@@ -876,6 +936,7 @@ const Calendar: React.FC = () => {
 											className="sidebar-project"
 											draggable
 											onDragStart={handleSidebarDragStart(p)}
+											onClick={handleSidebarTap(p)}
 										>
 											<span className="sidebar-project-name">{p.name}</span>
 											<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
@@ -890,7 +951,30 @@ const Calendar: React.FC = () => {
 					{view === 'chronologie' && (
 						<>
 						<div className="grid-zoom-bar">
-							<div className="zoom-group">
+							<button
+						className="fullscreen-landscape-btn"
+						onClick={handleChronoFullscreen}
+						title={chronoFullscreen ? 'Réduire' : 'Vue paysage'}
+					>
+						{chronoFullscreen ? '✕' : '⛶'}
+					</button>
+						{chronoFullscreen && (
+							<div className="landscape-sidebar-projects">
+								{availableProjects.map(p => (
+									<div
+										key={p.id}
+										className="sidebar-project"
+										draggable
+										onDragStart={handleSidebarDragStart(p)}
+										onClick={handleSidebarTap(p)}
+									>
+										<span className="sidebar-project-name">{p.name}</span>
+										<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
+									</div>
+								))}
+							</div>
+						)}
+						<div className="zoom-group">
 								{ZOOM_LABELS.map((label, i) => (
 									<button
 										key={label}
@@ -982,12 +1066,19 @@ const Calendar: React.FC = () => {
 												className={`placed-project ${resizing?.id === proj.id || moving?.id === proj.id ? 'active' : ''}`}
 												style={{ left: x, width: Math.max(w, 30), top: y + 4, height: ROW_HEIGHT - 8, backgroundColor: color }}
 												onMouseDown={handleMoveStart(proj.id)}
+											onTouchStart={handleMoveTouchStart(proj.id)}
 												onMouseEnter={(e) => {
 													if (!moving && !resizing) setHoveredProject({ proj, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
 												}}
 												onMouseLeave={() => setHoveredProject(null)}
+												onClick={(e) => {
+													if (moving || resizing) return;
+													const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+													setHoveredProject(prev => prev?.proj.id === proj.id ? null : { proj, rect });
+												}}
 											>
-												<div className="resize-handle resize-left" onMouseDown={handleResizeStart(proj.id, 'left')} />
+												<div className="resize-handle resize-left" onMouseDown={handleResizeStart(proj.id, 'left')}
+											onTouchStart={handleResizeTouchStart(proj.id, 'left')} />
 												<div className="placed-project-content">
 													<span className="placed-project-name">{proj.name}</span>
 													<div className="placed-project-right">
@@ -1011,7 +1102,8 @@ const Calendar: React.FC = () => {
 														</span>
 													</div>
 												)}
-												<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')} />
+												<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')}
+											onTouchStart={handleResizeTouchStart(proj.id, 'right')} />
 											</div>
 										);
 									})}
