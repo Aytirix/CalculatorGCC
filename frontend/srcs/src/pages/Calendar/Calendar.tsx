@@ -246,6 +246,7 @@ const Calendar: React.FC = () => {
 	const [contractPrompt, setContractPrompt] = useState<{ start: Date; end: Date } | null>(null);
 	const [importError, setImportError] = useState<string | null>(null);
 	const [chronoFullscreen, setChronoFullscreen] = useState(false);
+	const chronoFullscreenRef = useRef(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const gridRef = useRef<HTMLDivElement>(null);
 
@@ -262,12 +263,20 @@ const Calendar: React.FC = () => {
 
 	// ── Chrono fullscreen (in-app landscape) ───────────────────────────────
 
+	useEffect(() => { chronoFullscreenRef.current = chronoFullscreen; }, [chronoFullscreen]);
+
 	const handleChronoFullscreen = useCallback(() => {
 		setChronoFullscreen(prev => {
 			if (!prev) setView('chronologie');
 			return !prev;
 		});
 	}, []);
+
+	// Transforme les coordonnées touch pour compenser la rotation 90° CW
+	const rotateTouchCoords = (clientX: number, clientY: number) =>
+		chronoFullscreenRef.current
+			? { clientX: -clientY, clientY: clientX }
+			: { clientX, clientY };
 
 	// ── DB sync ────────────────────────────────────────────────────────────
 
@@ -530,7 +539,8 @@ const Calendar: React.FC = () => {
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
 		setHoveredProject(null);
-		setResizing({ id: projectId, edge, startX: e.touches[0].clientX, originalStart: proj.startDate, originalEnd: proj.endDate });
+		const { clientX } = rotateTouchCoords(e.touches[0].clientX, e.touches[0].clientY);
+		setResizing({ id: projectId, edge, startX: clientX, originalStart: proj.startDate, originalEnd: proj.endDate });
 	};
 
 	const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -569,7 +579,10 @@ const Calendar: React.FC = () => {
 		if (resizing || moving) {
 			const handleTouchMove = (e: TouchEvent) => {
 				e.preventDefault();
-				handleMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY } as MouseEvent);
+				const { clientX, clientY } = chronoFullscreenRef.current
+					? { clientX: -e.touches[0].clientY, clientY: e.touches[0].clientX }
+					: { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+				handleMouseMove({ clientX, clientY } as MouseEvent);
 			};
 			const handleTouchEnd = () => handleMouseUp();
 			window.addEventListener('mousemove', handleMouseMove);
@@ -600,7 +613,8 @@ const Calendar: React.FC = () => {
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
 		setHoveredProject(null);
-		setMoving({ id: projectId, startX: e.touches[0].clientX, startY: e.touches[0].clientY, originalStart: proj.startDate, originalEnd: proj.endDate, originalRow: proj.row });
+		const { clientX, clientY } = rotateTouchCoords(e.touches[0].clientX, e.touches[0].clientY);
+		setMoving({ id: projectId, startX: clientX, startY: clientY, originalStart: proj.startDate, originalEnd: proj.endDate, originalRow: proj.row });
 	};
 
 	const handleRemoveProject = (projectId: string) => (e: React.MouseEvent) => {
