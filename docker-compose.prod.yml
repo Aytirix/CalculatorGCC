@@ -8,13 +8,16 @@ services:
       - backend
       - phpmyadmin
     labels:
-      - "traefik.http.services.nginx.loadbalancer.server.port=3000"
+      - "traefik.enable=true"
+      - "traefik.http.routers.calculatorgcc.rule=Host(`rncp.theomouty.fr`)"
+      - "traefik.http.routers.calculatorgcc.entrypoints=https"
+      - "traefik.http.routers.calculatorgcc.tls=true"
+      - "traefik.http.routers.calculatorgcc.tls.certresolver=letsencrypt"
+      - "traefik.http.services.calculatorgcc.loadbalancer.server.port=3000"
+      - "traefik.docker.network=coolify"
     environment:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
-    ports:
-      - "3000:3000"
-    # plus besoin de volumes frontend_build
     volumes:
       - ssl_certs:/etc/nginx/ssl
     healthcheck:
@@ -26,6 +29,7 @@ services:
     restart: unless-stopped
     networks:
       - calculatorGCC_network
+      - coolify
 
   backend:
     build:
@@ -85,6 +89,8 @@ services:
 networks:
   calculatorGCC_network:
     driver: bridge
+  coolify:
+    external: true
 
 volumes:
   ssl_certs:
