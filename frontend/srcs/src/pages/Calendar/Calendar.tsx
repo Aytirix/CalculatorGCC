@@ -441,10 +441,6 @@ const Calendar: React.FC = () => {
 	const weeks = useMemo(() => getWeeks(dateRange.start, dateRange.end), [dateRange]);
 	const monthSpans = useMemo(() => getMonthSpans(weeks), [weeks]);
 	const totalWidth = weeks.length * weekWidth;
-	const maxRow = useMemo(() =>
-		placedProjects.length === 0 ? 0 : Math.max(...placedProjects.map(p => p.row)),
-		[placedProjects]
-	);
 	const rowCount = 5;
 
 	const dateToX = useCallback((date: Date): number => {
