@@ -29,9 +29,11 @@ export const matchesProject = (localSlug: string, apiSlug: string): boolean => {
 	const normalizedLocal = normalizeProjectSlug(localSlug);
 	const normalizedApi = normalizeProjectSlug(apiSlug);
 
-	// Le projet local doit au moins être contenu dans le slug de l'API
-	const matches = normalizedApi.includes(normalizedLocal);
+	// Les slugs courts (≤ 3 chars) ne doivent pas utiliser le matching permissif
+	// pour éviter les faux positifs (ex: "rt" détecté dans "minirt")
+	if (normalizedLocal.length <= 3) return false;
 
+	const matches = normalizedApi.includes(normalizedLocal);
 	return matches;
 };
 

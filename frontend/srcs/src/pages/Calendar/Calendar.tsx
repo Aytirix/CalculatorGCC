@@ -249,6 +249,16 @@ const Calendar: React.FC = () => {
 	const chronoFullscreenRef = useRef(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const gridRef = useRef<HTMLDivElement>(null);
+	const autoScrollXRef = useRef(0);       // Compensation X accumulée par l'auto-scroll
+	const currentClientXRef = useRef(0);    // Dernière position X du curseur (pour le RAF)
+	const currentClientYRef = useRef(0);    // Dernière position Y du curseur (pour le RAF)
+	// Refs miroir de state/valeurs — mis à jour à chaque render pour éviter les stale closures dans le RAF
+	const resizingRef = useRef<typeof resizing>(null);
+	resizingRef.current = resizing;
+	const movingRef = useRef<typeof moving>(null);
+	movingRef.current = moving;
+	const weekWidthRef = useRef(weekWidth);
+	weekWidthRef.current = weekWidth;
 
 	useEffect(() => {
 		const { projects } = getSimulatedProjects();
@@ -453,7 +463,7 @@ const Calendar: React.FC = () => {
 		return addDays(rangeStart, Math.round((x / weekWidth) * 7));
 	}, [dateRange.start, weekWidth]);
 
-	const yToRow = useCallback((y: number): number => Math.max(0, Math.floor(y / ROW_HEIGHT)), []);
+	const yToRow = useCallback((y: number): number => Math.min(rowCount - 1, Math.max(0, Math.floor(y / ROW_HEIGHT))), []);
 
 	// ── Scroll to today (on mount and when switching back to chronologie) ────
 
@@ -548,7 +558,7 @@ const Calendar: React.FC = () => {
 
 	const handleMouseMove = useCallback((e: MouseEvent) => {
 		if (resizing) {
-			const daysDelta = Math.round(((e.clientX - resizing.startX) / weekWidth) * 7);
+			const daysDelta = Math.round(((e.clientX + autoScrollXRef.current - resizing.startX) / weekWidth) * 7);
 			setPlacedProjects(prev => prev.map(p => {
 				if (p.id !== resizing.id) return p;
 				if (resizing.edge === 'left') {
@@ -562,7 +572,7 @@ const Calendar: React.FC = () => {
 			}));
 		}
 		if (moving) {
-			const daysDelta = Math.round(((e.clientX - moving.startX) / weekWidth) * 7);
+			const daysDelta = Math.round(((e.clientX + autoScrollXRef.current - moving.startX) / weekWidth) * 7);
 			const rowDelta = Math.round((e.clientY - moving.startY) / ROW_HEIGHT);
 			setPlacedProjects(prev => prev.map(p => {
 				if (p.id !== moving.id) return p;
@@ -570,7 +580,7 @@ const Calendar: React.FC = () => {
 					...p,
 					startDate: addDays(moving.originalStart, daysDelta),
 					endDate: addDays(moving.originalEnd, daysDelta),
-					row: Math.max(0, moving.originalRow + rowDelta),
+					row: Math.min(rowCount - 1, Math.max(0, moving.originalRow + rowDelta)),
 				};
 			}));
 		}
@@ -580,20 +590,102 @@ const Calendar: React.FC = () => {
 
 	useEffect(() => {
 		if (resizing || moving) {
+			autoScrollXRef.current = 0;
+			let animFrameId: number | null = null;
+
+			// Guard : n'active l'auto-scroll qu'après le premier vrai mousemove
+			// (évite le scroll parasite dû à currentClientXRef=0 initial)
+			let autoScrollReady = false;
+
+			const autoScrollLoop = () => {
+				if (gridRef.current && autoScrollReady) {
+					const rect = gridRef.current.getBoundingClientRect();
+					const x = currentClientXRef.current;
+					const edgeZone = 150;
+					const maxSpeed = 25;
+
+					// Courbe quadratique : lent en entrant dans la zone, très rapide au bord
+					// Max speed si hors de la grille (x < rect.left ou x > rect.right)
+					let speed = 0;
+					if (x < rect.left + edgeZone) {
+						const t = Math.max(0, x - rect.left) / edgeZone; // 0=bord, 1=limite zone
+						speed = -maxSpeed * Math.pow(1 - t, 2);
+					} else if (x > rect.right - edgeZone) {
+						const t = Math.max(0, rect.right - x) / edgeZone; // 0=bord, 1=limite zone
+						speed = maxSpeed * Math.pow(1 - t, 2);
+					}
+
+					if (Math.abs(speed) > 0.1) {
+						const prevScroll = gridRef.current.scrollLeft;
+						gridRef.current.scrollLeft += speed;
+						const actualScroll = gridRef.current.scrollLeft - prevScroll;
+						if (actualScroll !== 0) {
+							autoScrollXRef.current += actualScroll;
+							// Lire depuis les refs (jamais de stale closure)
+							const cx = currentClientXRef.current;
+							const cy = currentClientYRef.current;
+							const r = resizingRef.current;
+							const m = movingRef.current;
+							const ww = weekWidthRef.current;
+							const offset = autoScrollXRef.current;
+							if (r) {
+								const daysDelta = Math.round(((cx + offset - r.startX) / ww) * 7);
+								setPlacedProjects(prev => prev.map(p => {
+									if (p.id !== r.id) return p;
+									if (r.edge === 'left') {
+										const newStart = addDays(r.originalStart, daysDelta);
+										if (newStart < p.endDate) return { ...p, startDate: newStart };
+									} else {
+										const newEnd = addDays(r.originalEnd, daysDelta);
+										if (newEnd > p.startDate) return { ...p, endDate: newEnd };
+									}
+									return p;
+								}));
+							}
+							if (m) {
+								const daysDelta = Math.round(((cx + offset - m.startX) / ww) * 7);
+								const rowDelta = Math.round((cy - m.startY) / ROW_HEIGHT);
+								setPlacedProjects(prev => prev.map(p => {
+									if (p.id !== m.id) return p;
+									return {
+										...p,
+										startDate: addDays(m.originalStart, daysDelta),
+										endDate: addDays(m.originalEnd, daysDelta),
+										row: Math.min(rowCount - 1, Math.max(0, m.originalRow + rowDelta)),
+									};
+								}));
+							}
+						}
+					}
+				}
+				animFrameId = requestAnimationFrame(autoScrollLoop);
+			};
+			animFrameId = requestAnimationFrame(autoScrollLoop);
+
 			const handleTouchMove = (e: TouchEvent) => {
 				e.preventDefault();
 				const { clientX, clientY } = chronoFullscreenRef.current
 					? { clientX: e.touches[0].clientY, clientY: -e.touches[0].clientX }
 					: { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+				currentClientXRef.current = clientX;
+				currentClientYRef.current = clientY;
+				autoScrollReady = true;
 				handleMouseMove({ clientX, clientY } as MouseEvent);
 			};
+			const handleMouseMoveWithTracking = (e: MouseEvent) => {
+				currentClientXRef.current = e.clientX;
+				currentClientYRef.current = e.clientY;
+				autoScrollReady = true;
+				handleMouseMove(e);
+			};
 			const handleTouchEnd = () => handleMouseUp();
-			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('mousemove', handleMouseMoveWithTracking);
 			window.addEventListener('mouseup', handleMouseUp);
 			window.addEventListener('touchmove', handleTouchMove, { passive: false });
 			window.addEventListener('touchend', handleTouchEnd);
 			return () => {
-				window.removeEventListener('mousemove', handleMouseMove);
+				if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+				window.removeEventListener('mousemove', handleMouseMoveWithTracking);
 				window.removeEventListener('mouseup', handleMouseUp);
 				window.removeEventListener('touchmove', handleTouchMove);
 				window.removeEventListener('touchend', handleTouchEnd);
