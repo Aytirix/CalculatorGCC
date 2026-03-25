@@ -39,6 +39,3 @@ nginx/ssl/
 *.seed
 *.pid.lock
 .docker
-
-
-**/package-lock.json
