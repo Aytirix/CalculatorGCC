@@ -367,7 +367,7 @@ const Calendar: React.FC = () => {
 			}
 
 			setAlternanceDays(data.days);
-		setAlternanceLegend(data.legend);
+			setAlternanceLegend(data.legend);
 
 			// Check if contract dates differ from current calendar range
 			if (data.contractStart && data.contractEnd) {
@@ -405,7 +405,7 @@ const Calendar: React.FC = () => {
 				end: formatDate(dateRange.end),
 			},
 			alternanceDays: {},
-		}).catch(() => {});
+		}).catch(() => { });
 	};
 
 	// ── Navigation ─────────────────────────────────────────────────────────
@@ -445,7 +445,7 @@ const Calendar: React.FC = () => {
 		placedProjects.length === 0 ? 0 : Math.max(...placedProjects.map(p => p.row)),
 		[placedProjects]
 	);
-	const rowCount = Math.max(5, maxRow + 2);
+	const rowCount = 5;
 
 	const dateToX = useCallback((date: Date): number => {
 		const rangeStart = startOfWeek(new Date(dateRange.start));
@@ -813,384 +813,384 @@ const Calendar: React.FC = () => {
 
 	return (
 		<>
-		<div className="calendar-page">
-			<Header />
-			<div className="calendar-container">
+			<div className="calendar-page">
+				<Header />
+				<div className="calendar-container">
 
-				{/* Controls bar */}
-				<div className="calendar-controls">
-					<div className="view-switcher">
-						{(['agenda', 'semaine', 'mois', 'chronologie'] as CalendarView[]).map(v => (
-							<button
-								key={v}
-								className={`view-btn ${view === v ? 'active' : ''}`}
-								onClick={() => setView(v)}
-							>
-								{v.charAt(0).toUpperCase() + v.slice(1)}
-							</button>
-						))}
-					</div>
-
-					{view === 'chronologie' ? (
-						<div className="date-range-picker">
-							<label>
-								<span>Du</span>
-								<input
-									type="date"
-									value={formatDate(dateRange.start)}
-									onChange={e => {
-										const d = parseDate(e.target.value);
-										if (!isNaN(d.getTime())) setDateRange(prev => ({ ...prev, start: d }));
-									}}
-								/>
-							</label>
-							<label>
-								<span>Au</span>
-								<input
-									type="date"
-									value={formatDate(dateRange.end)}
-									onChange={e => {
-										const d = parseDate(e.target.value);
-										if (!isNaN(d.getTime())) setDateRange(prev => ({ ...prev, end: d }));
-									}}
-								/>
-							</label>
-						</div>
-					) : navLabel ? (
-						<div className="calendar-nav">
-							<button className="nav-arrow" onClick={goPrev} aria-label="Précédent">‹</button>
-							<button className="nav-today" onClick={goToToday}>Aujourd'hui</button>
-							<span className="nav-label">{navLabel}</span>
-							<button className="nav-arrow" onClick={goNext} aria-label="Suivant">›</button>
-						</div>
-					) : null}
-
-					<div className="calendar-right-controls">
-						{alternanceLegend && Object.values(alternanceLegend).some(Boolean) && (
-							<div className="alternance-legend">
-								{alternanceLegend.entreprise && (
-									<div className="alternance-legend-item">
-										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.entreprise }} />
-										<span className="alternance-legend-label">Entreprise</span>
-									</div>
-								)}
-								{alternanceLegend.ecole && (
-									<div className="alternance-legend-item">
-										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.ecole }} />
-										<span className="alternance-legend-label">École</span>
-									</div>
-								)}
-								{alternanceLegend.distanciel && (
-									<div className="alternance-legend-item">
-										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.distanciel }} />
-										<span className="alternance-legend-label">Distanciel</span>
-									</div>
-								)}
-							</div>
-						)}
-						<div className="alternance-import-group">
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept=".xlsx"
-								style={{ display: 'none' }}
-								onChange={handleFileChange}
-							/>
-							<button className="import-btn" onClick={handleImportClick} title="Importer un planning d'alternance (.xlsx)">
-								Importer planning
-							</button>
-							{Object.keys(alternanceDays).length > 0 && (
-								<button className="clear-alternance-btn" onClick={handleClearAlternance} title="Effacer le planning importé">
-									×
+					{/* Controls bar */}
+					<div className="calendar-controls">
+						<div className="view-switcher">
+							{(['agenda', 'semaine', 'mois', 'chronologie'] as CalendarView[]).map(v => (
+								<button
+									key={v}
+									className={`view-btn ${view === v ? 'active' : ''}`}
+									onClick={() => setView(v)}
+								>
+									{v.charAt(0).toUpperCase() + v.slice(1)}
 								</button>
-							)}
+							))}
 						</div>
-					</div>
-				</div>
 
-				{/* Import error */}
-				{importError && (
-					<div className="import-error">
-						<span>{importError}</span>
-						<button onClick={() => setImportError(null)}>×</button>
-					</div>
-				)}
+						{view === 'chronologie' ? (
+							<div className="date-range-picker">
+								<label>
+									<span>Du</span>
+									<input
+										type="date"
+										value={formatDate(dateRange.start)}
+										onChange={e => {
+											const d = parseDate(e.target.value);
+											if (!isNaN(d.getTime())) setDateRange(prev => ({ ...prev, start: d }));
+										}}
+									/>
+								</label>
+								<label>
+									<span>Au</span>
+									<input
+										type="date"
+										value={formatDate(dateRange.end)}
+										onChange={e => {
+											const d = parseDate(e.target.value);
+											if (!isNaN(d.getTime())) setDateRange(prev => ({ ...prev, end: d }));
+										}}
+									/>
+								</label>
+							</div>
+						) : navLabel ? (
+							<div className="calendar-nav">
+								<button className="nav-arrow" onClick={goPrev} aria-label="Précédent">‹</button>
+								<button className="nav-today" onClick={goToToday}>Aujourd'hui</button>
+								<span className="nav-label">{navLabel}</span>
+								<button className="nav-arrow" onClick={goNext} aria-label="Suivant">›</button>
+							</div>
+						) : null}
 
-				{/* Contract dates confirmation */}
-				{contractPrompt && (
-					<div className="contract-prompt">
-						<div className="contract-prompt-icon">📅</div>
-						<div className="contract-prompt-body">
-							<p className="contract-prompt-title">Dates de contrat détectées</p>
-							<p className="contract-prompt-text">
-								Le contrat couvre du{' '}
-								<strong>{contractPrompt.start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
-								{' '}au{' '}
-								<strong>{contractPrompt.end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
-								<br />
-								Mettre à jour la plage du calendrier pour correspondre ?
-							</p>
-						</div>
-						<div className="contract-prompt-actions">
-							<button className="prompt-btn-confirm" onClick={handleContractAccept}>Oui</button>
-							<button className="prompt-btn-cancel" onClick={handleContractDecline}>Non</button>
-						</div>
-					</div>
-				)}
-
-				<div className={`calendar-layout${chronoFullscreen ? ' chrono-landscape' : ''}`}>
-					{showSidebar && !chronoFullscreen && (
-						<div className="calendar-sidebar">
-							<h3 className="sidebar-title">Projets simulés</h3>
-							{availableProjects.length === 0 ? (
-								<p className="sidebar-empty">
-									Tous les projets simulés sont placés, ou aucun n'est simulé.
-								</p>
-							) : (
-								<div className="sidebar-projects">
-									{availableProjects.map(p => (
-										<div
-											key={p.id}
-											className="sidebar-project"
-											draggable
-											onDragStart={handleSidebarDragStart(p)}
-											onClick={handleSidebarTap(p)}
-										>
-											<span className="sidebar-project-name">{p.name}</span>
-											<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
+						<div className="calendar-right-controls">
+							{alternanceLegend && Object.values(alternanceLegend).some(Boolean) && (
+								<div className="alternance-legend">
+									{alternanceLegend.entreprise && (
+										<div className="alternance-legend-item">
+											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.entreprise }} />
+											<span className="alternance-legend-label">Entreprise</span>
 										</div>
-									))}
+									)}
+									{alternanceLegend.ecole && (
+										<div className="alternance-legend-item">
+											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.ecole }} />
+											<span className="alternance-legend-label">École</span>
+										</div>
+									)}
+									{alternanceLegend.distanciel && (
+										<div className="alternance-legend-item">
+											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.distanciel }} />
+											<span className="alternance-legend-label">Distanciel</span>
+										</div>
+									)}
 								</div>
 							)}
+							<div className="alternance-import-group">
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept=".xlsx"
+									style={{ display: 'none' }}
+									onChange={handleFileChange}
+								/>
+								<button className="import-btn" onClick={handleImportClick} title="Importer un planning d'alternance (.xlsx)">
+									Importer planning
+								</button>
+								{Object.keys(alternanceDays).length > 0 && (
+									<button className="clear-alternance-btn" onClick={handleClearAlternance} title="Effacer le planning importé">
+										×
+									</button>
+								)}
+							</div>
+						</div>
+					</div>
+
+					{/* Import error */}
+					{importError && (
+						<div className="import-error">
+							<span>{importError}</span>
+							<button onClick={() => setImportError(null)}>×</button>
 						</div>
 					)}
 
-					{/* Chronologie (Gantt) */}
-					{view === 'chronologie' && (
-						<>
-						<div className="grid-zoom-bar">
-							<button
-						className="fullscreen-landscape-btn"
-						onClick={handleChronoFullscreen}
-						title={chronoFullscreen ? 'Réduire' : 'Vue paysage'}
-					>
-						{chronoFullscreen ? '✕' : '⛶'}
-					</button>
-						{chronoFullscreen && (
-							<div className="landscape-sidebar-projects">
-								{availableProjects.map(p => (
-									<div
-										key={p.id}
-										className="sidebar-project"
-										draggable
-										onDragStart={handleSidebarDragStart(p)}
-										onClick={handleSidebarTap(p)}
-									>
-										<span className="sidebar-project-name">{p.name}</span>
-										<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
-									</div>
-								))}
+					{/* Contract dates confirmation */}
+					{contractPrompt && (
+						<div className="contract-prompt">
+							<div className="contract-prompt-icon">📅</div>
+							<div className="contract-prompt-body">
+								<p className="contract-prompt-title">Dates de contrat détectées</p>
+								<p className="contract-prompt-text">
+									Le contrat couvre du{' '}
+									<strong>{contractPrompt.start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+									{' '}au{' '}
+									<strong>{contractPrompt.end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
+									<br />
+									Mettre à jour la plage du calendrier pour correspondre ?
+								</p>
 							</div>
-						)}
-						<div className="zoom-group">
-								{ZOOM_LABELS.map((label, i) => (
-									<button
-										key={label}
-										className={`zoom-btn ${zoomIndex === i ? 'active' : ''}`}
-										onClick={() => setZoomIndex(i)}
-									>
-										{label}
-									</button>
-								))}
+							<div className="contract-prompt-actions">
+								<button className="prompt-btn-confirm" onClick={handleContractAccept}>Oui</button>
+								<button className="prompt-btn-cancel" onClick={handleContractDecline}>Non</button>
 							</div>
 						</div>
-						<div
-							className="calendar-grid-wrapper"
-							ref={gridRef}
-							onDragOver={handleGridDragOver}
-							onDrop={handleGridDrop}
-						>
-							<div
-								className="calendar-grid"
-								style={{ width: totalWidth, minHeight: rowCount * ROW_HEIGHT + HEADER_HEIGHT }}
-							>
-								<div className="month-headers" style={{ height: 32 }}>
-									{monthSpans.map((span, i) => {
-										const label = span.weekCount <= 1
-											? span.label.replace(/^(.+)\s+(\d{4})$/, (_, m, y) => `${m} '${y.slice(2)}`)
-											: span.label;
-										return (
+					)}
+
+					<div className={`calendar-layout${chronoFullscreen ? ' chrono-landscape' : ''}`}>
+						{showSidebar && !chronoFullscreen && (
+							<div className="calendar-sidebar">
+								<h3 className="sidebar-title">Projets simulés</h3>
+								{availableProjects.length === 0 ? (
+									<p className="sidebar-empty">
+										Tous les projets simulés sont placés, ou aucun n'est simulé.
+									</p>
+								) : (
+									<div className="sidebar-projects">
+										{availableProjects.map(p => (
 											<div
-												key={i}
-												className="month-header"
-												style={{ left: span.startWeekIndex * weekWidth, width: span.weekCount * weekWidth }}
+												key={p.id}
+												className="sidebar-project"
+												draggable
+												onDragStart={handleSidebarDragStart(p)}
+												onClick={handleSidebarTap(p)}
+											>
+												<span className="sidebar-project-name">{p.name}</span>
+												<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Chronologie (Gantt) */}
+						{view === 'chronologie' && (
+							<>
+								<div className="grid-zoom-bar">
+									<button
+										className="fullscreen-landscape-btn"
+										onClick={handleChronoFullscreen}
+										title={chronoFullscreen ? 'Réduire' : 'Vue paysage'}
+									>
+										{chronoFullscreen ? '✕' : '⛶'}
+									</button>
+									{chronoFullscreen && (
+										<div className="landscape-sidebar-projects">
+											{availableProjects.map(p => (
+												<div
+													key={p.id}
+													className="sidebar-project"
+													draggable
+													onDragStart={handleSidebarDragStart(p)}
+													onClick={handleSidebarTap(p)}
+												>
+													<span className="sidebar-project-name">{p.name}</span>
+													<span className="sidebar-project-xp">{p.xp.toLocaleString()} XP</span>
+												</div>
+											))}
+										</div>
+									)}
+									<div className="zoom-group">
+										{ZOOM_LABELS.map((label, i) => (
+											<button
+												key={label}
+												className={`zoom-btn ${zoomIndex === i ? 'active' : ''}`}
+												onClick={() => setZoomIndex(i)}
 											>
 												{label}
-											</div>
-										);
-									})}
+											</button>
+										))}
+									</div>
 								</div>
-								<div className="week-headers" style={{ top: 32, height: 38 }}>
-									{weeks.map((w, i) => {
-										const endOfWeek = addDays(w, 6);
-										return (
-											<div key={i} className="week-header" style={{ left: i * weekWidth, width: weekWidth }}>
-												<span className="week-day">{w.getDate()}</span>
-												<span className="week-sep">–</span>
-												<span className="week-day">{endOfWeek.getDate()}</span>
-											</div>
-										);
-									})}
-								</div>
-								<div className="grid-body" style={{ top: HEADER_HEIGHT }}>
-									{/* Alternance day background strips */}
-									{Object.entries(alternanceDays).map(([dateKey, color]) => {
-										const day = parseDate(dateKey);
-										const x = dateToX(day);
-										const dayWidth = weekWidth / 7;
-										if (x < -dayWidth || x > totalWidth) return null;
-										return (
-											<div
-												key={dateKey}
-												className="alternance-day-bg"
-												style={{ left: x, width: dayWidth, backgroundColor: color }}
-											/>
-										);
-									})}
-									{/* Today indicator */}
-									{(() => {
-										const todayX = dateToX(new Date());
-										if (todayX < 0 || todayX > totalWidth) return null;
-										return <div className="grid-today-line" style={{ left: todayX }} />;
-									})()}
-									{weeks.map((_, i) => (
-										<div
-											key={`vl-${i}`}
-											className={`grid-vline ${i > 0 && monthSpans.some(s => s.startWeekIndex === i) ? 'month-border' : ''}`}
-											style={{ left: i * weekWidth }}
-										/>
-									))}
-									{Array.from({ length: rowCount }, (_, i) => (
-										<div key={`hl-${i}`} className="grid-hline" style={{ top: i * ROW_HEIGHT }} />
-									))}
-									{placedProjects.map(proj => {
-										const x = dateToX(proj.startDate);
-										const w = dateToX(proj.endDate) - x;
-										const y = proj.row * ROW_HEIGHT;
-										const color = projectColors[proj.projectId] || '#3b82f6';
-										return (
-											<div
-												key={proj.id}
-												className={`placed-project ${resizing?.id === proj.id || moving?.id === proj.id ? 'active' : ''}`}
-												style={{ left: x, width: Math.max(w, 30), top: y + 4, height: ROW_HEIGHT - 8, backgroundColor: color }}
-												onMouseDown={handleMoveStart(proj.id)}
-											onTouchStart={handleMoveTouchStart(proj.id)}
-												onMouseEnter={(e) => {
-													if (!moving && !resizing) setHoveredProject({ proj, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
-												}}
-												onMouseLeave={() => setHoveredProject(null)}
-												onClick={(e) => {
-													if (moving || resizing) return;
-													const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-													setHoveredProject(prev => prev?.proj.id === proj.id ? null : { proj, rect });
-												}}
-											>
-												<div className="resize-handle resize-left" onMouseDown={handleResizeStart(proj.id, 'left')}
-											onTouchStart={handleResizeTouchStart(proj.id, 'left')} />
-												<div className="placed-project-content">
-													<span className="placed-project-name">{proj.name}</span>
-													<div className="placed-project-right">
-														<button
-															className="placed-project-remove"
-															onClick={handleRemoveProject(proj.id)}
-															title="Retirer"
-														>
-															×
-														</button>
+								<div
+									className="calendar-grid-wrapper"
+									ref={gridRef}
+									onDragOver={handleGridDragOver}
+									onDrop={handleGridDrop}
+								>
+									<div
+										className="calendar-grid"
+										style={{ width: totalWidth, minHeight: rowCount * ROW_HEIGHT + HEADER_HEIGHT }}
+									>
+										<div className="month-headers" style={{ height: 32 }}>
+											{monthSpans.map((span, i) => {
+												const label = span.weekCount <= 1
+													? span.label.replace(/^(.+)\s+(\d{4})$/, (_, m, y) => `${m} '${y.slice(2)}`)
+													: span.label;
+												return (
+													<div
+														key={i}
+														className="month-header"
+														style={{ left: span.startWeekIndex * weekWidth, width: span.weekCount * weekWidth }}
+													>
+														{label}
 													</div>
-												</div>
-												{(moving?.id === proj.id || resizing?.id === proj.id) && (
-													<div className="drag-tooltip">
-														<span className={resizing?.id === proj.id && resizing.edge === 'left' ? 'drag-tooltip-active' : ''}>
-															{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-														</span>
-														{" → "}
-														<span className={resizing?.id === proj.id && resizing.edge === 'right' ? 'drag-tooltip-active' : ''}>
-															{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-														</span>
+												);
+											})}
+										</div>
+										<div className="week-headers" style={{ top: 32, height: 38 }}>
+											{weeks.map((w, i) => {
+												const endOfWeek = addDays(w, 6);
+												return (
+													<div key={i} className="week-header" style={{ left: i * weekWidth, width: weekWidth }}>
+														<span className="week-day">{w.getDate()}</span>
+														<span className="week-sep">–</span>
+														<span className="week-day">{endOfWeek.getDate()}</span>
 													</div>
-												)}
-												<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')}
-											onTouchStart={handleResizeTouchStart(proj.id, 'right')} />
-											</div>
-										);
-									})}
+												);
+											})}
+										</div>
+										<div className="grid-body" style={{ top: HEADER_HEIGHT }}>
+											{/* Alternance day background strips */}
+											{Object.entries(alternanceDays).map(([dateKey, color]) => {
+												const day = parseDate(dateKey);
+												const x = dateToX(day);
+												const dayWidth = weekWidth / 7;
+												if (x < -dayWidth || x > totalWidth) return null;
+												return (
+													<div
+														key={dateKey}
+														className="alternance-day-bg"
+														style={{ left: x, width: dayWidth, backgroundColor: color }}
+													/>
+												);
+											})}
+											{/* Today indicator */}
+											{(() => {
+												const todayX = dateToX(new Date());
+												if (todayX < 0 || todayX > totalWidth) return null;
+												return <div className="grid-today-line" style={{ left: todayX }} />;
+											})()}
+											{weeks.map((_, i) => (
+												<div
+													key={`vl-${i}`}
+													className={`grid-vline ${i > 0 && monthSpans.some(s => s.startWeekIndex === i) ? 'month-border' : ''}`}
+													style={{ left: i * weekWidth }}
+												/>
+											))}
+											{Array.from({ length: rowCount }, (_, i) => (
+												<div key={`hl-${i}`} className="grid-hline" style={{ top: i * ROW_HEIGHT }} />
+											))}
+											{placedProjects.map(proj => {
+												const x = dateToX(proj.startDate);
+												const w = dateToX(proj.endDate) - x;
+												const y = proj.row * ROW_HEIGHT;
+												const color = projectColors[proj.projectId] || '#3b82f6';
+												return (
+													<div
+														key={proj.id}
+														className={`placed-project ${resizing?.id === proj.id || moving?.id === proj.id ? 'active' : ''}`}
+														style={{ left: x, width: Math.max(w, 30), top: y + 4, height: ROW_HEIGHT - 8, backgroundColor: color }}
+														onMouseDown={handleMoveStart(proj.id)}
+														onTouchStart={handleMoveTouchStart(proj.id)}
+														onMouseEnter={(e) => {
+															if (!moving && !resizing) setHoveredProject({ proj, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
+														}}
+														onMouseLeave={() => setHoveredProject(null)}
+														onClick={(e) => {
+															if (moving || resizing) return;
+															const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+															setHoveredProject(prev => prev?.proj.id === proj.id ? null : { proj, rect });
+														}}
+													>
+														<div className="resize-handle resize-left" onMouseDown={handleResizeStart(proj.id, 'left')}
+															onTouchStart={handleResizeTouchStart(proj.id, 'left')} />
+														<div className="placed-project-content">
+															<span className="placed-project-name">{proj.name}</span>
+															<div className="placed-project-right">
+																<button
+																	className="placed-project-remove"
+																	onClick={handleRemoveProject(proj.id)}
+																	title="Retirer"
+																>
+																	×
+																</button>
+															</div>
+														</div>
+														{(moving?.id === proj.id || resizing?.id === proj.id) && (
+															<div className="drag-tooltip">
+																<span className={resizing?.id === proj.id && resizing.edge === 'left' ? 'drag-tooltip-active' : ''}>
+																	{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+																</span>
+																{" → "}
+																<span className={resizing?.id === proj.id && resizing.edge === 'right' ? 'drag-tooltip-active' : ''}>
+																	{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+																</span>
+															</div>
+														)}
+														<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')}
+															onTouchStart={handleResizeTouchStart(proj.id, 'right')} />
+													</div>
+												);
+											})}
+										</div>
+									</div>
 								</div>
-							</div>
-						</div>
-						</>
-					)}
+							</>
+						)}
 
-					{view === 'mois' && renderMoisView()}
-					{view === 'semaine' && renderSemaineView()}
-					{view === 'agenda' && renderAgendaView()}
+						{view === 'mois' && renderMoisView()}
+						{view === 'semaine' && renderSemaineView()}
+						{view === 'agenda' && renderAgendaView()}
+					</div>
 				</div>
 			</div>
-		</div>
 
-		{/* Hover tooltip — portal so it escapes overflow:auto containers */}
-		{hoveredProject && !moving && !resizing && (() => {
-			const { proj, rect } = hoveredProject;
-			const today = new Date(); today.setHours(0, 0, 0, 0);
-			const durationDays = diffDays(proj.startDate, proj.endDate);
-			const daysLeft = diffDays(today, proj.endDate);
-			const schoolColors = new Set(
-				[alternanceLegend?.ecole, alternanceLegend?.distanciel].filter(Boolean) as string[]
-			);
-			const schoolDaysLeft = Object.entries(alternanceDays).filter(([dateKey, color]) => {
-				if (!schoolColors.has(color)) return false;
-				const d = new Date(dateKey + 'T00:00:00');
-				return d >= today && d < proj.endDate;
-			}).length;
-			const tooltipX = rect.left + rect.width / 2;
-			const tooltipY = rect.top - 8;
-			return createPortal(
-				<div
-					className="project-hover-tooltip"
-					style={{ position: 'fixed', left: tooltipX, top: tooltipY, transform: 'translate(-50%, -100%)' }}
-				>
-					<div className="hover-tooltip-row">
-						<span className="hover-tooltip-label">Début</span>
-						<span>{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-					</div>
-					<div className="hover-tooltip-row">
-						<span className="hover-tooltip-label">Fin</span>
-						<span>{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-					</div>
-					<div className="hover-tooltip-row">
-						<span className="hover-tooltip-label">Durée</span>
-						<span>{durationDays} jour{durationDays > 1 ? 's' : ''}</span>
-					</div>
-					<div className="hover-tooltip-row">
-						<span className="hover-tooltip-label">Reste</span>
-						<span>
-							{daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? 's' : ''}` : daysLeft === 0 ? "Aujourd'hui" : 'Terminé'}
-						</span>
-					</div>
-					{schoolColors.size > 0 && (
+			{/* Hover tooltip — portal so it escapes overflow:auto containers */}
+			{hoveredProject && !moving && !resizing && (() => {
+				const { proj, rect } = hoveredProject;
+				const today = new Date(); today.setHours(0, 0, 0, 0);
+				const durationDays = diffDays(proj.startDate, proj.endDate);
+				const daysLeft = diffDays(today, proj.endDate);
+				const schoolColors = new Set(
+					[alternanceLegend?.ecole, alternanceLegend?.distanciel].filter(Boolean) as string[]
+				);
+				const schoolDaysLeft = Object.entries(alternanceDays).filter(([dateKey, color]) => {
+					if (!schoolColors.has(color)) return false;
+					const d = new Date(dateKey + 'T00:00:00');
+					return d >= today && d < proj.endDate;
+				}).length;
+				const tooltipX = rect.left + rect.width / 2;
+				const tooltipY = rect.top - 8;
+				return createPortal(
+					<div
+						className="project-hover-tooltip"
+						style={{ position: 'fixed', left: tooltipX, top: tooltipY, transform: 'translate(-50%, -100%)' }}
+					>
 						<div className="hover-tooltip-row">
-							<span className="hover-tooltip-label">J. école restants</span>
-							<span>{schoolDaysLeft}</span>
+							<span className="hover-tooltip-label">Début</span>
+							<span>{proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
 						</div>
-					)}
-					<div className="hover-tooltip-row">
-						<span className="hover-tooltip-label">XP</span>
-						<span>{proj.xp.toLocaleString()}</span>
-					</div>
-				</div>,
-				document.body,
-			);
-		})()}
+						<div className="hover-tooltip-row">
+							<span className="hover-tooltip-label">Fin</span>
+							<span>{proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+						</div>
+						<div className="hover-tooltip-row">
+							<span className="hover-tooltip-label">Durée</span>
+							<span>{durationDays} jour{durationDays > 1 ? 's' : ''}</span>
+						</div>
+						<div className="hover-tooltip-row">
+							<span className="hover-tooltip-label">Reste</span>
+							<span>
+								{daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? 's' : ''}` : daysLeft === 0 ? "Aujourd'hui" : 'Terminé'}
+							</span>
+						</div>
+						{schoolColors.size > 0 && (
+							<div className="hover-tooltip-row">
+								<span className="hover-tooltip-label">J. école restants</span>
+								<span>{schoolDaysLeft}</span>
+							</div>
+						)}
+						<div className="hover-tooltip-row">
+							<span className="hover-tooltip-label">XP</span>
+							<span>{proj.xp.toLocaleString()}</span>
+						</div>
+					</div>,
+					document.body,
+				);
+			})()}
 		</>
 	);
 };
