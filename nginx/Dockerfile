@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Installer les dépendances
 COPY frontend/srcs/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/srcs/. ./
 RUN npm run build
 
