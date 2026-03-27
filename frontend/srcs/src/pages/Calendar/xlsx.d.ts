@@ -24,5 +24,16 @@ declare module 'xlsx' {
 		encode_cell(cell: { r: number; c: number }): string;
 	};
 
+	const SSF: {
+		parse_date_code(serial: number): {
+			y: number;
+			m: number;
+			d: number;
+			H?: number;
+			M?: number;
+			S?: number;
+		} | null;
+	};
+
 	function read(data: ArrayBuffer, opts?: ReadOptions): WorkBook;
 }

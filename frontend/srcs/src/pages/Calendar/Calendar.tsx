@@ -90,8 +90,88 @@ function formatMonthYear(date: Date): string {
 	return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 }
 
+const SHORT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+
 function formatDate(date: Date): string {
-	return date.toISOString().slice(0, 10);
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+function formatShortDayMonth(date: Date): string {
+	return SHORT_DAY_MONTH_FORMATTER.format(date);
+}
+
+const AUTO_SCROLL_SPEED_POINTS = [
+	{ distance: 0, speed: 3600 },
+	{ distance: 24, speed: 2600 },
+	{ distance: 64, speed: 1600 },
+	{ distance: 120, speed: 650 },
+	{ distance: 180, speed: 0 },
+] as const;
+
+function getAutoScrollSpeed(distanceFromEdge: number): number {
+	if (distanceFromEdge >= AUTO_SCROLL_SPEED_POINTS[AUTO_SCROLL_SPEED_POINTS.length - 1].distance) return 0;
+	if (distanceFromEdge <= 0) return AUTO_SCROLL_SPEED_POINTS[0].speed;
+
+	for (let i = 1; i < AUTO_SCROLL_SPEED_POINTS.length; i += 1) {
+		const inner = AUTO_SCROLL_SPEED_POINTS[i - 1];
+		const outer = AUTO_SCROLL_SPEED_POINTS[i];
+		if (distanceFromEdge <= outer.distance) {
+			const segmentProgress = (distanceFromEdge - inner.distance) / (outer.distance - inner.distance);
+			return inner.speed + (outer.speed - inner.speed) * segmentProgress;
+		}
+	}
+
+	return 0;
+}
+
+function getEasterSunday(year: number): Date {
+	const a = year % 19;
+	const b = Math.floor(year / 100);
+	const c = year % 100;
+	const d = Math.floor(b / 4);
+	const e = b % 4;
+	const f = Math.floor((b + 8) / 25);
+	const g = Math.floor((b - f + 1) / 3);
+	const h = (19 * a + b - d - g + 15) % 30;
+	const i = Math.floor(c / 4);
+	const k = c % 4;
+	const l = (32 + 2 * e + 2 * i - h - k) % 7;
+	const m = Math.floor((a + 11 * h + 22 * l) / 451);
+	const month = Math.floor((h + l - 7 * m + 114) / 31);
+	const day = ((h + l - 7 * m + 114) % 31) + 1;
+	return new Date(year, month - 1, day);
+}
+
+const frenchHolidayCache = new Map<number, Set<string>>();
+
+function getFrenchPublicHolidayKeys(year: number): Set<string> {
+	const cached = frenchHolidayCache.get(year);
+	if (cached) return cached;
+
+	const easterSunday = getEasterSunday(year);
+	const holidays = new Set<string>([
+		formatDate(new Date(year, 0, 1)),
+		formatDate(addDays(easterSunday, 1)),
+		formatDate(new Date(year, 4, 1)),
+		formatDate(new Date(year, 4, 8)),
+		formatDate(addDays(easterSunday, 39)),
+		formatDate(addDays(easterSunday, 50)),
+		formatDate(new Date(year, 6, 14)),
+		formatDate(new Date(year, 7, 15)),
+		formatDate(new Date(year, 10, 1)),
+		formatDate(new Date(year, 10, 11)),
+		formatDate(new Date(year, 11, 25)),
+	]);
+
+	frenchHolidayCache.set(year, holidays);
+	return holidays;
+}
+
+function isFrenchPublicHoliday(date: Date): boolean {
+	return getFrenchPublicHolidayKeys(date.getFullYear()).has(formatDate(date));
 }
 
 function parseDate(s: string): Date {
@@ -219,6 +299,7 @@ const ZOOM_LABELS = ['Mois', 'Semaine', 'Jour'] as const;
 const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 70;
 const PROJECT_VERTICAL_INSET = 4;
+const HOLIDAY_COLOR = '#B56A86';
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -263,6 +344,7 @@ const Calendar: React.FC = () => {
 	const gridRef = useRef<HTMLDivElement>(null);
 	const currentClientXRef = useRef(0);    // Dernière position X du curseur (pour le RAF)
 	const currentClientYRef = useRef(0);    // Dernière position Y du curseur (pour le RAF)
+	const autoScrollLastFrameRef = useRef<number | null>(null);
 	// Refs miroir de state/valeurs — mis à jour à chaque render pour éviter les stale closures dans le RAF
 	const resizingRef = useRef<typeof resizing>(null);
 	resizingRef.current = resizing;
@@ -277,6 +359,8 @@ const Calendar: React.FC = () => {
 	const dragGhostRef = useRef<HTMLDivElement | null>(null);
 	const dragOrigLeftRef = useRef(0);
 	const dragOrigWidthRef = useRef(0);
+	const moveTooltipKeyRef = useRef('');
+	const gridViewportRectRef = useRef<DOMRect | null>(null);
 
 	useEffect(() => {
 		const { projects } = getSimulatedProjects();
@@ -472,7 +556,7 @@ const Calendar: React.FC = () => {
 	const dayWidth = weekWidth / 7;
 	const totalDays = weeks.length * 7;
 	const showDayDividers = zoomIndex === 2;
-	const rowCount = 5;
+	const rowCount = 3;
 
 	const dateToX = useCallback((date: Date): number => {
 		const rangeStart = startOfWeek(new Date(dateRange.start));
@@ -489,7 +573,7 @@ const Calendar: React.FC = () => {
 	const clientXToGridX = useCallback((clientX: number): number => {
 		const grid = gridRef.current;
 		if (!grid) return 0;
-		const rect = grid.getBoundingClientRect();
+		const rect = gridViewportRectRef.current ?? grid.getBoundingClientRect();
 		return grid.scrollLeft + clientX - rect.left;
 	}, []);
 
@@ -530,12 +614,17 @@ const Calendar: React.FC = () => {
 		const ghostData = movingGhostDataRef.current;
 		if (!ghostEl || !ghostData) return;
 		const preview = getMovePreview(m, clientX, clientY);
-		ghostEl.style.left = `${clientX - ghostData.pointerOffsetX}px`;
-		ghostEl.style.top = `${clientY - ghostData.pointerOffsetY}px`;
-		const spans = ghostEl.querySelectorAll<HTMLSpanElement>('.drag-tooltip span');
-		if (spans.length >= 2) {
-			spans[0].textContent = preview.newStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-			spans[1].textContent = preview.newEnd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+		ghostEl.style.transform = `translate3d(${clientX - ghostData.pointerOffsetX}px, ${clientY - ghostData.pointerOffsetY}px, 0)`;
+		const nextStartLabel = formatShortDayMonth(preview.newStart);
+		const nextEndLabel = formatShortDayMonth(preview.newEnd);
+		const nextTooltipKey = `${nextStartLabel}|${nextEndLabel}`;
+		if (moveTooltipKeyRef.current !== nextTooltipKey) {
+			moveTooltipKeyRef.current = nextTooltipKey;
+			const spans = ghostEl.querySelectorAll<HTMLSpanElement>('.drag-tooltip span');
+			if (spans.length >= 2) {
+				spans[0].textContent = nextStartLabel;
+				spans[1].textContent = nextEndLabel;
+			}
 		}
 	}, [getMovePreview]);
 
@@ -616,6 +705,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		setHoveredProject(null);
 		setMovingGhost(null);
 		movingGhostDataRef.current = null;
@@ -637,6 +727,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		setHoveredProject(null);
 		setMovingGhost(null);
 		movingGhostDataRef.current = null;
@@ -672,10 +763,17 @@ const Calendar: React.FC = () => {
 		}
 	}, [getResizePreview]);
 
-	const handleMouseMove = useCallback((e: MouseEvent) => {
-		if (resizing) updateResizeDOM(e.clientX, resizing);
-		if (moving) updateMovingGhostDOM(e.clientX, e.clientY, moving);
-	}, [resizing, moving, updateResizeDOM, updateMovingGhostDOM]);
+	const trackPointerPosition = useCallback((clientX: number, clientY: number) => {
+		currentClientXRef.current = clientX;
+		currentClientYRef.current = clientY;
+	}, []);
+
+	const updateActiveDragDOM = useCallback((clientX: number, clientY: number) => {
+		const activeResize = resizingRef.current;
+		const activeMove = movingRef.current;
+		if (activeResize) updateResizeDOM(clientX, activeResize);
+		if (activeMove) updateMovingGhostDOM(clientX, clientY, activeMove);
+	}, [updateResizeDOM, updateMovingGhostDOM]);
 
 	const handleMouseUp = useCallback(() => {
 		const m = movingRef.current;
@@ -720,6 +818,8 @@ const Calendar: React.FC = () => {
 		dragElRef.current = null;
 		dragGhostRef.current = null;
 		movingGhostDataRef.current = null;
+		moveTooltipKeyRef.current = '';
+		gridViewportRectRef.current = null;
 		setMovingGhost(null);
 		setResizing(null);
 		setMoving(null);
@@ -728,43 +828,36 @@ const Calendar: React.FC = () => {
 	useEffect(() => {
 		if (resizing || moving) {
 			let animFrameId: number | null = null;
+			autoScrollLastFrameRef.current = null;
 
-			const autoScrollLoop = () => {
-				if (gridRef.current) {
-					const rect = gridRef.current.getBoundingClientRect();
+			const autoScrollLoop = (timestamp: number) => {
+				const grid = gridRef.current;
+				if (grid) {
+					const prevTimestamp = autoScrollLastFrameRef.current;
+					const deltaMs = prevTimestamp === null ? 16.67 : Math.min(100, Math.max(1, timestamp - prevTimestamp));
+					autoScrollLastFrameRef.current = timestamp;
+					const rect = gridViewportRectRef.current ?? grid.getBoundingClientRect();
 					const x = currentClientXRef.current;
-					const edgeZone = Math.max(110, Math.min(220, rect.width * 0.18));
-					const maxSpeed = 42;
+					const ghostData = movingGhostDataRef.current;
+					const pointerDistanceLeft = x - rect.left;
+					const pointerDistanceRight = rect.right - x;
+					const dragLeft = ghostData ? x - ghostData.pointerOffsetX : x;
+					const dragRight = ghostData ? dragLeft + ghostData.width : x;
+					const distanceLeft = Math.min(pointerDistanceLeft, dragLeft - rect.left);
+					const distanceRight = Math.min(pointerDistanceRight, rect.right - dragRight);
+					const leftSpeed = getAutoScrollSpeed(distanceLeft);
+					const rightSpeed = getAutoScrollSpeed(distanceRight);
+					let speedPxPerSec = 0;
 
-					let speed = 0;
-					const distanceLeft = x - rect.left;
-					const distanceRight = rect.right - x;
-					if (distanceLeft < edgeZone) {
-						const clampedDistance = Math.max(0, distanceLeft);
-						const proximity = 1 - clampedDistance / edgeZone;
-						const overflowBoost = 1 + Math.min(Math.max(0, -distanceLeft) / 36, 1.5);
-						speed = -maxSpeed * Math.pow(proximity, 2.6) * overflowBoost;
-					} else if (distanceRight < edgeZone) {
-						const clampedDistance = Math.max(0, distanceRight);
-						const proximity = 1 - clampedDistance / edgeZone;
-						const overflowBoost = 1 + Math.min(Math.max(0, -distanceRight) / 36, 1.5);
-						speed = maxSpeed * Math.pow(proximity, 2.6) * overflowBoost;
+					if (leftSpeed > 0 || rightSpeed > 0) {
+						speedPxPerSec = rightSpeed > leftSpeed ? rightSpeed : -leftSpeed;
 					}
 
-					if (Math.abs(speed) > 0.1) {
-						const prevScroll = gridRef.current.scrollLeft;
-						gridRef.current.scrollLeft += speed;
-						const actualScroll = gridRef.current.scrollLeft - prevScroll;
-						if (actualScroll !== 0) {
-							const cx = currentClientXRef.current;
-							const cy = currentClientYRef.current;
-							const activeResize = resizingRef.current;
-							const activeMove = movingRef.current;
-							if (activeResize) updateResizeDOM(cx, activeResize);
-							if (activeMove) updateMovingGhostDOM(cx, cy, activeMove);
-						}
+					if (speedPxPerSec !== 0) {
+						grid.scrollLeft += speedPxPerSec * (deltaMs / 1000);
 					}
 				}
+				updateActiveDragDOM(currentClientXRef.current, currentClientYRef.current);
 				animFrameId = requestAnimationFrame(autoScrollLoop);
 			};
 			animFrameId = requestAnimationFrame(autoScrollLoop);
@@ -774,14 +867,10 @@ const Calendar: React.FC = () => {
 				const { clientX, clientY } = chronoFullscreenRef.current
 					? { clientX: e.touches[0].clientY, clientY: -e.touches[0].clientX }
 					: { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-				currentClientXRef.current = clientX;
-				currentClientYRef.current = clientY;
-				handleMouseMove({ clientX, clientY } as MouseEvent);
+				trackPointerPosition(clientX, clientY);
 			};
 			const handleMouseMoveWithTracking = (e: MouseEvent) => {
-				currentClientXRef.current = e.clientX;
-				currentClientYRef.current = e.clientY;
-				handleMouseMove(e);
+				trackPointerPosition(e.clientX, e.clientY);
 			};
 			const handleTouchEnd = () => handleMouseUp();
 			window.addEventListener('mousemove', handleMouseMoveWithTracking);
@@ -790,19 +879,21 @@ const Calendar: React.FC = () => {
 			window.addEventListener('touchend', handleTouchEnd);
 			return () => {
 				if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+				autoScrollLastFrameRef.current = null;
 				window.removeEventListener('mousemove', handleMouseMoveWithTracking);
 				window.removeEventListener('mouseup', handleMouseUp);
 				window.removeEventListener('touchmove', handleTouchMove);
 				window.removeEventListener('touchend', handleTouchEnd);
 			};
 		}
-	}, [resizing, moving, handleMouseMove, handleMouseUp, updateMovingGhostDOM, updateResizeDOM]);
+	}, [resizing, moving, handleMouseUp, trackPointerPosition, updateActiveDragDOM]);
 
 	const handleMoveStart = (projectId: string) => (e: React.MouseEvent) => {
 		if ((e.target as HTMLElement).classList.contains('resize-handle')) return;
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		const target = e.currentTarget as HTMLDivElement;
 		const rect = target.getBoundingClientRect();
 		const color = projectColors[proj.projectId] || '#3b82f6';
@@ -814,10 +905,11 @@ const Calendar: React.FC = () => {
 			height: rect.height,
 			pointerOffsetX: e.clientX - rect.left,
 			pointerOffsetY: e.clientY - rect.top,
-			startLabel: proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-			endLabel: proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+			startLabel: formatShortDayMonth(proj.startDate),
+			endLabel: formatShortDayMonth(proj.endDate),
 		};
 		setHoveredProject(null);
+		moveTooltipKeyRef.current = '';
 		currentClientXRef.current = e.clientX;
 		currentClientYRef.current = e.clientY;
 		dragOrigLeftRef.current = dateToX(proj.startDate);
@@ -839,6 +931,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		const target = e.currentTarget as HTMLDivElement;
 		const rect = target.getBoundingClientRect();
 		setHoveredProject(null);
@@ -852,9 +945,10 @@ const Calendar: React.FC = () => {
 			height: rect.height,
 			pointerOffsetX: clientX - rect.left,
 			pointerOffsetY: clientY - rect.top,
-			startLabel: proj.startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-			endLabel: proj.endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+			startLabel: formatShortDayMonth(proj.startDate),
+			endLabel: formatShortDayMonth(proj.endDate),
 		};
+		moveTooltipKeyRef.current = '';
 		currentClientXRef.current = clientX;
 		currentClientYRef.current = clientY;
 		dragOrigLeftRef.current = dateToX(proj.startDate);
@@ -883,6 +977,12 @@ const Calendar: React.FC = () => {
 		[currentDate]
 	);
 
+	const holidayDaysInChronology = useMemo(() => {
+		const start = startOfWeek(new Date(dateRange.start));
+		return Array.from({ length: totalDays }, (_, i) => addDays(start, i))
+			.filter(isFrenchPublicHoliday);
+	}, [dateRange.start, totalDays]);
+
 	const renderMoisView = () => (
 		<div className="view-mois">
 			<div className="mois-day-names">
@@ -891,6 +991,7 @@ const Calendar: React.FC = () => {
 			<div className="mois-grid">
 				{monthGridDays.map((day, i) => {
 					const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+					const isHoliday = isFrenchPublicHoliday(day);
 					const dayProjects = placedProjects.filter(p => projectOverlapsDay(p, day));
 					const visible = dayProjects.slice(0, 3);
 					const overflow = dayProjects.length - 3;
@@ -901,6 +1002,7 @@ const Calendar: React.FC = () => {
 							key={i}
 							className={[
 								'mois-day-cell',
+								isHoliday ? 'holiday' : '',
 								isToday(day) ? 'today' : '',
 								!isCurrentMonth ? 'outside-month' : '',
 							].join(' ')}
@@ -944,12 +1046,13 @@ const Calendar: React.FC = () => {
 		<div className="view-semaine">
 			<div className="semaine-grid">
 				{weekDays.map((day, i) => {
+					const isHoliday = isFrenchPublicHoliday(day);
 					const dayProjects = placedProjects.filter(p => projectOverlapsDay(p, day));
 					const altColor = alternanceDays[formatDate(day)];
 					return (
 						<div
 							key={i}
-							className={`semaine-day-col ${isToday(day) ? 'today' : ''}`}
+							className={`semaine-day-col ${isHoliday ? 'holiday' : ''} ${isToday(day) ? 'today' : ''}`}
 							onDragOver={handleGridDragOver}
 							onDrop={handleDayCellDrop(day)}
 						>
@@ -1113,28 +1216,30 @@ const Calendar: React.FC = () => {
 						) : null}
 
 						<div className="calendar-right-controls">
-							{alternanceLegend && Object.values(alternanceLegend).some(Boolean) && (
-								<div className="alternance-legend">
-									{alternanceLegend.entreprise && (
-										<div className="alternance-legend-item">
-											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.entreprise }} />
-											<span className="alternance-legend-label">Entreprise</span>
-										</div>
-									)}
-									{alternanceLegend.ecole && (
-										<div className="alternance-legend-item">
-											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.ecole }} />
-											<span className="alternance-legend-label">École</span>
-										</div>
-									)}
-									{alternanceLegend.distanciel && (
-										<div className="alternance-legend-item">
-											<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.distanciel }} />
-											<span className="alternance-legend-label">Distanciel</span>
-										</div>
-									)}
+							<div className="alternance-legend">
+								{alternanceLegend?.entreprise && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.entreprise }} />
+										<span className="alternance-legend-label">Entreprise</span>
+									</div>
+								)}
+								{alternanceLegend?.ecole && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.ecole }} />
+										<span className="alternance-legend-label">École</span>
+									</div>
+								)}
+								{alternanceLegend?.distanciel && (
+									<div className="alternance-legend-item">
+										<span className="alternance-legend-dot" style={{ backgroundColor: alternanceLegend.distanciel }} />
+										<span className="alternance-legend-label">Distanciel</span>
+									</div>
+								)}
+								<div className="alternance-legend-item">
+									<span className="alternance-legend-dot" style={{ backgroundColor: HOLIDAY_COLOR }} />
+									<span className="alternance-legend-label">Jour férié</span>
 								</div>
-							)}
+							</div>
 							<div className="alternance-import-group">
 								<input
 									ref={fileInputRef}
@@ -1312,6 +1417,17 @@ const Calendar: React.FC = () => {
 												))}
 										</div>
 										<div className="grid-body" style={{ top: HEADER_HEIGHT }}>
+											{holidayDaysInChronology.map(day => {
+												const x = dateToX(day);
+												if (x < -dayWidth || x > totalWidth) return null;
+												return (
+													<div
+														key={`holiday-${formatDate(day)}`}
+														className="holiday-day-bg"
+														style={{ left: x, width: dayWidth }}
+													/>
+												);
+											})}
 											{/* Alternance day background strips */}
 											{Object.entries(alternanceDays).map(([dateKey, color]) => {
 												const day = parseDate(dateKey);
@@ -1424,8 +1540,9 @@ const Calendar: React.FC = () => {
 					ref={dragGhostRef}
 					className="placed-project drag-ghost-project active"
 					style={{
-						left: currentClientXRef.current - movingGhost.pointerOffsetX,
-						top: currentClientYRef.current - movingGhost.pointerOffsetY,
+						left: 0,
+						top: 0,
+						transform: `translate3d(${currentClientXRef.current - movingGhost.pointerOffsetX}px, ${currentClientYRef.current - movingGhost.pointerOffsetY}px, 0)`,
 						width: movingGhost.width,
 						height: movingGhost.height,
 						backgroundColor: movingGhost.color,

@@ -19,9 +19,16 @@ export interface AlternanceData {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function excelSerialToDate(serial: number): Date {
-	// Excel stores dates as days since 1900-01-01 (with Lotus 1-2-3 bug: 1900 treated as leap year)
-	const utcDays = Math.floor(serial - 25569);
-	return new Date(utcDays * 86400 * 1000);
+	const parsed = XLSX.SSF.parse_date_code(serial);
+	if (!parsed) return new Date(NaN);
+	return new Date(parsed.y, parsed.m - 1, parsed.d);
+}
+
+function formatDateKey(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
 }
 
 function extractCellColor(cell: XLSX.CellObject | undefined): string | null {
@@ -60,6 +67,16 @@ function parseCellDate(cell: XLSX.CellObject | undefined): Date | null {
 				parseInt(frMatch[3], 10),
 				parseInt(frMatch[2], 10) - 1,
 				parseInt(frMatch[1], 10),
+			);
+			if (!isNaN(d.getTime())) return d;
+		}
+
+		const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+		if (isoMatch) {
+			const d = new Date(
+				parseInt(isoMatch[1], 10),
+				parseInt(isoMatch[2], 10) - 1,
+				parseInt(isoMatch[3], 10),
 			);
 			if (!isNaN(d.getTime())) return d;
 		}
@@ -136,7 +153,7 @@ export async function parseAlternanceXlsx(file: File): Promise<AlternanceData> {
 				// Only keep days whose color matches one of the 3 reference colors
 				if (!color || !refColors.has(color)) continue;
 
-				days[date.toISOString().slice(0, 10)] = color;
+				days[formatDateKey(date)] = color;
 			}
 		}
 	}

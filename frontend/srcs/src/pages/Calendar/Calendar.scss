@@ -348,6 +348,19 @@
 	}
 }
 
+.holiday-day-bg {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	background: rgba(181, 106, 134, 0.5);
+	pointer-events: none;
+	z-index: 0;
+
+	.dark & {
+		background: rgba(201, 129, 156, 0.18);
+	}
+}
+
 // ── Alternance color strip (Mois / Semaine) ────────────────────────────────
 
 .alternance-strip {
@@ -570,8 +583,9 @@
 	border-radius: $radius-lg;
 	background: var(--bg-card);
 	max-height: calc(100vh - 200px);
-	scroll-behavior: auto; // pas de scroll animé — le scroll initial doit être instantané
+	will-change: scroll-position;
 	@include smooth-scroll;
+	scroll-behavior: auto !important; // neutralise le mixin global pendant l'auto-scroll du drag
 }
 
 .calendar-grid {
@@ -746,10 +760,14 @@
 
 .drag-ghost-project {
 	position: fixed;
+	left: 0;
+	top: 0;
 	margin: 0;
 	pointer-events: none;
 	transition: none;
 	z-index: 10000;
+	will-change: transform;
+	contain: layout paint;
 
 	.placed-project-content {
 		position: relative;
@@ -966,6 +984,14 @@
 		background: rgba(59, 130, 246, 0.04);
 	}
 
+	&.holiday {
+		background: rgba(181, 106, 134, 0.18);
+
+		&:hover {
+			background: rgba(181, 106, 134, 0.24);
+		}
+	}
+
 	&.today {
 		background: rgba(59, 130, 246, 0.06);
 
@@ -1051,6 +1077,14 @@
 
 	&:hover {
 		background: rgba(59, 130, 246, 0.03);
+	}
+
+	&.holiday {
+		background: rgba(181, 106, 134, 0.16);
+
+		&:hover {
+			background: rgba(181, 106, 134, 0.22);
+		}
 	}
 
 	&.today {
