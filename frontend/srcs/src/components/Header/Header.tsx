@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -25,10 +24,6 @@ const Header: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/');
-  };
-
-  const handleSettings = () => {
-    navigate('/settings');
   };
 
   return (
@@ -147,11 +142,6 @@ const Header: React.FC = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="user-menu-content">
-                <DropdownMenuItem onClick={handleSettings}>
-                  <span style={{ fontSize: '1.2rem' }}>⚙️</span>
-                  <span>Paramètres</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="logout-item">
                   <span style={{ fontSize: '1.2rem' }}>🚪</span>
                   <span>Se déconnecter</span>

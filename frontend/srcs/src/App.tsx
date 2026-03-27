@@ -7,7 +7,6 @@ import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
 import Dashboard from '@/pages/Dashboard/Dashboard';
-import Settings from '@/pages/Settings/Settings';
 import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import Calendar from '@/pages/Calendar/Calendar';
 import Setup from '@/pages/Setup/Setup';
@@ -51,14 +50,6 @@ const AppRoutes: React.FC = () => {
 				element={
 					<ProtectedRoute>
 						<Dashboard />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/settings"
-				element={
-					<ProtectedRoute>
-						<Settings />
 					</ProtectedRoute>
 				}
 			/>
