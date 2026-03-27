@@ -105,11 +105,13 @@ function formatShortDayMonth(date: Date): string {
 
 const AUTO_SCROLL_SPEED_POINTS = [
 	{ distance: 0, speed: 3600 },
-	{ distance: 24, speed: 2600 },
-	{ distance: 64, speed: 1600 },
-	{ distance: 120, speed: 650 },
-	{ distance: 180, speed: 0 },
+	{ distance: 18, speed: 2600 },
+	{ distance: 42, speed: 1600 },
+	{ distance: 68, speed: 650 },
+	{ distance: 92, speed: 0 },
 ] as const;
+
+const AUTO_SCROLL_ARM_DELAY_MS = 140;
 
 function getAutoScrollSpeed(distanceFromEdge: number): number {
 	if (distanceFromEdge >= AUTO_SCROLL_SPEED_POINTS[AUTO_SCROLL_SPEED_POINTS.length - 1].distance) return 0;
@@ -345,6 +347,7 @@ const Calendar: React.FC = () => {
 	const currentClientXRef = useRef(0);    // Dernière position X du curseur (pour le RAF)
 	const currentClientYRef = useRef(0);    // Dernière position Y du curseur (pour le RAF)
 	const autoScrollLastFrameRef = useRef<number | null>(null);
+	const autoScrollArmedAtRef = useRef(0);
 	// Refs miroir de state/valeurs — mis à jour à chaque render pour éviter les stale closures dans le RAF
 	const resizingRef = useRef<typeof resizing>(null);
 	resizingRef.current = resizing;
@@ -705,6 +708,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		autoScrollArmedAtRef.current = performance.now() + AUTO_SCROLL_ARM_DELAY_MS;
 		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		setHoveredProject(null);
 		setMovingGhost(null);
@@ -727,6 +731,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		autoScrollArmedAtRef.current = performance.now() + AUTO_SCROLL_ARM_DELAY_MS;
 		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		setHoveredProject(null);
 		setMovingGhost(null);
@@ -820,6 +825,7 @@ const Calendar: React.FC = () => {
 		movingGhostDataRef.current = null;
 		moveTooltipKeyRef.current = '';
 		gridViewportRectRef.current = null;
+		autoScrollArmedAtRef.current = 0;
 		setMovingGhost(null);
 		setResizing(null);
 		setMoving(null);
@@ -838,15 +844,11 @@ const Calendar: React.FC = () => {
 					autoScrollLastFrameRef.current = timestamp;
 					const rect = gridViewportRectRef.current ?? grid.getBoundingClientRect();
 					const x = currentClientXRef.current;
-					const ghostData = movingGhostDataRef.current;
 					const pointerDistanceLeft = x - rect.left;
 					const pointerDistanceRight = rect.right - x;
-					const dragLeft = ghostData ? x - ghostData.pointerOffsetX : x;
-					const dragRight = ghostData ? dragLeft + ghostData.width : x;
-					const distanceLeft = Math.min(pointerDistanceLeft, dragLeft - rect.left);
-					const distanceRight = Math.min(pointerDistanceRight, rect.right - dragRight);
-					const leftSpeed = getAutoScrollSpeed(distanceLeft);
-					const rightSpeed = getAutoScrollSpeed(distanceRight);
+					const canAutoScroll = timestamp >= autoScrollArmedAtRef.current;
+					const leftSpeed = canAutoScroll ? getAutoScrollSpeed(pointerDistanceLeft) : 0;
+					const rightSpeed = canAutoScroll ? getAutoScrollSpeed(pointerDistanceRight) : 0;
 					let speedPxPerSec = 0;
 
 					if (leftSpeed > 0 || rightSpeed > 0) {
@@ -893,6 +895,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		autoScrollArmedAtRef.current = performance.now() + AUTO_SCROLL_ARM_DELAY_MS;
 		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		const target = e.currentTarget as HTMLDivElement;
 		const rect = target.getBoundingClientRect();
@@ -931,6 +934,7 @@ const Calendar: React.FC = () => {
 		e.preventDefault();
 		const proj = placedProjects.find(p => p.id === projectId);
 		if (!proj) return;
+		autoScrollArmedAtRef.current = performance.now() + AUTO_SCROLL_ARM_DELAY_MS;
 		gridViewportRectRef.current = gridRef.current?.getBoundingClientRect() ?? null;
 		const target = e.currentTarget as HTMLDivElement;
 		const rect = target.getBoundingClientRect();
