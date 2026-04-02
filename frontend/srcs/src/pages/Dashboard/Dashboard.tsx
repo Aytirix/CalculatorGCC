@@ -1153,9 +1153,7 @@ const Dashboard: React.FC = () => {
             onDeleteManual={(id) => {
               professionalExperienceStorage.remove(id);
               setManualExperiences(professionalExperienceStorage.getAll());
-              if (userProgress) {
-                setProjectedLevel(xpService.getLevelFromXP(userProgress.currentXP + professionalExperienceStorage.getTotalXP()));
-              }
+              setManualExpVersion(v => v + 1);
             }}
             onEditManual={(exp) => {
               setEditingExperience(exp);
