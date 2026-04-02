@@ -11,6 +11,7 @@ export const DEV_USERS: DevUser[] = [
 	// Ajouter les utilisateurs de test ici
 	{ login: 'sspina', id: 97753 },
 	{ login: 'thibnguy', id: 117570 },
+	{ login: 'gacavali', id: 178906 },
 	{ login: 'mberger', id: 92546 },
 	{ login: 'hanmpark', id: 133888 },
 ];

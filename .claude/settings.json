@@ -3,7 +3,9 @@
     "allow": [
       "Bash(./node_modules/.bin/tsc -b --noEmit)",
       "Bash(./node_modules/.bin/tsc -b)",
-      "Read(//home/theo/.claude/debug/**)"
+      "Read(//home/theo/.claude/debug/**)",
+      "Read(//tmp/**)",
+      "Bash(npm run:*)"
     ]
   }
 }

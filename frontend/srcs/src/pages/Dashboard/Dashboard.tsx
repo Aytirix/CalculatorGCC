@@ -43,6 +43,7 @@ const Dashboard: React.FC = () => {
   });
   const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
   const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
+  const [manualExpVersion, setManualExpVersion] = useState(0);
 
   // Flag pour éviter de sauvegarder pendant le chargement initial
   const isInitialLoad = useRef(true);
@@ -528,23 +529,44 @@ const Dashboard: React.FC = () => {
     const professionalExperiencesXP = professionalExperienceStorage.getTotalXP();
     totalXP += professionalExperiencesXP;
 
-    // Ajouter l'XP des alternances API en cours (avec % éditable)
+    // Ajouter l'XP des stages/alternances API en cours (avec % éditable)
     const isEval = (name: string) => name.toLowerCase().includes('évaluation') || name.toLowerCase().includes('evaluation');
-    const apiEntries = apiStages.filter(p => !isEval(p.project.name) && !p.validated && p.project.name.toLowerCase().includes('alternance'));
+    const isMainApiEntry = (p: (typeof apiStages)[0]) => {
+      const slug = p.project.slug?.toLowerCase() || '';
+      const name = p.project.name.toLowerCase();
+      if (slug.startsWith('work-experience-')) {
+        return !slug.includes('-work-experience-', slug.indexOf('-', 16));
+      }
+      if (slug.startsWith('fr-alternance')) {
+        return !name.includes('évaluation') && !name.includes('evaluation');
+      }
+      if (name.includes('alternance') || name.includes('stage') || name.includes('internship')) {
+        return !name.includes('évaluation') && !name.includes('evaluation');
+      }
+      return false;
+    };
+    const apiEntries = apiStages.filter(p => !p.validated && isMainApiEntry(p));
     for (const p of apiEntries) {
+      const nameL = p.project.name.toLowerCase();
       const evalsForEntry = apiStages.filter(e => isEval(e.project.name) && (p.created_at ? new Date(p.created_at).getFullYear() : 0) === (e.created_at ? new Date(e.created_at).getFullYear() : 0));
       const marks = evalsForEntry.map(e => e.final_mark).filter((m): m is number => m != null);
       const defaultPct = marks.length > 0 ? Math.min(100, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length)) : 100;
       const pct = apiExpPercentages[p.id] ?? defaultPct;
-      const nameL = p.project.name.toLowerCase();
-      const match = nameL.match(/(\d+)\s*an/);
-      const years = match ? parseInt(match[1]) : 1;
-      totalXP += Math.round(90000 * years * (pct / 100));
+      let entryXP = 0;
+      if (nameL.includes('alternance')) {
+        const match = nameL.match(/(\d+)\s*an/);
+        const years = match ? parseInt(match[1]) : 1;
+        entryXP = Math.round(90000 * years * (pct / 100));
+      } else {
+        // Stage / Work Experience (6 mois par défaut)
+        entryXP = Math.round(10500 * 6 * (pct / 100));
+      }
+      totalXP += entryXP;
     }
 
     const newLevel = xpService.getLevelFromXP(totalXP);
     setProjectedLevel(newLevel);
-  }, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages]);
+  }, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion]);
 
   const handleToggleSimulation = (projectId: string) => {
     setSimulatedProjects(prev => {
@@ -786,6 +808,36 @@ const Dashboard: React.FC = () => {
     return projects;
   };
 
+  // Expérience professionnelle projetée : réelle + manuelle simulée + API en cours
+  const simulatedManualProfExpCount = manualExperiences
+    .filter(exp => exp.isSimulation)
+    .reduce((count, exp) => {
+      if (exp.type === 'alternance' && exp.duration === 2) return count + 2;
+      return count + 1;
+    }, 0);
+
+  const apiEnCoursProfExpCount = apiStages
+    .filter(p => {
+      if (p.validated) return false;
+      const slug = p.project.slug?.toLowerCase() || '';
+      const name = p.project.name.toLowerCase();
+      if (name.includes('évaluation') || name.includes('evaluation')) return false;
+      if (slug.startsWith('work-experience-') && slug.includes('-work-experience-', 16)) return false;
+      if (name.includes('peer video') || name.includes('contract upload') || name.includes('duration')) return false;
+      return name.includes('alternance') || name.includes('stage') || name.includes('internship') || slug.startsWith('work-experience-');
+    })
+    .reduce((count, p) => {
+      const nameL = p.project.name.toLowerCase();
+      if (nameL.includes('alternance')) {
+        const match = nameL.match(/(\d+)\s*an/);
+        const years = match ? parseInt(match[1]) : 1;
+        return count + years;
+      }
+      return count + 1;
+    }, 0);
+
+  const projectedProfExp = (userProgress?.professionalExperience ?? 0) + simulatedManualProfExpCount + apiEnCoursProfExpCount;
+
   // Mémoriser les validations RNCP et les recalculer quand les dépendances changent
   const rncpValidations = useMemo((): RNCPValidation[] => {
     if (!userProgress) return [];
@@ -837,7 +889,7 @@ const Dashboard: React.FC = () => {
         rncp,
         projectedLevel,
         userProgress.events,
-        userProgress.professionalExperience,
+        projectedProfExp,
         userProgress.completedProjects,
         simulatedProjectsWithSubs,
         projectPercentages,
@@ -846,7 +898,7 @@ const Dashboard: React.FC = () => {
         mergedSubProjects
       );
     });
-  }, [userProgress, projectedLevel, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
+  }, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
 
   if (loading) {
     return (
@@ -1127,7 +1179,7 @@ const Dashboard: React.FC = () => {
             userProgress={{
               currentLevel: userProgress.currentLevel,
               events: userProgress.events,
-              professionalExperience: userProgress.professionalExperience,
+              professionalExperience: projectedProfExp,
             }}
             completedProjects={completedProjects}
             simulatedProjects={simulatedProjectsDetails}
@@ -1183,9 +1235,7 @@ const Dashboard: React.FC = () => {
             setManualExperiences(professionalExperienceStorage.getAll());
             setShowProfExpForm(null);
             setEditingExperience(null);
-            if (userProgress) {
-              setProjectedLevel(xpService.getLevelFromXP(userProgress.currentXP + professionalExperienceStorage.getTotalXP()));
-            }
+            setManualExpVersion(v => v + 1);
           }}
         />
       </div>
