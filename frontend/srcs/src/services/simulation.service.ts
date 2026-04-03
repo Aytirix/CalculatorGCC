@@ -16,6 +16,7 @@ export interface SimulationData {
 	customProjects: unknown[];
 	manualExperiences: unknown[];
 	apiExpPercentages: Record<string, number>;
+	hasSeenTour: boolean;
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -62,6 +63,16 @@ export const simulationService = {
 		return request<SimulationData>('/simulation', {
 			method: 'PUT',
 			body: JSON.stringify(data),
+		});
+	},
+
+	/**
+	 * Sauvegarde uniquement l'état "guide vu"
+	 */
+	async saveTourSeen(hasSeenTour: boolean): Promise<{ hasSeenTour: boolean }> {
+		return request<{ hasSeenTour: boolean }>('/simulation/tour-seen', {
+			method: 'PUT',
+			body: JSON.stringify({ hasSeenTour }),
 		});
 	},
 

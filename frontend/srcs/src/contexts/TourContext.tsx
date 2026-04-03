@@ -4,6 +4,7 @@ import type { Tour as ShepherdTour, StepOptions, StepOptionsButton } from 'sheph
 import { offset } from '@floating-ui/dom';
 import { TOUR_STEPS } from '@/config/tourSteps';
 import type { TourStepDef } from '@/config/tourSteps';
+import { simulationService } from '@/services/simulation.service';
 
 const TOUR_SEEN_KEY = 'gcc_tour_seen_v1';
 
@@ -11,6 +12,7 @@ interface TourContextValue {
   startTour: () => void;
   hasSeenTour: () => boolean;
   resetTour: () => void;
+  syncTourSeen: (seen: boolean) => void;
 }
 
 const TourContext = createContext<TourContextValue | null>(null);
@@ -72,12 +74,56 @@ const restoreParents = (elevated: ElevatedNode[]) => {
   });
 };
 
+const TARGET_WAIT_TIMEOUT = 10000;
+
+// Attend qu'une cible de tour soit réellement montée dans le DOM.
+const waitForElement = async (selector: string, timeoutMs: number = TARGET_WAIT_TIMEOUT): Promise<HTMLElement | null> => {
+  const existing = document.querySelector<HTMLElement>(selector);
+  if (existing) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return existing;
+  }
+
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) return;
+
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+      requestAnimationFrame(() => resolve(element));
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      observer.disconnect();
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) {
+        console.warn(`[Tour] Target not found after ${timeoutMs}ms: ${selector}`);
+      }
+      resolve(element);
+    }, timeoutMs);
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  });
+};
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 
 export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const tourRef = useRef<ShepherdTour | null>(null);
+
+  const syncTourSeen = useCallback((seen: boolean) => {
+    if (seen) {
+      localStorage.setItem(TOUR_SEEN_KEY, 'true');
+    } else {
+      localStorage.removeItem(TOUR_SEEN_KEY);
+    }
+  }, []);
 
   const buildTour = useCallback((): ShepherdTour => {
     if (tourRef.current) {
@@ -142,6 +188,7 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     TOUR_STEPS.forEach((stepDef: TourStepDef, index: number) => {
       const isFirst = index === 0;
       const isLast = index === TOUR_STEPS.length - 1;
+      const targetSelector = stepDef.target ? `[data-tour="${stepDef.target}"]` : null;
 
       const isBlocking = stepDef.preventSkip || stepDef.blocking;
       const showCancelIcon = !stepDef.preventSkip && stepDef.canClose !== false;
@@ -185,24 +232,26 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
         buttons,
         cancelIcon: { enabled: showCancelIcon },
 
-        ...(stepDef.target && {
+        ...(targetSelector && {
+          beforeShowPromise: () => waitForElement(targetSelector),
           attachTo: {
-            element: `[data-tour="${stepDef.target}"]`,
+            element: () => document.querySelector<HTMLElement>(targetSelector),
             on: stepDef.position ?? 'bottom',
           },
         }),
 
-        ...(stepDef.validation === 'click' && stepDef.target && {
+        ...(stepDef.validation === 'click' && targetSelector && {
           advanceOn: {
-            selector: `[data-tour="${stepDef.target}"]`,
+            selector: targetSelector,
             event: 'click',
           },
         }),
 
         when: {
           show() {
-            if (stepDef.target) {
-              const el = document.querySelector(`[data-tour="${stepDef.target}"]`);
+            document.body.dataset.tourStep = stepDef.id;
+            if (targetSelector) {
+              const el = document.querySelector(targetSelector);
               if (el) {
                 // 1. Classes de mise en évidence
                 el.classList.add('gcc-tour-target');
@@ -223,8 +272,11 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           },
           hide() {
-            if (stepDef.target) {
-              const el = document.querySelector(`[data-tour="${stepDef.target}"]`);
+            if (document.body.dataset.tourStep === stepDef.id) {
+              delete document.body.dataset.tourStep;
+            }
+            if (targetSelector) {
+              const el = document.querySelector(targetSelector);
               el?.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
             }
             // Restaurer les z-index des parents élevés
@@ -250,6 +302,7 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanup = () => {
       detachEscapeBlocker();
       detachArrowBlocker();
+      delete document.body.dataset.tourStep;
       // Retirer les classes sur tous les éléments potentiellement oubliés
       document.querySelectorAll('.gcc-tour-target').forEach(el => {
         el.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
@@ -257,14 +310,17 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Restaurer tous les parents encore élevés
       elevatedByStep.forEach(elevated => restoreParents(elevated));
       elevatedByStep.clear();
-      localStorage.setItem(TOUR_SEEN_KEY, 'true');
+      syncTourSeen(true);
+      void simulationService.saveTourSeen(true).catch((error) => {
+        console.warn('[Tour] Impossible de sauvegarder l\'état du guide en base:', error);
+      });
     };
     tour.on('complete', cleanup);
     tour.on('cancel', cleanup);
 
     tourRef.current = tour;
     return tour;
-  }, []);
+  }, [syncTourSeen]);
 
   const startTour = useCallback(() => {
     const tour = buildTour();
@@ -276,11 +332,14 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const resetTour = useCallback(() => {
-    localStorage.removeItem(TOUR_SEEN_KEY);
-  }, []);
+    syncTourSeen(false);
+    void simulationService.saveTourSeen(false).catch((error) => {
+      console.warn('[Tour] Impossible de réinitialiser l\'état du guide en base:', error);
+    });
+  }, [syncTourSeen]);
 
   return (
-    <TourContext.Provider value={{ startTour, hasSeenTour, resetTour }}>
+    <TourContext.Provider value={{ startTour, hasSeenTour, resetTour, syncTourSeen }}>
       {children}
     </TourContext.Provider>
   );

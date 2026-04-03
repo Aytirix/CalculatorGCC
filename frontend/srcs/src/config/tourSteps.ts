@@ -161,10 +161,20 @@ export const TOUR_STEPS: TourStepDef[] = [
 	},
 
 	{
+		id: 'step-select-project',
+		target: 'calendar-test-project',
+		title: 'Sélectionnez un projet',
+		text: 'Cliquez sur ce projet pour l\'ajouter à votre simulation.<br><br>Le calendrier utilise vos <strong>projets simulés</strong>, donc il faut en sélectionner au moins un pour pouvoir le tester ensuite.',
+		position: 'right',
+		validation: 'click',
+		preventSkip: true,
+	},
+
+	{
 		id: 'step-boost',
 		target: 'project-boost',
 		title: '⚡ Boost coalition',
-		text: 'L\'<strong>éclair</strong> active le bonus de coalition <strong>+4,2 %</strong> sur l\'XP de ce projet.<br><br>Ce boost s\'applique si vous faites partie d\'une coalition lors de la validation. Il s\'ajoute au-dessus du pourcentage saisi.',
+		text: 'L\'<strong>éclair</strong> active le bonus de coalition <strong>+4,2 %</strong> sur l\'XP de ce projet.<br><br>Ce boost s\'applique si votre coalition est la première du classement. Il s\'ajoute au-dessus du pourcentage saisi.',
 		position: 'right',
 		validation: 'button',
 	},
@@ -208,7 +218,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		id: 'step-go-calendar',
 		target: 'nav-calendar',
 		title: 'Découvrez le Calendrier',
-		text: 'Le <strong>Calendrier</strong> vous permet de visualiser votre planning de formation en fonction des projets que vous avez simulés.<br><br><em>Assurez-vous d\'avoir simulé au moins un projet pour voir votre planning projeté.</em><br><br><div class="gcc-tour-action-hint">👆 Cliquez sur <strong>Calendrier</strong> pour continuer le guide.</div>',
+		text: 'Le <strong>Calendrier</strong> vous permet de visualiser votre planning de formation en fonction des projets que vous avez simulés.<br><br>Parfait : vous avez maintenant au moins un projet sélectionné pour le tester.<br><br><div class="gcc-tour-action-hint">👆 Cliquez sur <strong>Calendrier</strong> pour continuer le guide.</div>',
 		position: 'bottom',
 		// L'utilisateur DOIT naviguer vers le calendrier — aucune échappatoire
 		validation: 'click',
@@ -220,10 +230,48 @@ export const TOUR_STEPS: TourStepDef[] = [
 	// =========================================================================
 
 	{
+		id: 'step-calendar-view-chronologie',
+		target: 'calendar-view-chronologie',
+		title: 'Vue Chronologie',
+		text: 'Pour organiser vos projets dans le planning, utilisez la vue <strong>Chronologie</strong>.<br><br><div class="gcc-tour-action-hint">👆 Cliquez sur <strong>Chronologie</strong> pour continuer.</div>',
+		position: 'bottom',
+		validation: 'click',
+		preventSkip: true,
+	},
+
+	{
+		id: 'step-calendar-place-project',
+		target: 'calendar-sidebar-project',
+		title: 'Placez votre projet dans le planning',
+		text: 'Vos <strong>projets simulés</strong> apparaissent ici.<br><br>Vous pouvez les <strong>glisser-déposer</strong> dans le calendrier, ou simplement <strong>cliquer</strong> dessus pour les poser rapidement et commencer à tester le planning.<br><br><div class="gcc-tour-action-hint">👆 Cliquez sur ce projet pour continuer.</div>',
+		position: 'right',
+		validation: 'click',
+		preventSkip: true,
+	},
+
+	{
+		id: 'step-calendar-move-project',
+		target: 'calendar-placed-project',
+		title: 'Déplacer un projet',
+		text: 'Une fois posé, vous pouvez <strong>faire glisser ce bloc</strong> pour changer sa période dans le temps, ou le déplacer sur une autre ligne pour réorganiser votre planning.',
+		position: 'top',
+		validation: 'button',
+	},
+
+	{
+		id: 'step-calendar-resize-project',
+		target: 'calendar-resize-handle',
+		title: 'Étirez ou raccourcissez sa durée',
+		text: 'Attrapez une <strong>poignée sur le bord du bloc</strong> pour étirer ou raccourcir le projet.<br><br>Vous pouvez ainsi ajuster sa durée directement dans le calendrier.',
+		position: 'top',
+		validation: 'button',
+	},
+
+	{
 		id: 'step-calendar-import',
 		target: 'calendar-import-btn',
 		title: 'Importer votre planning d\'alternance',
-		text: 'Si vous êtes en alternance, vous pouvez importer votre planning depuis le site <strong>CFA 42</strong> :<br><ol style="margin: 0.5rem 0 0 1.2rem; padding: 0;"><li>Allez sur <strong>cfa.42.fr</strong></li><li>Cliquez sur <strong>Calendrier</strong></li><li>Cliquez sur <strong>Télécharger le calendrier</strong> (fichier .xlsx)</li><li>Importez-le ici avec ce bouton</li></ol><br>Vos semaines école / entreprise s\'afficheront alors sur le calendrier.',
+		text: 'Si vous êtes en <strong>alternance</strong>, vous pouvez importer votre planning depuis le site <strong>CFA 42</strong> pour afficher vos semaines <strong>école / entreprise</strong> dans le calendrier.<br><br><strong>Étapes :</strong><br>1. Ouvrez la section <strong>Calendrier</strong> sur <strong><a href="https://cfa.42.fr" target="_blank">cfa.42.fr</a></strong><br>2. Téléchargez le fichier <strong>.xlsx</strong><br>3. Revenez sur CalculatorGCC et importez-le ici',
 		position: 'top',
 		validation: 'button',
 	},

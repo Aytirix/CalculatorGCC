@@ -366,6 +366,28 @@ const Calendar: React.FC = () => {
 	const gridViewportRectRef = useRef<DOMRect | null>(null);
 
 	useEffect(() => {
+		const isMoveTourStep = document.body.dataset.tourStep === 'step-calendar-move-project';
+		const ghostEl = dragGhostRef.current;
+		const sourceEl = document.querySelector<HTMLElement>('.placed-project.ghost-source-hidden[data-tour="calendar-placed-project"]');
+
+		if (!isMoveTourStep || !moving || !movingGhost || !ghostEl) {
+			return;
+		}
+
+		sourceEl?.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
+		ghostEl.classList.add('gcc-tour-target');
+
+		return () => {
+			ghostEl.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
+
+			const visibleSourceEl = document.querySelector<HTMLElement>(
+				'.placed-project:not(.drag-ghost-project)[data-tour="calendar-placed-project"]'
+			);
+			visibleSourceEl?.classList.add('gcc-tour-target');
+		};
+	}, [moving, movingGhost]);
+
+	useEffect(() => {
 		const { projects } = getSimulatedProjects();
 		setSimulatedProjects(projects);
 	}, []);
@@ -1178,6 +1200,7 @@ const Calendar: React.FC = () => {
 								<button
 									key={v}
 									className={`view-btn ${view === v ? 'active' : ''}`}
+									data-tour={v === 'chronologie' ? 'calendar-view-chronologie' : undefined}
 									onClick={() => setView(v)}
 								>
 									{v.charAt(0).toUpperCase() + v.slice(1)}
@@ -1308,6 +1331,7 @@ const Calendar: React.FC = () => {
 											<div
 												key={p.id}
 												className="sidebar-project"
+												data-tour="calendar-sidebar-project"
 												draggable
 												onDragStart={handleSidebarDragStart(p)}
 												onClick={handleSidebarTap(p)}
@@ -1338,6 +1362,7 @@ const Calendar: React.FC = () => {
 												<div
 													key={p.id}
 													className="sidebar-project"
+													data-tour="calendar-sidebar-project"
 													draggable
 													onDragStart={handleSidebarDragStart(p)}
 													onClick={handleSidebarTap(p)}
@@ -1483,6 +1508,7 @@ const Calendar: React.FC = () => {
 														key={proj.id}
 														ref={(el: HTMLDivElement | null) => { if (resizing?.id === proj.id) dragElRef.current = el; }}
 														className={`placed-project ${resizing?.id === proj.id ? 'active' : ''} ${moving?.id === proj.id ? 'ghost-source-hidden' : ''}`}
+														data-tour="calendar-placed-project"
 														style={{ left: x, width: Math.max(w, 30), top: y + PROJECT_VERTICAL_INSET, height: ROW_HEIGHT - PROJECT_VERTICAL_INSET * 2, backgroundColor: color }}
 														onMouseDown={handleMoveStart(proj.id)}
 														onTouchStart={handleMoveTouchStart(proj.id)}
@@ -1521,7 +1547,7 @@ const Calendar: React.FC = () => {
 																</span>
 															</div>
 														)}
-														<div className="resize-handle resize-right" onMouseDown={handleResizeStart(proj.id, 'right')}
+														<div className="resize-handle resize-right" data-tour="calendar-resize-handle" onMouseDown={handleResizeStart(proj.id, 'right')}
 															onTouchStart={handleResizeTouchStart(proj.id, 'right')} />
 													</div>
 												);
@@ -1543,6 +1569,7 @@ const Calendar: React.FC = () => {
 				<div
 					ref={dragGhostRef}
 					className="placed-project drag-ghost-project active"
+					data-tour="calendar-placed-project"
 					style={{
 						left: 0,
 						top: 0,

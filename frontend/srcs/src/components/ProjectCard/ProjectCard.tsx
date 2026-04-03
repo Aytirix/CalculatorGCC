@@ -171,6 +171,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 			<div className={`project-card ${status}`} onContextMenu={handleContextMenu}>
 				<motion.div
 					className="project-main"
+					data-tour={!isCompleted && !hasSubProjects ? 'calendar-test-project' : undefined}
 					onClick={handleMainClick}
 					whileHover={!isCompleted ? { scale: 1.01, y: -1 } : {}}
 					whileTap={!isCompleted ? { scale: 0.99 } : {}}

@@ -23,4 +23,11 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 	}, async (request: FastifyRequest, reply: FastifyReply) => {
 		return SimulationController.save(request, reply);
 	});
+
+	// Sauvegarder uniquement l'état du guide interactif
+	fastify.put('/simulation/tour-seen', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.saveTourSeen(request, reply);
+	});
 }

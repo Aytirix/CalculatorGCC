@@ -45,8 +45,9 @@ const Dashboard: React.FC = () => {
   const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
   const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
   const [manualExpVersion, setManualExpVersion] = useState(0);
+  const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
 
-  const { startTour, hasSeenTour } = useTour();
+  const { startTour, hasSeenTour, syncTourSeen } = useTour();
 
   // Flag pour éviter de sauvegarder pendant le chargement initial
   const isInitialLoad = useRef(true);
@@ -73,6 +74,7 @@ const Dashboard: React.FC = () => {
         setProjectNotes(notes);
         setSimulatedSubProjects(data.simulatedSubProjects ?? {});
         setCustomProjects((data.customProjects as SimulatorProject[]) ?? []);
+
         if (data.apiExpPercentages && Object.keys(data.apiExpPercentages).length > 0) {
           const numericKeys: Record<number, number> = {};
           for (const [k, v] of Object.entries(data.apiExpPercentages)) {
@@ -84,6 +86,7 @@ const Dashboard: React.FC = () => {
           professionalExperienceStorage.saveAll(data.manualExperiences as any);
           setManualExperiences(professionalExperienceStorage.getAll());
         }
+        syncTourSeen(data.hasSeenTour === true);
         console.log('[Dashboard] Simulation chargée depuis le backend');
         // Sync localStorage aussi
         localStorage.setItem('simulated_projects', JSON.stringify(projectIds));
@@ -97,8 +100,10 @@ const Dashboard: React.FC = () => {
         console.warn('[Dashboard] Backend indisponible, chargement depuis localStorage', err);
         // Fallback localStorage
         loadFromLocalStorage();
+      } finally {
+        setTourStatusLoaded(true);
+        isInitialLoad.current = false;
       }
-      isInitialLoad.current = false;
     };
 
     const loadFromLocalStorage = () => {
@@ -122,7 +127,7 @@ const Dashboard: React.FC = () => {
     };
 
     loadSimulation();
-  }, []);
+  }, [syncTourSeen]);
 
   // Sauvegarder les projets simulés dans localStorage
   useEffect(() => {
@@ -186,6 +191,7 @@ const Dashboard: React.FC = () => {
           customProjects,
           manualExperiences: professionalExperienceStorage.getAll(),
           apiExpPercentages,
+          hasSeenTour: hasSeenTour(),
         };
         await simulationService.save(data);
         console.log('[Dashboard] Simulation sauvegardée vers le backend');
@@ -193,7 +199,7 @@ const Dashboard: React.FC = () => {
         console.warn('[Dashboard] Erreur sauvegarde backend:', err);
       }
     }, 2000);
-  }, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages]);
+  }, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages, hasSeenTour]);
 
   useEffect(() => {
     saveToBackend();
@@ -429,11 +435,11 @@ const Dashboard: React.FC = () => {
 
   // Démarrage automatique du guide à la première visite (après le chargement des données)
   useEffect(() => {
-    if (!loading && !hasSeenTour()) {
+    if (!loading && tourStatusLoaded && !hasSeenTour()) {
       const timer = setTimeout(() => startTour(), 600);
       return () => clearTimeout(timer);
     }
-  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, tourStatusLoaded, hasSeenTour, startTour]);
 
   useEffect(() => {
     loadUserData();

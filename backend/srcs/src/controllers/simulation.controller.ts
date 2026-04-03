@@ -17,6 +17,7 @@ export const SimulationController = {
 				customProjects: [],
 				manualExperiences: [],
 				apiExpPercentages: {},
+				hasSeenTour: false,
 			});
 		}
 
@@ -49,6 +50,7 @@ export const SimulationController = {
 			customProjects: Array.isArray(body.customProjects) ? body.customProjects : [],
 			manualExperiences: Array.isArray(body.manualExperiences) ? body.manualExperiences : [],
 			apiExpPercentages: body.apiExpPercentages ?? {},
+			hasSeenTour: body.hasSeenTour === true,
 		};
 
 		try {
@@ -60,5 +62,26 @@ export const SimulationController = {
 			}
 			throw err;
 		}
+	},
+
+	/**
+	 * PUT /simulation/tour-seen - Sauvegarde uniquement l'état du guide
+	 */
+	async saveTourSeen(request: FastifyRequest, reply: FastifyReply) {
+		const { user_id_42, login, image_url } = request.user;
+		const body = request.body as { hasSeenTour?: unknown } | undefined;
+
+		if (!body || typeof body.hasSeenTour !== 'boolean') {
+			return reply.code(400).send({ error: 'hasSeenTour must be a boolean' });
+		}
+
+		const hasSeenTour = await simulationRepository.saveTourSeen(
+			user_id_42,
+			login,
+			image_url ?? null,
+			body.hasSeenTour
+		);
+
+		return reply.send({ hasSeenTour });
 	},
 };

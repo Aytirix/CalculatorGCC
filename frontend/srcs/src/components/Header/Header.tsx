@@ -19,7 +19,7 @@ import './Header.scss';
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { startTour } = useTour();
+  const { startTour, hasSeenTour } = useTour();
   const [devUserId, setDevUserId] = useState<number>(getDevTargetUserId());
   const navigate = useNavigate();
 
@@ -88,6 +88,7 @@ const Header: React.FC = () => {
                     customProjects: [],
                     manualExperiences: [],
                     apiExpPercentages: {},
+                    hasSeenTour: hasSeenTour(),
                   });
                 } catch {}
                 // Nettoyer tout le localStorage simulation

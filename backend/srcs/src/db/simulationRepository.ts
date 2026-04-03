@@ -15,6 +15,26 @@ export interface SimulationData {
 	customProjects: unknown[];
 	manualExperiences: unknown[];
 	apiExpPercentages: Record<string, number>;
+	hasSeenTour: boolean;
+}
+
+function coerceBooleanFlag(value: unknown): boolean {
+	if (typeof value === 'boolean') return value;
+	if (typeof value === 'number') return value !== 0;
+	if (typeof value === 'bigint') return value !== 0n;
+	if (typeof value === 'string') return value === '1' || value.toLowerCase() === 'true';
+	return false;
+}
+
+async function getTourSeenFlag(userId42: number): Promise<boolean> {
+	const rows = await prisma.$queryRaw<Array<{ hasSeenTour: unknown }>>`
+		SELECT hasSeenTour
+		FROM user_simulation
+		WHERE userId42 = ${userId42}
+		LIMIT 1
+	`;
+
+	return coerceBooleanFlag(rows[0]?.hasSeenTour);
 }
 
 /**
@@ -82,6 +102,7 @@ export const simulationRepository = {
 			customProjects: (userSim.customProjects as unknown[]) ?? [],
 			manualExperiences: (userSim.manualExperiences as unknown[]) ?? [],
 			apiExpPercentages: (userSim.apiExpPercentages as Record<string, number>) ?? {},
+			hasSeenTour: await getTourSeenFlag(userId42),
 		};
 	},
 
@@ -116,6 +137,12 @@ export const simulationRepository = {
 			},
 		});
 
+		await prisma.$executeRaw`
+			UPDATE user_simulation
+			SET hasSeenTour = ${data.hasSeenTour ? 1 : 0}
+			WHERE userId42 = ${userId42}
+		`;
+
 		// Supprimer les anciens projets simulés et insérer les nouveaux
 		await prisma.simulatedProject.deleteMany({ where: { userId42 } });
 
@@ -132,5 +159,31 @@ export const simulationRepository = {
 		}
 
 		return data;
+	},
+
+	/**
+	 * Met à jour uniquement l'état "guide vu" de l'utilisateur.
+	 */
+	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean): Promise<boolean> {
+		await prisma.userSimulation.upsert({
+			where: { userId42 },
+			create: {
+				userId42,
+				login,
+				imageUrl,
+			},
+			update: {
+				login,
+				imageUrl,
+			},
+		});
+
+		await prisma.$executeRaw`
+			UPDATE user_simulation
+			SET hasSeenTour = ${hasSeenTour ? 1 : 0}
+			WHERE userId42 = ${userId42}
+		`;
+
+		return hasSeenTour;
 	},
 };
