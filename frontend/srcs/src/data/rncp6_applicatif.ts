@@ -135,7 +135,7 @@ export const RNCP6_APPLICATIF: RNCP = {
 				{ id: 'ft-script', name: 'ft_script', xp: 4200, slug: 'ft-script' },
 				{ id: 'ft-select', name: 'ft_select', xp: 4200, slug: 'ft-select' },
 				{ id: 'ft-shield', name: 'ft_shield', xp: 15750, slug: 'ft-shield' },
-				{ id: 'ft-ssl-md5', name: 'ft_ssl_md5', xp: 59450, slug: 'ft-ssl-md5' },
+				{ id: 'ft-ssl-md5', name: 'ft_ssl_md5', xp: 9450, slug: 'ft-ssl-md5' },
 				{ id: 'gbmu', name: 'gbmu', xp: 31500, slug: 'gbmu' },
 				{ id: 'kfs-1', name: 'kfs-1', xp: 15750, slug: 'kfs-1' },
 				{ id: 'kfs-2', name: 'kfs-2', xp: 15750, slug: 'kfs-2' },

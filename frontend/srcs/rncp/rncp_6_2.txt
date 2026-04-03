@@ -183,7 +183,7 @@ minimum 2 parmis cette liste
 10000 XP mimimum
 override 35700XP
 gbmu 31500XP
-ft_ssl_md5 59450XP
+ft_ssl_md5 9450XP
 rainfall 25200XP
 taskmaster 9450XP
 ft_linux 4200XP

@@ -70,7 +70,7 @@ export const RNCP7_SYSTEM_NETWORK: RNCP = {
         { id: 'famine', name: 'famine', xp: 9450, slug: 'famine' },
         { id: 'ft-malcolm', name: 'ft_malcolm', xp: 6000, slug: 'ft-malcolm' },
         { id: 'ft-shield', name: 'ft_shield', xp: 15750, slug: 'ft-shield' },
-        { id: 'ft-ssl-md5', name: 'ft_ssl_md5', xp: 59450, slug: 'ft-ssl-md5' },
+        { id: 'ft-ssl-md5', name: 'ft_ssl_md5', xp: 9450, slug: 'ft-ssl-md5' },
         { id: 'micro-forensx', name: 'MicroForensX', xp: 9450, slug: 'micro-forensx' },
         { id: 'override', name: 'override', xp: 35700, slug: 'override' },
         { id: 'pestilence', name: 'pestilence', xp: 15750, slug: 'pestilence' },

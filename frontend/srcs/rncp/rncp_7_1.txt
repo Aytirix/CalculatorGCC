@@ -156,7 +156,7 @@ pestilence 15750XP
 ActiveConnect 15750XP
 ActiveTechTales 15750XP
 ft_malcolm 6000XP
-ft_ssl_md5 59450XP
+ft_ssl_md5 9450XP
 woody-woodpacker 9450XP
 MicroForensX 9450XP
 UnleashTheBox 15750XP
