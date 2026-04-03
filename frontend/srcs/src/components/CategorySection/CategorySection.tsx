@@ -129,20 +129,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 							</button>
 						)}
 
-						{/* Affichage des projets - triés par: validés > simulés > le reste */}
-						{[...category.projects]
-							.sort((a, b) => {
-								const aCompleted = isProjectCompleted(a.slug || a.id, completedProjects);
-								const bCompleted = isProjectCompleted(b.slug || b.id, completedProjects);
-								const aSimulated = simulatedProjects.includes(a.id);
-								const bSimulated = simulatedProjects.includes(b.id);
-
-								if (aCompleted && !bCompleted) return -1;
-								if (!aCompleted && bCompleted) return 1;
-								if (aSimulated && !bSimulated) return -1;
-								if (!aSimulated && bSimulated) return 1;
-								return 0;
-							})
+						{/* Affichage des projets - ordre d'origine */}
+						{category.projects
 							.map((project) => {
 								if (isOtherProjectsCategory && onEditCustomProject && onDeleteCustomProject) {
 									return (
