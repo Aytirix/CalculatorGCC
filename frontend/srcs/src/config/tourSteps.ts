@@ -81,15 +81,6 @@ export const TOUR_STEPS: TourStepDef[] = [
 		validation: 'button',
 	},
 
-	{
-		id: 'step-guide-button',
-		target: 'guide-button',
-		title: 'Relancer le guide',
-		text: 'Ce bouton vous permet de <strong>relancer ce guide à tout moment</strong> depuis n\'importe quelle page.',
-		position: 'bottom',
-		validation: 'button',
-	},
-
 	// =========================================================================
 	// SECTION 2 — Niveaux & onglets RNCP
 	// =========================================================================

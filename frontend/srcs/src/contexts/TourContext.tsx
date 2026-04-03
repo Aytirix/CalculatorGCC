@@ -11,7 +11,6 @@ const TOUR_SEEN_KEY = 'gcc_tour_seen_v1';
 interface TourContextValue {
   startTour: () => void;
   hasSeenTour: () => boolean;
-  resetTour: () => void;
   syncTourSeen: (seen: boolean) => void;
 }
 
@@ -331,15 +330,8 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return localStorage.getItem(TOUR_SEEN_KEY) === 'true';
   }, []);
 
-  const resetTour = useCallback(() => {
-    syncTourSeen(false);
-    void simulationService.saveTourSeen(false).catch((error) => {
-      console.warn('[Tour] Impossible de réinitialiser l\'état du guide en base:', error);
-    });
-  }, [syncTourSeen]);
-
   return (
-    <TourContext.Provider value={{ startTour, hasSeenTour, resetTour, syncTourSeen }}>
+    <TourContext.Provider value={{ startTour, hasSeenTour, syncTourSeen }}>
       {children}
     </TourContext.Provider>
   );

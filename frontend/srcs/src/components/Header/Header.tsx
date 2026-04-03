@@ -19,7 +19,7 @@ import './Header.scss';
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { startTour, hasSeenTour } = useTour();
+  const { hasSeenTour } = useTour();
   const [devUserId, setDevUserId] = useState<number>(getDevTargetUserId());
   const navigate = useNavigate();
 
@@ -113,21 +113,6 @@ const Header: React.FC = () => {
               ))}
             </select>
           )}
-
-          <button
-            className="tour-guide-button"
-            data-tour="guide-button"
-            onClick={startTour}
-            title="Voir le guide interactif"
-            aria-label="Voir le guide interactif"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <span>Guide</span>
-          </button>
 
           <Button
             variant="ghost"
