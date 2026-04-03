@@ -105,6 +105,49 @@
   }
 }
 
+// Bouton "Voir le guide"
+.tour-guide-button {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-primary);
+  border-radius: $radius-lg;
+  background-color: transparent;
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  svg {
+    flex-shrink: 0;
+    transition: transform $transition-fast;
+  }
+
+  &:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.2);
+
+    svg {
+      transform: rotate(15deg);
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  // Masquer le texte sur mobile, garder l'icône
+  span {
+    @media (max-width: #{$breakpoint-md}) {
+      display: none;
+    }
+  }
+}
+
 .theme-toggle {
   font-size: 1.3rem;
   width: 42px;

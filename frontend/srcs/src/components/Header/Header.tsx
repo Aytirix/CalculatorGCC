@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTour } from '@/contexts/TourContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ import './Header.scss';
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { startTour } = useTour();
   const [devUserId, setDevUserId] = useState<number>(getDevTargetUserId());
   const navigate = useNavigate();
 
@@ -42,6 +44,7 @@ const Header: React.FC = () => {
 
         <motion.div
           className="header-nav"
+          data-tour="header-nav"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -57,6 +60,7 @@ const Header: React.FC = () => {
             variant="ghost"
             onClick={() => navigate('/calendar')}
             className="nav-button"
+            data-tour="nav-calendar"
           >
             Calendrier
           </Button>
@@ -108,6 +112,21 @@ const Header: React.FC = () => {
               ))}
             </select>
           )}
+
+          <button
+            className="tour-guide-button"
+            data-tour="guide-button"
+            onClick={startTour}
+            title="Voir le guide interactif"
+            aria-label="Voir le guide interactif"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Guide</span>
+          </button>
 
           <Button
             variant="ghost"

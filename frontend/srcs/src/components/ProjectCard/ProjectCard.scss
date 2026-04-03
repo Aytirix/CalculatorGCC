@@ -12,13 +12,13 @@
   width: 100%;
 
   .project-main {
-    padding: $spacing-sm $spacing-md;
+    padding: 0.3rem 0.65rem;
     cursor: pointer;
     transition: all $transition-fast;
     display: flex;
     align-items: center;
-    gap: $spacing-md;
-    min-height: 50px;
+    gap: $spacing-sm;
+    min-height: 36px;
   }
 
   &::before {
@@ -91,13 +91,13 @@
   .project-header {
     display: flex;
     align-items: center;
-    gap: $spacing-md;
+    gap: $spacing-sm;
     flex: 1;
     min-width: 0;
   }
 
   .project-status-icon {
-    font-size: 1.25rem;
+    font-size: 1rem;
     line-height: 1;
     flex-shrink: 0;
     transition: transform $transition-fast;
@@ -119,7 +119,7 @@
     background: none;
     border: none;
     outline: none;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     line-height: 1;
     flex-shrink: 0;
     cursor: pointer;
@@ -155,12 +155,12 @@
   }
 
   .project-pct-input {
-    width: 3.2rem;
+    width: 2.8rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    padding: 0.1rem 1.3rem 0.1rem 0.4rem;
-    font-size: 0.75rem;
+    padding: 0.1rem 1.1rem 0.1rem 0.3rem;
+    font-size: 0.72rem;
     color: var(--text-primary);
     text-align: center;
     appearance: none;
@@ -184,7 +184,7 @@
     border: none;
     outline: none;
     padding: 0;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     line-height: 1;
     cursor: pointer;
     filter: grayscale(1);
@@ -204,13 +204,13 @@
   .project-info {
     display: flex;
     align-items: center;
-    gap: $spacing-md;
+    gap: $spacing-sm;
     flex: 1;
     min-width: 0;
   }
 
   .project-name {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -221,11 +221,11 @@
   }
 
   .project-xp {
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--color-primary);
     background-color: rgba(59, 130, 246, 0.1);
-    padding: 3px 8px;
+    padding: 2px 5px;
     border-radius: $radius-sm;
     white-space: nowrap;
     flex-shrink: 0;

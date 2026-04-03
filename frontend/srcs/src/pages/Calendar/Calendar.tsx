@@ -1252,7 +1252,7 @@ const Calendar: React.FC = () => {
 									style={{ display: 'none' }}
 									onChange={handleFileChange}
 								/>
-								<button className="import-btn" onClick={handleImportClick} title="Importer un planning d'alternance (.xlsx)">
+								<button className="import-btn" data-tour="calendar-import-btn" onClick={handleImportClick} title="Importer un planning d'alternance (.xlsx)">
 									Importer planning
 								</button>
 								{Object.keys(alternanceDays).length > 0 && (

@@ -14,6 +14,7 @@ import { simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
+import { useTour } from '@/contexts/TourContext';
 import './Dashboard.scss';
 
 const Dashboard: React.FC = () => {
@@ -44,6 +45,8 @@ const Dashboard: React.FC = () => {
   const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
   const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
   const [manualExpVersion, setManualExpVersion] = useState(0);
+
+  const { startTour, hasSeenTour } = useTour();
 
   // Flag pour éviter de sauvegarder pendant le chargement initial
   const isInitialLoad = useRef(true);
@@ -423,6 +426,14 @@ const Dashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Démarrage automatique du guide à la première visite (après le chargement des données)
+  useEffect(() => {
+    if (!loading && !hasSeenTour()) {
+      const timer = setTimeout(() => startTour(), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadUserData();
@@ -1035,6 +1046,7 @@ const Dashboard: React.FC = () => {
       <div className="dashboard-container">
         <motion.div
           className="welcome-section"
+          data-tour="welcome-section"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -1071,9 +1083,10 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="header-actions">
-              <button 
-                className="reset-button" 
-                onClick={handleResetModifications} 
+              <button
+                className="reset-button"
+                data-tour="reset-button"
+                onClick={handleResetModifications}
                 title="Réinitialiser les modifications"
                 disabled={simulatedProjects.length === 0 && Object.keys(simulatedSubProjects).length === 0 && Object.keys(projectPercentages).length === 0}
               >
@@ -1083,7 +1096,7 @@ const Dashboard: React.FC = () => {
                   <line x1="14" y1="11" x2="14" y2="17"/>
                 </svg>
               </button>
-              <button className="refresh-button" onClick={() => loadUserData(true)} title="Rafraîchir les données">
+              <button className="refresh-button" data-tour="refresh-button" onClick={() => loadUserData(true)} title="Rafraîchir les données">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                 </svg>
@@ -1095,6 +1108,7 @@ const Dashboard: React.FC = () => {
         {/* Onglets RNCP */}
         <motion.div
           className="rncp-tabs"
+          data-tour="rncp-tabs"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -1108,6 +1122,7 @@ const Dashboard: React.FC = () => {
                 key={rncp.id}
                 className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallValid ? 'validated' : ''}`}
                 onClick={() => setSelectedRNCPIndex(index)}
+                {...(rncp.id === 'rncp-global' ? { 'data-tour': 'rncp-global-tab' } : {})}
               >
                 <div className="rncp-tab__content">
                   {validation.overallValid && <span className="rncp-tab__check">✓</span>}
@@ -1123,6 +1138,7 @@ const Dashboard: React.FC = () => {
         {/* Expériences professionnelles */}
         <motion.div
           className="prof-exp-section"
+          data-tour="prof-exp-section"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}

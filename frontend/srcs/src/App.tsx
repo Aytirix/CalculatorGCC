@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/useAuth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { TourProvider } from '@/contexts/TourContext';
 import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
@@ -78,9 +79,11 @@ function App() {
 	return (
 		<ThemeProvider>
 			<AuthProvider>
-				<Router>
-					<AppRoutes />
-				</Router>
+				<TourProvider>
+					<Router>
+						<AppRoutes />
+					</Router>
+				</TourProvider>
 			</AuthProvider>
 		</ThemeProvider>
 	);

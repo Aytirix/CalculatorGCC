@@ -184,6 +184,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 						) : !hasSubProjects ? (
 							<button
 								className={`project-star ${projectPercentage === 125 ? 'active' : ''}`}
+								data-tour="project-star"
 								onClick={handleStarClick}
 								title="Simuler à 125%"
 							>
@@ -216,6 +217,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								</div>
 								<button
 									className={`project-boost-btn ${hasCoalitionBoost ? 'active' : ''}`}
+									data-tour="project-boost"
 									onClick={(e) => { e.stopPropagation(); onToggleCoalitionBoost?.(project.id); }}
 									title="Boost coalition +4.2%"
 								>

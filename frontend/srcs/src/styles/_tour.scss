@@ -1,0 +1,449 @@
+// =============================================================================
+// Tour Shepherd.js — styles de base + surcharges personnalisées
+// Les styles de base de Shepherd.js sont inlinés ici pour éviter toute
+// dépendance à un fichier CSS externe (résolution Docker / CI friendly).
+// Les surcharges thématiques suivent et utilisent les variables CSS de l'app.
+// =============================================================================
+
+// --- Base Shepherd.js (inliné depuis shepherd.js/dist/css/shepherd.css) ---
+// Ces règles gèrent la structure, la visibilité et le positionnement.
+
+.shepherd-button {
+  background: #3288e6;
+  border: 0;
+  border-radius: 3px;
+  color: hsla(0, 0%, 100%, 0.75);
+  cursor: pointer;
+  margin-right: 0.5rem;
+  padding: 0.5rem 1.5rem;
+  transition: all 0.5s ease;
+
+  &:not(:disabled):hover { background: #196fcc; }
+  &:disabled { cursor: not-allowed; }
+}
+
+.shepherd-footer {
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0.75rem 0.75rem;
+
+  .shepherd-button:last-child { margin-right: 0; }
+}
+
+.shepherd-cancel-icon {
+  background: transparent;
+  border: none;
+  color: hsla(0, 0%, 50%, 0.75);
+  cursor: pointer;
+  font-size: 2em;
+  font-weight: 400;
+  margin: 0;
+  padding: 0;
+  transition: color 0.5s ease;
+
+  &:hover { color: rgba(0, 0, 0, 0.75); }
+}
+
+.shepherd-title {
+  color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex: 1 0 auto;
+  font-size: 1rem;
+  font-weight: 400;
+  margin: 0;
+  padding: 0;
+}
+
+.shepherd-header {
+  align-items: center;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  display: flex;
+  justify-content: flex-end;
+  line-height: 2em;
+  padding: 0.75rem 0.75rem 0;
+}
+
+.shepherd-has-title .shepherd-content .shepherd-header {
+  background: #e6e6e6;
+  padding: 1em;
+}
+
+.shepherd-text {
+  color: rgba(0, 0, 0, 0.75);
+  font-size: 1rem;
+  line-height: 1.3em;
+  padding: 0.75em;
+
+  p { margin-top: 0; }
+  p:last-child { margin-bottom: 0; }
+}
+
+.shepherd-content {
+  border-radius: 5px;
+  outline: none;
+  padding: 0;
+}
+
+.shepherd-element {
+  background: #fff;
+  border: none;
+  border-radius: 5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  margin: 0;
+  max-width: 400px;
+  opacity: 0;
+  outline: none;
+  padding: 0;
+  transition: opacity 0.3s, visibility 0.3s;
+  visibility: hidden;
+  width: 100%;
+  z-index: 9999;
+
+  &.shepherd-enabled { opacity: 1; visibility: visible; }
+
+  &[data-popper-reference-hidden]:not(.shepherd-centered) {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  &, & *, &:after, &:before { box-sizing: border-box; }
+}
+
+.shepherd-arrow,
+.shepherd-arrow:before {
+  height: 16px;
+  position: absolute;
+  width: 16px;
+  z-index: -1;
+}
+
+.shepherd-arrow:before {
+  background: #fff;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.shepherd-element[data-popper-placement^="top"]    > .shepherd-arrow { bottom: -8px; }
+.shepherd-element[data-popper-placement^="bottom"] > .shepherd-arrow { top: -8px; }
+.shepherd-element[data-popper-placement^="left"]   > .shepherd-arrow { right: -8px; }
+.shepherd-element[data-popper-placement^="right"]  > .shepherd-arrow { left: -8px; }
+.shepherd-element.shepherd-centered > .shepherd-arrow { opacity: 0; }
+
+.shepherd-modal-overlay-container {
+  height: 0;
+  left: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  transition: all 0.3s ease-out, height 0s 0.3s, opacity 0.3s 0s;
+  width: 100vw;
+  z-index: 9997;
+
+  &.shepherd-modal-is-visible {
+    height: 100vh;
+    opacity: 0.5;
+    transform: translateZ(0);
+    transition: all 0.3s ease-out, height 0s 0s, opacity 0.3s 0s;
+
+    path { pointer-events: all; }
+  }
+}
+
+// --- Tooltip (élément principal) ---
+
+.shepherd-element.gcc-tour-step {
+  max-width: 420px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-family: inherit;
+
+  // Flèche de positionnement
+  .shepherd-arrow:before {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+  }
+
+  // Cas spécifique : flèche vers le bas (tooltip au-dessus)
+  &[data-popper-placement^="top"] > .shepherd-arrow:before {
+    border-top: none;
+    border-left: none;
+  }
+
+  &[data-popper-placement^="bottom"] > .shepherd-arrow:before {
+    border-bottom: none;
+    border-right: none;
+  }
+
+  &[data-popper-placement^="left"] > .shepherd-arrow:before {
+    border-left: none;
+    border-bottom: none;
+  }
+
+  &[data-popper-placement^="right"] > .shepherd-arrow:before {
+    border-right: none;
+    border-top: none;
+  }
+}
+
+// --- En-tête ---
+
+.gcc-tour-step .shepherd-header {
+  padding: 1rem 1rem 0.5rem;
+  background-color: transparent;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 12px 12px 0 0;
+}
+
+.gcc-tour-step.shepherd-has-title .shepherd-content .shepherd-header {
+  background-color: var(--bg-card);
+  padding: 1rem 1rem 0.5rem;
+}
+
+.gcc-tour-step .shepherd-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+// Bouton fermer (×)
+.gcc-tour-step .shepherd-cancel-icon {
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0;
+  margin-left: 0.5rem;
+  transition: color 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    color: var(--text-primary);
+    transform: rotate(90deg);
+  }
+}
+
+.gcc-tour-step.shepherd-has-title .shepherd-content .shepherd-cancel-icon {
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+// --- Corps ---
+
+.gcc-tour-step .shepherd-text {
+  padding: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+
+  strong {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  em {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  br + br {
+    display: block;
+    margin-top: 0.4rem;
+  }
+}
+
+// Indicateur d'action (étapes "clic obligatoire")
+.gcc-tour-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background-color: rgba(var(--color-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.25);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  margin-top: 0.25rem;
+}
+
+// --- Pied de page (boutons) ---
+
+.gcc-tour-step .shepherd-footer {
+  padding: 0.75rem 1rem 1rem;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
+}
+
+// Bouton principal (Suivant / Terminer)
+.gcc-tour-btn {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.5rem 1.1rem;
+  transition: all 0.2s ease;
+  outline: none;
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.3);
+  }
+
+  // Bouton primaire (Suivant / Terminer)
+  &--primary {
+    background-color: var(--color-primary);
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.35);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+  }
+
+  // Bouton secondaire (Précédent)
+  &--secondary {
+    background-color: var(--bg-accent);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+
+    &:hover:not(:disabled) {
+      background-color: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+  }
+
+  // Bouton "Passer" (étapes avec clic obligatoire mais non bloquantes)
+  &--skip {
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+    }
+  }
+}
+
+// --- Overlay sombre ---
+
+.shepherd-modal-overlay-container {
+  // L'opacité de base est gérée par Shepherd (.shepherd-modal-is-visible → opacity: 0.5)
+  // On peut ajuster si besoin :
+  &.shepherd-modal-is-visible {
+    opacity: 0.6;
+  }
+}
+
+// --- Correction du clipping par les parents overflow:hidden ---
+// Les conteneurs de CategorySection ont overflow:hidden, ce qui clippe
+// l'outline et le box-shadow des éléments mis en évidence par le guide.
+// :has() permet de rendre le conteneur parent transparent à l'overflow
+// uniquement quand il contient un enfant ciblé par le tour.
+
+.project-card-wrapper:has(.gcc-tour-target),
+.projects-grid:has(.gcc-tour-target),
+.category-section:has(.gcc-tour-target) {
+  overflow: visible !important;
+}
+
+// --- Éléments ciblés par le guide ---
+
+// Mise en évidence générique : anneau lumineux autour de l'élément
+.gcc-tour-target {
+  position: relative;
+  z-index: 9998 !important;
+  border-radius: 8px;
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb), 0.2),
+              0 0 20px rgba(var(--color-primary-rgb), 0.15);
+  transition: outline 0.2s ease, box-shadow 0.2s ease;
+
+
+  // --- Cas spéciaux : petites icônes (étoile, éclair) ---
+  // Ces boutons sont très petits (~0.9rem). L'outline-offset réduit encore
+  // leur apparence visuelle. On les agrandit via scale (ne perturbe pas le layout).
+  &[data-tour="project-star"],
+  &[data-tour="project-boost"] {
+	box-shadow: none;
+	outline: none;
+	background-color: rgba(var(--color-primary-rgb), 0.15);
+    outline-offset: 0 !important;
+    transform: scale(1.5);
+    transform-origin: center;
+    z-index: 10000 !important;
+  }
+
+  // --- Variante "clic obligatoire" : animation pulsante ---
+  &--clickable {
+    cursor: pointer !important;
+    animation: gcc-tour-pulse 1.8s ease-in-out infinite;
+
+    // Indicateur de clic (doigt animé)
+    &::after {
+      content: '👆';
+      position: absolute;
+      bottom: -2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1.3rem;
+      animation: gcc-tour-bounce 1s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 10000;
+    }
+  }
+}
+
+@keyframes gcc-tour-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb), 0.2),
+                0 0 20px rgba(var(--color-primary-rgb), 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(var(--color-primary-rgb), 0.35),
+                0 0 30px rgba(var(--color-primary-rgb), 0.25);
+    outline-color: var(--color-primary-hover);
+  }
+}
+
+@keyframes gcc-tour-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%       { transform: translateX(-50%) translateY(-6px); }
+}
+
+// --- Compteur d'étapes (progressbar) ---
+// Shepherd ne l'affiche pas nativement, mais on peut l'injecter via JS dans le titre
+.gcc-tour-progress {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background-color: var(--bg-accent);
+  border-radius: 20px;
+  padding: 2px 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}

@@ -121,6 +121,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 						{isOtherProjectsCategory && onAddCustomProject && (
 							<button
 								className="add-custom-project-button"
+								data-tour="add-custom-project"
 								onClick={onAddCustomProject}
 								title="Ajouter un projet personnalisé"
 							>
@@ -154,6 +155,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 									<div key={project.id} className="project-card-wrapper">
 										<button
 											className="teammate-btn"
+											data-tour="teammate-btn"
 											onClick={() => setTeammateProject(project)}
 											title="Trouver des teammates"
 										>
