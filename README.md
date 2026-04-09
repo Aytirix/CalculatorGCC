@@ -227,11 +227,11 @@ PROD_DB_PASSWORD=<mot_de_passe_prod>
 En mode préprod avec clonage activé :
 
 1. la MariaDB préprod démarre sur son propre stockage hôte dédié
-2. le service `db-clone` attend que la DB préprod soit prête
-3. le service `db-clone` se connecte à la DB prod via `PROD_DB_HOST`
+2. le conteneur backend attend que la DB préprod soit prête
+3. le script de démarrage du backend se connecte à la DB prod via `PROD_DB_HOST`
 4. il vide et recrée la base locale préprod
 5. il importe un dump de la base prod dans la DB préprod
-6. `db-clone` vérifie que la table `configuration` est bien marquée comme configurée si `REQUIRE_CONFIGURED_DB=true`
+6. il vérifie que la table `configuration` est bien marquée comme configurée si `REQUIRE_CONFIGURED_DB=true`
 7. ensuite seulement le backend démarre
 8. le backend applique `prisma migrate deploy` sur la **DB préprod**
 
@@ -240,7 +240,7 @@ Résultat :
 - la préprod teste sur des données proches de la prod
 - les migrations et écritures applicatives restent cantonnées à la préprod
 - la prod n'est jamais modifiée par la préprod
-- si la DB clonée n'est pas réellement configurée, `db-clone` puis le backend refusent de démarrer au lieu d'afficher le wizard de setup
+- si la DB clonée n'est pas réellement configurée, le backend refuse de démarrer au lieu d'afficher le wizard de setup
 
 ### Important : `PROD_DB_HOST` sur Coolify
 
@@ -308,7 +308,7 @@ Si la préprod et la prod partagent le même `MARIADB_DATA_PATH`, ou si la prép
 
 - [docker-compose.prod.yml](docker-compose.prod.yml)
 - [.env.example](.env.example)
-- [scripts/clone-prod-db.sh](scripts/clone-prod-db.sh)
+- [backend/docker-entrypoint.sh](backend/docker-entrypoint.sh)
 - [coolify-init-app.md](coolify-init-app.md)
 
 ## 🤝 Contribution
