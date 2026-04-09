@@ -122,6 +122,51 @@ Si l'application gère son propre TLS (Nginx, Apache...), le désactiver en prod
 
 Les définir dans **Coolify > l'application > Environment Variables** plutôt que dans un `.env` committé.
 
+Pour déployer une **préprod** et une **prod** sur le même serveur, il faut au minimum des valeurs différentes pour:
+
+- `APP_DOMAIN`
+- `TRAEFIK_ROUTER_NAME`
+- `TRAEFIK_SERVICE_NAME`
+- `MARIADB_DATA_PATH`
+- `DB_SHARED_ALIAS`
+
+Exemple:
+
+```env
+# prod
+APP_DOMAIN=rncp.theomouty.fr
+TRAEFIK_ROUTER_NAME=calculatorgcc-prod
+TRAEFIK_SERVICE_NAME=calculatorgcc-prod
+MARIADB_DATA_PATH=/data/calculatorgcc-prod/mariadb
+DB_SHARED_ALIAS=calculatorgcc-prod-db
+
+# preprod
+APP_DOMAIN=preprod-rncp.theomouty.fr
+TRAEFIK_ROUTER_NAME=calculatorgcc-preprod
+TRAEFIK_SERVICE_NAME=calculatorgcc-preprod
+MARIADB_DATA_PATH=/data/calculatorgcc-preprod/mariadb
+DB_SHARED_ALIAS=calculatorgcc-preprod-db
+```
+
+Si la **préprod** doit tester sur une copie recente de la prod sans jamais ecrire dans la DB prod, ajouter aussi:
+
+```env
+CLONE_FROM_PROD_ENABLED=true
+PROD_DB_HOST=calculatorgcc-prod-db
+PROD_DB_PORT=3306
+PROD_DB_NAME=calculatorgcc
+PROD_DB_USER=<user-lecture-ou-admin>
+PROD_DB_PASSWORD=<mot-de-passe>
+```
+
+Dans ce mode:
+
+- la préprod restaure d'abord une copie de la DB prod dans **sa propre** DB locale
+- le backend démarre ensuite et applique ses migrations Prisma sur la DB préprod
+- la prod n'est jamais modifiée par la préprod
+
+Le mecanisme repose sur le reseau Docker externe `coolify`, partage par les applications Coolify sur le meme serveur.
+
 ---
 
 ## 8. Redéployer après modification

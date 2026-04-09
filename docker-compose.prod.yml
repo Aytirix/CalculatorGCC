@@ -9,11 +9,11 @@ services:
       - phpmyadmin
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.calculatorgcc.rule=Host(`rncp.theomouty.fr`)"
-      - "traefik.http.routers.calculatorgcc.entrypoints=https"
-      - "traefik.http.routers.calculatorgcc.tls=true"
-      - "traefik.http.routers.calculatorgcc.tls.certresolver=letsencrypt"
-      - "traefik.http.services.calculatorgcc.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.rule=Host(`${APP_DOMAIN:-rncp.theomouty.fr}`)"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.entrypoints=https"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.tls=true"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${TRAEFIK_SERVICE_NAME:-calculatorgcc}.loadbalancer.server.port=3000"
       - "traefik.docker.network=coolify"
     environment:
       NODE_PROJET: production
@@ -40,6 +40,8 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      db-clone:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 7000
@@ -52,6 +54,33 @@ services:
     networks:
       - calculatorGCC_network
 
+  db-clone:
+    image: mariadb:latest
+    container_name: calculatorGCC_db_clone_prod
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      CLONE_FROM_PROD_ENABLED: ${CLONE_FROM_PROD_ENABLED:-false}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      DB_NAME: ${DB_NAME:-calculatorgcc}
+      TARGET_DB_HOST: mariadb
+      TARGET_DB_PORT: 3306
+      PROD_DB_HOST: ${PROD_DB_HOST:-}
+      PROD_DB_PORT: ${PROD_DB_PORT:-3306}
+      PROD_DB_NAME: ${PROD_DB_NAME:-${DB_NAME:-calculatorgcc}}
+      PROD_DB_USER: ${PROD_DB_USER:-}
+      PROD_DB_PASSWORD: ${PROD_DB_PASSWORD:-}
+      PROD_DB_WAIT_TIMEOUT: ${PROD_DB_WAIT_TIMEOUT:-120}
+      TARGET_DB_WAIT_TIMEOUT: ${TARGET_DB_WAIT_TIMEOUT:-120}
+    volumes:
+      - ./scripts/clone-prod-db.sh:/usr/local/bin/clone-prod-db.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/clone-prod-db.sh"]
+    restart: "no"
+    networks:
+      - calculatorGCC_network
+      - coolify
+
   mariadb:
     image: mariadb:latest
     container_name: calculatorGCC_mariadb_prod
@@ -61,7 +90,7 @@ services:
       MYSQL_USER: ${DB_USER:-calculatorgcc_user}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - /data/calculatorgcc/mariadb:/var/lib/mysql
+      - ${MARIADB_DATA_PATH:-/data/calculatorgcc/mariadb}:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
@@ -70,7 +99,10 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - calculatorGCC_network
+      calculatorGCC_network: {}
+      coolify:
+        aliases:
+          - ${DB_SHARED_ALIAS:-calculatorgcc-db}
 
   phpmyadmin:
     image: phpmyadmin:latest
