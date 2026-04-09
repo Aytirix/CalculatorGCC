@@ -90,7 +90,7 @@ services:
       MYSQL_USER: ${DB_USER:-calculatorgcc_user}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ${MARIADB_DATA_PATH:-/data/calculatorgcc/mariadb}:/var/lib/mysql
+      - ${MARIADB_DATA_PATH:?}:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
