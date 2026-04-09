@@ -165,7 +165,7 @@ Sur Coolify, deux applications sur le même serveur ne partagent pas automatique
 
 Donc si vous voulez une préprod qui teste sur une copie de la prod, il faut :
 
-1. isoler les volumes MariaDB
+1. isoler le stockage MariaDB de chaque environnement sur l'hôte
 2. donner un alias réseau distinct à chaque MariaDB
 3. connecter la MariaDB prod au réseau partagé `coolify`
 4. laisser la préprod cloner la base prod dans sa propre base locale
@@ -177,7 +177,7 @@ Les variables suivantes sont prévues dans [.env.example](.env.example) :
 - `APP_DOMAIN` : domaine public de l'application
 - `TRAEFIK_ROUTER_NAME` : nom du router Traefik, unique par environnement
 - `TRAEFIK_SERVICE_NAME` : nom du service Traefik, unique par environnement
-- `MARIADB_DATA_PATH` : chemin persistant local de la DB MariaDB
+- `MARIADB_DATA_PATH` : chemin persistant MariaDB sur l'hôte
 - `DB_SHARED_ALIAS` : alias réseau de cette DB sur le réseau externe `coolify`
 - `CLONE_FROM_PROD_ENABLED` : active le clonage prod -> préprod
 - `PROD_DB_HOST` : alias réseau de la DB prod, joignable depuis la préprod
@@ -223,7 +223,7 @@ PROD_DB_PASSWORD=<mot_de_passe_prod>
 
 En mode préprod avec clonage activé :
 
-1. la MariaDB préprod démarre sur son propre volume local
+1. la MariaDB préprod démarre sur son propre stockage hôte dédié
 2. le service `db-clone` attend que la DB préprod soit prête
 3. le service `db-clone` se connecte à la DB prod via `PROD_DB_HOST`
 4. il vide et recrée la base locale préprod
@@ -263,6 +263,31 @@ Pour que la préprod puisse cloner la base prod, il faut :
 
 Un utilisateur lecture seule peut suffire pour le dump si ses droits permettent l'export. Sinon, utilisez un utilisateur applicatif ou admin adapté à votre politique de sécurité.
 
+### Stockage MariaDB sur Coolify
+
+`docker-compose.prod.yml` garde bien un stockage MariaDB externe sur l'hôte, mais il passe par un volume Docker nommé configuré en `bind` :
+
+```yaml
+volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARIADB_DATA_PATH:?}
+```
+
+Ce détour est utile sur Coolify :
+
+- la forme courte `${MARIADB_DATA_PATH}:/var/lib/mysql` peut être rejetée par la validation Coolify
+- la forme `driver_opts.device` permet de garder un vrai chemin hôte externe
+- la prod et la préprod restent séparées tant que `MARIADB_DATA_PATH` est différent
+
+Conséquence :
+
+- il faut définir explicitement `MARIADB_DATA_PATH` dans les variables Coolify de chaque environnement
+- le dossier hôte visé doit appartenir au serveur et être persistant entre les déploiements
+
 ### Pièges à éviter
 
 - Ne pas utiliser le même `MARIADB_DATA_PATH` pour la prod et la préprod.
@@ -272,7 +297,7 @@ Un utilisateur lecture seule peut suffire pour le dump si ses droits permettent 
 
 ### Symptôme classique d'une mauvaise config
 
-Si la préprod et la prod partagent le même `MARIADB_DATA_PATH`, MariaDB peut démarrer en erreur ou rester `unhealthy`, car deux instances essaient d'utiliser les mêmes fichiers de données.
+Si la préprod et la prod partagent le même `MARIADB_DATA_PATH`, ou si la préprod pointe directement sur la DB prod, MariaDB peut démarrer en erreur ou rester `unhealthy`, car deux instances essaient d'utiliser les mêmes fichiers de données.
 
 ### Fichiers concernés
 

@@ -165,6 +165,22 @@ Dans ce mode:
 - le backend démarre ensuite et applique ses migrations Prisma sur la DB préprod
 - la prod n'est jamais modifiée par la préprod
 
+### Note stockage MariaDB
+
+Le `docker-compose.prod.yml` garde un stockage MariaDB externe sur l'hote, mais via un volume Docker configure en bind :
+
+```yaml
+volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARIADB_DATA_PATH:?}
+```
+
+Sur Coolify, c'est plus robuste que la forme courte `/data/...:/var/lib/mysql`, car l'interpolation `${...}` dans la source directe d'un volume peut etre rejetee avant meme le deploiement.
+
 Le mecanisme repose sur le reseau Docker externe `coolify`, partage par les applications Coolify sur le meme serveur.
 
 ---

@@ -90,7 +90,7 @@ services:
       MYSQL_USER: ${DB_USER:-calculatorgcc_user}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ${MARIADB_DATA_PATH:?}:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
@@ -125,4 +125,10 @@ networks:
     external: true
 
 volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARIADB_DATA_PATH:?}
   ssl_certs:
