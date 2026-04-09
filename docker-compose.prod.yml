@@ -64,6 +64,7 @@ services:
     restart: unless-stopped
     networks:
       - calculatorGCC_network
+      - coolify
 
   mariadb:
     image: mariadb:latest
