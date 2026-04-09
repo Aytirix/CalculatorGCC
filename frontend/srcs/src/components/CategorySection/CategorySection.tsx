@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ProjectCategory, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
+import { clampProjectPercentage } from '@/utils/projectPercentage';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
 import TeammateModal from '../TeammateModal/TeammateModal';
@@ -149,7 +150,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 								const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
 								const projectPercentage = isCompleted
 									? findProjectPercentage(project, completedProjectsPercentages, 100)
-									: (projectPercentages[project.id] || 100);
+									: clampProjectPercentage(projectPercentages[project.id] ?? 100, project);
 
 								return (
 									<div key={project.id} className="project-card-wrapper">

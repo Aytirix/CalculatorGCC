@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { clampPercentage } from '@/utils/projectPercentage';
 import './ProjectPercentageModal.scss';
 
 interface ProjectPercentageModalProps {
@@ -8,6 +9,7 @@ interface ProjectPercentageModalProps {
 	onSave: (percentage: number) => void;
 	projectName: string;
 	currentPercentage: number;
+	maxPercentage: number;
 }
 
 const ProjectPercentageModal: React.FC<ProjectPercentageModalProps> = ({
@@ -16,17 +18,21 @@ const ProjectPercentageModal: React.FC<ProjectPercentageModalProps> = ({
 	onSave,
 	projectName,
 	currentPercentage,
+	maxPercentage,
 }) => {
-	const [percentage, setPercentage] = useState(currentPercentage);
-	const [inputValue, setInputValue] = useState(currentPercentage.toString());
+	const [percentage, setPercentage] = useState(clampPercentage(currentPercentage, maxPercentage, 50));
+	const [inputValue, setInputValue] = useState(clampPercentage(currentPercentage, maxPercentage, 50).toString());
+	const presetPercentages = Array.from(new Set([50, 75, 100, maxPercentage])).filter((value) => value <= maxPercentage);
+	const sliderMiddleLabel = maxPercentage > 100 ? 100 : Math.round((50 + maxPercentage) / 2);
 
 	useEffect(() => {
-		setPercentage(currentPercentage);
-		setInputValue(currentPercentage.toString());
-	}, [currentPercentage, isOpen]);
+		const clampedPercentage = clampPercentage(currentPercentage, maxPercentage, 50);
+		setPercentage(clampedPercentage);
+		setInputValue(clampedPercentage.toString());
+	}, [currentPercentage, isOpen, maxPercentage]);
 
 	const handleSave = () => {
-		const value = Math.max(50, Math.min(125, percentage));
+		const value = clampPercentage(percentage, maxPercentage, 50);
 		onSave(value);
 		onClose();
 	};
@@ -37,7 +43,7 @@ const ProjectPercentageModal: React.FC<ProjectPercentageModalProps> = ({
 
 		const numValue = parseFloat(value);
 		if (!isNaN(numValue)) {
-			setPercentage(Math.max(50, Math.min(125, numValue)));
+			setPercentage(clampPercentage(numValue, maxPercentage, 50));
 		}
 	};
 
@@ -90,7 +96,7 @@ const ProjectPercentageModal: React.FC<ProjectPercentageModalProps> = ({
 									onChange={handleInputChange}
 									onKeyDown={handleKeyDown}
 									min="50"
-									max="125"
+									max={maxPercentage}
 									step="1"
 								/>
 								<span className="percentage-symbol">%</span>
@@ -103,53 +109,29 @@ const ProjectPercentageModal: React.FC<ProjectPercentageModalProps> = ({
 									value={percentage}
 									onChange={handleSliderChange}
 									min="50"
-									max="125"
+									max={maxPercentage}
 									step="1"
 								/>
 								<div className="slider-labels">
 									<span>50%</span>
-									<span className={percentage === 100 ? 'highlight' : ''}>100%</span>
-									<span>125%</span>
+									<span className={percentage === sliderMiddleLabel ? 'highlight' : ''}>{sliderMiddleLabel}%</span>
+									<span>{maxPercentage}%</span>
 								</div>
 							</div>
 
 							<div className="percentage-presets">
-								<button
-									className={`preset-button ${percentage === 50 ? 'active' : ''}`}
-									onClick={() => {
-										setPercentage(50);
-										setInputValue('50');
-									}}
-								>
-									50%
-								</button>
-								<button
-									className={`preset-button ${percentage === 75 ? 'active' : ''}`}
-									onClick={() => {
-										setPercentage(75);
-										setInputValue('75');
-									}}
-								>
-									75%
-								</button>
-								<button
-									className={`preset-button ${percentage === 100 ? 'active' : ''}`}
-									onClick={() => {
-										setPercentage(100);
-										setInputValue('100');
-									}}
-								>
-									100%
-								</button>
-								<button
-									className={`preset-button ${percentage === 125 ? 'active' : ''}`}
-									onClick={() => {
-										setPercentage(125);
-										setInputValue('125');
-									}}
-								>
-									125%
-								</button>
+								{presetPercentages.map((preset) => (
+									<button
+										key={preset}
+										className={`preset-button ${percentage === preset ? 'active' : ''}`}
+										onClick={() => {
+											setPercentage(preset);
+											setInputValue(preset.toString());
+										}}
+									>
+										{preset}%
+									</button>
+								))}
 							</div>
 
 						</div>

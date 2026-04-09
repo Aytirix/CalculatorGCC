@@ -21,7 +21,7 @@ export const RNCP6_WEB_MOBILE: RNCP = {
         { id: 'music-room', name: 'music-room', xp: 25200, slug: 'music-room' },
         { id: 'red-tetris', name: 'red-tetris', xp: 15750, slug: 'red-tetris' },
         { id: 'tokenize-art', name: 'TokenizeArt', xp: 9450, slug: 'tokenize-art' },
-        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer' },
+        { id: 'tokenizer', name: 'Tokenizer', xp: 9450, slug: 'tokenizer', maxPercentage: 120 },
         {
           id: 'piscine-django',
           name: 'Piscine Django',

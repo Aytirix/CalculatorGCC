@@ -20,7 +20,7 @@ const RNCP_GLOBAL: RNCP = {
 			projects: [
 				{ id: 'administrative-directory', name: 'AdministrativeDirectory', xp: 9450, slug: 'administrative-directory' },
 				{ id: 'automatic-directory', name: 'AutomaticDirectory', xp: 9450, slug: 'automatic-directory' },
-				{ id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors' },
+				{ id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors', maxPercentage: 100 },
 				{ id: 'bomberman', name: 'bomberman', xp: 25200, slug: 'bomberman' },
 				{ id: 'boot2root', name: 'boot2root', xp: 11500, slug: 'boot2root' },
 				{ id: 'cloud-1', name: 'cloud-1', xp: 9450, slug: 'cloud-1' },
@@ -92,7 +92,7 @@ const RNCP_GLOBAL: RNCP = {
 			requiredXP: 0,
 			projects: [
 				{ id: '42sh', name: '42sh', xp: 15750, slug: '42sh' },
-				{ id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors' },
+				{ id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors', maxPercentage: 100 },
 				{ id: 'doom-nukem', name: 'doom-nukem', xp: 15750, slug: 'doom-nukem' },
 				{ id: 'humangl', name: 'humangl', xp: 4200, slug: 'humangl' },
 				{ id: 'inception-of-things', name: 'Inception-of-Things', xp: 25450, slug: 'inception-of-things' },

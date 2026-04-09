@@ -23,6 +23,7 @@ export interface SimulatorProject {
   name: string;
   xp: number;
   slug?: string;
+  maxPercentage?: number;
   subProjects?: SimulatorProject[];
 }
 

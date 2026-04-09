@@ -47,7 +47,7 @@ export const RNCP7_SYSTEM_NETWORK: RNCP = {
         { id: 'administrative-directory', name: 'AdministrativeDirectory', xp: 9450, slug: 'administrative-directory' },
         { id: 'active-discovery', name: 'ActiveDiscovery', xp: 15750, slug: 'active-discovery' },
         { id: 'automatic-directory', name: 'AutomaticDirectory', xp: 9450, slug: 'automatic-directory' },
-        { id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors' },
+        { id: 'bgp-at-doors', name: 'Bgp At Doors of Autonomous Systems is Simple', xp: 22450, slug: 'bgp-at-doors', maxPercentage: 100 },
         { id: 'cloud-1', name: 'cloud-1', xp: 9450, slug: 'cloud-1' },
         { id: 'ft-nmap', name: 'ft_nmap', xp: 15750, slug: 'ft-nmap' },
         { id: 'ft-ping', name: 'ft_ping', xp: 4200, slug: 'ft-ping' },

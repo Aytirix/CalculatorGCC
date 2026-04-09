@@ -1,5 +1,6 @@
 import levelData from '../../public/level.json';
 import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
+import { clampProjectPercentage } from '@/utils/projectPercentage';
 import type { SimulationResult, RNCP, ProjectCategory, RNCPValidation, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 
 interface LevelData {
@@ -89,8 +90,9 @@ export const xpService = {
 			}
 
 			// Appliquer le pourcentage du projet (simulé ou complété)
-			const percentage = projectPercentages?.[project.id]
-				?? (completedProjectsPercentages ? findProjectPercentage(project, completedProjectsPercentages, 100) : 100);
+			const percentage = projectPercentages?.[project.id] !== undefined
+				? clampProjectPercentage(projectPercentages[project.id], project)
+				: (completedProjectsPercentages ? findProjectPercentage(project, completedProjectsPercentages, 100) : 100);
 			projectXP = Math.round((projectXP * percentage) / 100);
 
 			// Appliquer le boost de coalition si activé (+4.2%)

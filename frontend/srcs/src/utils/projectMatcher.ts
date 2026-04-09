@@ -1,3 +1,5 @@
+import { clampProjectPercentage } from '@/utils/projectPercentage';
+
 /**
  * Normalise un slug de projet pour permettre une comparaison plus permissive
  * - Convertit en minuscules
@@ -69,23 +71,23 @@ export const isProjectCompleted = (localSlug: string, apiIdentifiers: string[]):
  * @returns Le pourcentage trouvé ou la valeur par défaut
  */
 export const findProjectPercentage = (
-	project: { name: string; slug?: string; id: string },
+	project: { name: string; slug?: string; id: string; maxPercentage?: number },
 	percentages: Record<string, number>,
 	defaultValue: number = 100
 ): number => {
 	// 1. Chercher correspondance exacte avec name
 	if (percentages[project.name] !== undefined) {
-		return percentages[project.name];
+		return clampProjectPercentage(percentages[project.name], project);
 	}
 
 	// 2. Chercher correspondance exacte avec slug
 	if (project.slug && percentages[project.slug] !== undefined) {
-		return percentages[project.slug];
+		return clampProjectPercentage(percentages[project.slug], project);
 	}
 
 	// 3. Chercher correspondance exacte avec id
 	if (percentages[project.id] !== undefined) {
-		return percentages[project.id];
+		return clampProjectPercentage(percentages[project.id], project);
 	}
 
 	// 4. Chercher avec normalisation
@@ -97,15 +99,15 @@ export const findProjectPercentage = (
 
 		// Vérifier si le nom normalisé du projet correspond
 		if (normalizedKey === normalizedProjectName || normalizedKey.includes(normalizedProjectName)) {
-			return value;
+			return clampProjectPercentage(value, project);
 		}
 
 		// Vérifier si le slug normalisé correspond
 		if (normalizedProjectSlug && (normalizedKey === normalizedProjectSlug || normalizedKey.includes(normalizedProjectSlug))) {
-			return value;
+			return clampProjectPercentage(value, project);
 		}
 	}
 
 	console.warn(`📊 Aucun pourcentage trouvé pour "${project.name}", utilisation de la valeur par défaut: ${defaultValue}%`);
-	return defaultValue;
+	return clampProjectPercentage(defaultValue, project);
 };

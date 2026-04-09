@@ -9,13 +9,45 @@ import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42 } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
+import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import { simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
+import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import { useTour } from '@/contexts/TourContext';
 import './Dashboard.scss';
+
+const findConfiguredProjectById = (
+  projectId: string,
+  customProjects: SimulatorProject[] = []
+): SimulatorProject | undefined => {
+  for (const rncp of RNCP_DATA) {
+    for (const category of rncp.categories) {
+      const project = category.projects.find((entry) => entry.id === projectId);
+      if (project) return project;
+    }
+  }
+
+  return customProjects.find((project) => project.id === projectId);
+};
+
+const sanitizeProjectPercentages = (
+  percentages: Record<string, number>,
+  customProjects: SimulatorProject[] = []
+): Record<string, number> => {
+  return Object.entries(percentages).reduce<Record<string, number>>((acc, [projectId, percentage]) => {
+    const project = findConfiguredProjectById(projectId, customProjects);
+    const clampedPercentage = clampPercentage(percentage, getProjectMaxPercentage(project));
+
+    if (clampedPercentage !== 100) {
+      acc[projectId] = clampedPercentage;
+    }
+
+    return acc;
+  }, {});
+};
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -42,7 +74,7 @@ const Dashboard: React.FC = () => {
     const saved = localStorage.getItem('api_exp_percentages');
     return saved ? JSON.parse(saved) : {};
   });
-  const [editingExperience, setEditingExperience] = useState<import('@/pages/ProfessionalExperience/ProfessionalExperience').ProfessionalExperience | null>(null);
+  const [editingExperience, setEditingExperience] = useState<ProfessionalExperience | null>(null);
   const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
   const [manualExpVersion, setManualExpVersion] = useState(0);
   const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
@@ -68,12 +100,15 @@ const Dashboard: React.FC = () => {
           if (p.coalitionBoost) boosts[p.projectId] = true;
           if (p.note) notes[p.projectId] = p.note;
         }
+        const savedCustomProjects = (data.customProjects as SimulatorProject[]) ?? [];
+        const sanitizedPercentages = sanitizeProjectPercentages(percentages, savedCustomProjects);
+
         setSimulatedProjects(projectIds);
-        setProjectPercentages(percentages);
+        setProjectPercentages(sanitizedPercentages);
         setCoalitionBoosts(boosts);
         setProjectNotes(notes);
         setSimulatedSubProjects(data.simulatedSubProjects ?? {});
-        setCustomProjects((data.customProjects as SimulatorProject[]) ?? []);
+        setCustomProjects(savedCustomProjects);
 
         if (data.apiExpPercentages && Object.keys(data.apiExpPercentages).length > 0) {
           const numericKeys: Record<number, number> = {};
@@ -83,7 +118,7 @@ const Dashboard: React.FC = () => {
           setApiExpPercentages(numericKeys);
         }
         if (Array.isArray(data.manualExperiences) && data.manualExperiences.length > 0) {
-          professionalExperienceStorage.saveAll(data.manualExperiences as any);
+          professionalExperienceStorage.saveAll(data.manualExperiences as ProfessionalExperience[]);
           setManualExperiences(professionalExperienceStorage.getAll());
         }
         syncTourSeen(data.hasSeenTour === true);
@@ -91,7 +126,7 @@ const Dashboard: React.FC = () => {
         // Sync localStorage aussi
         localStorage.setItem('simulated_projects', JSON.stringify(projectIds));
         localStorage.setItem('simulated_sub_projects', JSON.stringify(data.simulatedSubProjects ?? {}));
-        localStorage.setItem('project_percentages', JSON.stringify(percentages));
+        localStorage.setItem('project_percentages', JSON.stringify(sanitizedPercentages));
         localStorage.setItem('custom_projects', JSON.stringify(data.customProjects ?? []));
         localStorage.setItem('project_notes', JSON.stringify(notes));
         localStorage.setItem('coalition_boosts', JSON.stringify(boosts));
@@ -108,22 +143,36 @@ const Dashboard: React.FC = () => {
 
     const loadFromLocalStorage = () => {
       const saved = localStorage.getItem('simulated_projects');
-      if (saved) try { setSimulatedProjects(JSON.parse(saved)); } catch {}
+      if (saved) try { setSimulatedProjects(JSON.parse(saved)); } catch { /* Ignore corrupted localStorage */ }
 
       const savedSub = localStorage.getItem('simulated_sub_projects');
-      if (savedSub) try { setSimulatedSubProjects(JSON.parse(savedSub)); } catch {}
-
-      const savedPct = localStorage.getItem('project_percentages');
-      if (savedPct) try { setProjectPercentages(JSON.parse(savedPct)); } catch {}
+      if (savedSub) try { setSimulatedSubProjects(JSON.parse(savedSub)); } catch { /* Ignore corrupted localStorage */ }
 
       const savedCustom = localStorage.getItem('custom_projects');
-      if (savedCustom) try { setCustomProjects(JSON.parse(savedCustom)); } catch {}
+      let parsedCustomProjects: SimulatorProject[] = [];
+      if (savedCustom) {
+        try {
+          parsedCustomProjects = JSON.parse(savedCustom);
+          setCustomProjects(parsedCustomProjects);
+        } catch {
+          /* Ignore corrupted localStorage */
+        }
+      }
+
+      const savedPct = localStorage.getItem('project_percentages');
+      if (savedPct) {
+        try {
+          setProjectPercentages(sanitizeProjectPercentages(JSON.parse(savedPct), parsedCustomProjects));
+        } catch {
+          /* Ignore corrupted localStorage */
+        }
+      }
 
       const savedNotes = localStorage.getItem('project_notes');
-      if (savedNotes) try { setProjectNotes(JSON.parse(savedNotes)); } catch {}
+      if (savedNotes) try { setProjectNotes(JSON.parse(savedNotes)); } catch { /* Ignore corrupted localStorage */ }
 
       const savedBoosts = localStorage.getItem('coalition_boosts');
-      if (savedBoosts) try { setCoalitionBoosts(JSON.parse(savedBoosts)); } catch {}
+      if (savedBoosts) try { setCoalitionBoosts(JSON.parse(savedBoosts)); } catch { /* Ignore corrupted localStorage */ }
     };
 
     loadSimulation();
@@ -627,8 +676,11 @@ const Dashboard: React.FC = () => {
   };
 
   const handlePercentageChange = (projectId: string, percentage: number) => {
+    const project = findConfiguredProjectById(projectId, customProjects);
+    const clampedPercentage = clampPercentage(percentage, getProjectMaxPercentage(project));
+
     setProjectPercentages(prev => {
-      if (percentage === 100) {
+      if (clampedPercentage === 100) {
         // Si le pourcentage est 100%, le retirer du state
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { [projectId]: _removed, ...rest } = prev;
@@ -636,7 +688,7 @@ const Dashboard: React.FC = () => {
       }
       return {
         ...prev,
-        [projectId]: percentage,
+        [projectId]: clampedPercentage,
       };
     });
   };

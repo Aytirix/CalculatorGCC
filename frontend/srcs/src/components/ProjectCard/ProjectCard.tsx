@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SimulatorProject } from '@/types/rncp.types';
+import { clampProjectPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import ProjectContextMenu from '@/components/ProjectContextMenu/ProjectContextMenu';
 import ProjectPercentageModal from '@/components/ProjectPercentageModal/ProjectPercentageModal';
 import ProjectNoteModal from '@/components/ProjectNoteModal/ProjectNoteModal';
@@ -43,6 +44,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
 	const hasSubProjects = project.subProjects && project.subProjects.length > 0;
+	const maxPercentage = getProjectMaxPercentage(project);
+	const canUseMaxShortcut = maxPercentage > 100;
+	const isMaxPercentageApplied = projectPercentage === maxPercentage;
 
 	const handleContextMenu = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -74,7 +78,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 	const handleSavePercentage = (percentage: number) => {
 		if (onPercentageChange) {
-			onPercentageChange(project.id, percentage);
+			onPercentageChange(project.id, clampProjectPercentage(percentage, project));
 		}
 	};
 
@@ -126,18 +130,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 	const handleStarClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
-		if (isCompleted) return;
-		if (projectPercentage === 125) {
+		if (isCompleted || !canUseMaxShortcut) return;
+		if (isMaxPercentageApplied) {
 			onPercentageChange?.(project.id, 100);
 		} else {
 			if (!isSimulated) onToggleSimulation(project.id);
-			onPercentageChange?.(project.id, 125);
+			onPercentageChange?.(project.id, maxPercentage);
 		}
 	};
 
 	const handlePctInput = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const v = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-		onPercentageChange?.(project.id, Math.min(125, v));
+		onPercentageChange?.(project.id, clampProjectPercentage(v, project));
 	};
 
 	const allSubProjectsSimulated = hasSubProjects
@@ -182,14 +186,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					<div className="project-header">
 						{isCompleted ? (
 							<div className="project-status-icon">✅</div>
-						) : !hasSubProjects ? (
+						) : !hasSubProjects && canUseMaxShortcut ? (
 							<button
-								className={`project-star ${projectPercentage === 125 ? 'active' : ''}`}
+								className={`project-star ${isMaxPercentageApplied ? 'active' : ''}`}
 								data-tour="project-star"
 								onClick={handleStarClick}
-								title="Simuler à 125%"
+								title={`Simuler à ${maxPercentage}%`}
 							>
-								{projectPercentage === 125 ? '★' : '☆'}
+								{isMaxPercentageApplied ? '★' : '☆'}
 							</button>
 						) : null}
 						{hasSubProjects && !isCompleted && (
@@ -300,6 +304,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 				onSave={handleSavePercentage}
 				projectName={project.name}
 				currentPercentage={projectPercentage}
+				maxPercentage={maxPercentage}
 			/>
 
 			{onSaveNote && (

@@ -145,8 +145,8 @@ export const TOUR_STEPS: TourStepDef[] = [
 	{
 		id: 'step-star',
 		target: 'project-star',
-		title: '☆ Simuler à 125 %',
-		text: 'L\'<strong>étoile</strong> permet de simuler un projet avec un score de <strong>125 %</strong> (note maximale à 42).<br><br>Cliquer à nouveau dessus repasse à 100 %. Vous pouvez aussi saisir manuellement n\'importe quel pourcentage dans le champ.',
+		title: '☆ Simuler au maximum',
+		text: 'L\'<strong>étoile</strong> applique le <strong>pourcentage maximum du projet</strong>.<br><br>Par défaut, la plupart des projets montent à <strong>125 %</strong>, mais certains peuvent avoir un plafond différent. Cliquer à nouveau dessus repasse à 100 %. Vous pouvez aussi saisir manuellement n\'importe quel pourcentage dans le champ.',
 		position: 'right',
 		validation: 'button',
 	},
