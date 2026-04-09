@@ -166,7 +166,7 @@ Dans ce mode:
 - la préprod restaure d'abord une copie de la DB prod dans **sa propre** DB locale
 - le backend démarre ensuite et applique ses migrations Prisma sur la DB préprod
 - la prod n'est jamais modifiée par la préprod
-- si la DB n'est pas configurée apres le clone, le backend refuse de demarrer quand `REQUIRE_CONFIGURED_DB=true`
+- si la DB n'est pas configuree apres le clone, `db-clone` puis le backend refusent de demarrer quand `REQUIRE_CONFIGURED_DB=true`
 
 ### Note stockage MariaDB
 

@@ -231,15 +231,16 @@ En mode préprod avec clonage activé :
 3. le service `db-clone` se connecte à la DB prod via `PROD_DB_HOST`
 4. il vide et recrée la base locale préprod
 5. il importe un dump de la base prod dans la DB préprod
-6. ensuite seulement le backend démarre
-7. le backend applique `prisma migrate deploy` sur la **DB préprod**
+6. `db-clone` vérifie que la table `configuration` est bien marquée comme configurée si `REQUIRE_CONFIGURED_DB=true`
+7. ensuite seulement le backend démarre
+8. le backend applique `prisma migrate deploy` sur la **DB préprod**
 
 Résultat :
 
 - la préprod teste sur des données proches de la prod
 - les migrations et écritures applicatives restent cantonnées à la préprod
 - la prod n'est jamais modifiée par la préprod
-- si la DB clonée n'est pas réellement configurée, le backend de préprod refuse de démarrer au lieu d'afficher le wizard de setup
+- si la DB clonée n'est pas réellement configurée, `db-clone` puis le backend refusent de démarrer au lieu d'afficher le wizard de setup
 
 ### Important : `PROD_DB_HOST` sur Coolify
 

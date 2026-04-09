@@ -63,6 +63,7 @@ services:
         condition: service_healthy
     environment:
       CLONE_FROM_PROD_ENABLED: ${CLONE_FROM_PROD_ENABLED:-false}
+      REQUIRE_CONFIGURED_DB: ${REQUIRE_CONFIGURED_DB:-false}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       DB_NAME: ${DB_NAME:-calculatorgcc}
       TARGET_DB_HOST: mariadb
