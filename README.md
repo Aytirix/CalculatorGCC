@@ -180,6 +180,7 @@ Les variables suivantes sont prévues dans [.env.example](.env.example) :
 - `MARIADB_DATA_PATH` : chemin persistant MariaDB sur l'hôte
 - `DB_SHARED_ALIAS` : alias réseau de cette DB sur le réseau externe `coolify`
 - `CLONE_FROM_PROD_ENABLED` : active le clonage prod -> préprod
+- `REQUIRE_CONFIGURED_DB` : empêche le backend de démarrer si la DB n'est pas déjà configurée
 - `PROD_DB_HOST` : alias réseau de la DB prod, joignable depuis la préprod
 - `PROD_DB_PORT` : port de la DB prod, généralement `3306`
 - `PROD_DB_NAME` : nom de la base prod à cloner
@@ -199,6 +200,7 @@ MARIADB_DATA_PATH=/data/calculatorgcc-prod/mariadb
 DB_SHARED_ALIAS=calculatorgcc-prod-db
 
 CLONE_FROM_PROD_ENABLED=false
+REQUIRE_CONFIGURED_DB=false
 ```
 
 #### Variables pour la préprod
@@ -212,6 +214,7 @@ MARIADB_DATA_PATH=/data/calculatorgcc-preprod/mariadb
 DB_SHARED_ALIAS=calculatorgcc-preprod-db
 
 CLONE_FROM_PROD_ENABLED=true
+REQUIRE_CONFIGURED_DB=true
 PROD_DB_HOST=calculatorgcc-prod-db
 PROD_DB_PORT=3306
 PROD_DB_NAME=calculatorgcc
@@ -236,6 +239,7 @@ Résultat :
 - la préprod teste sur des données proches de la prod
 - les migrations et écritures applicatives restent cantonnées à la préprod
 - la prod n'est jamais modifiée par la préprod
+- si la DB clonée n'est pas réellement configurée, le backend de préprod refuse de démarrer au lieu d'afficher le wizard de setup
 
 ### Important : `PROD_DB_HOST` sur Coolify
 

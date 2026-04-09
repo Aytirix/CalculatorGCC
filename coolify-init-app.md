@@ -139,6 +139,7 @@ TRAEFIK_ROUTER_NAME=calculatorgcc-prod
 TRAEFIK_SERVICE_NAME=calculatorgcc-prod
 MARIADB_DATA_PATH=/data/calculatorgcc-prod/mariadb
 DB_SHARED_ALIAS=calculatorgcc-prod-db
+REQUIRE_CONFIGURED_DB=false
 
 # preprod
 APP_DOMAIN=preprod-rncp.theomouty.fr
@@ -146,6 +147,7 @@ TRAEFIK_ROUTER_NAME=calculatorgcc-preprod
 TRAEFIK_SERVICE_NAME=calculatorgcc-preprod
 MARIADB_DATA_PATH=/data/calculatorgcc-preprod/mariadb
 DB_SHARED_ALIAS=calculatorgcc-preprod-db
+REQUIRE_CONFIGURED_DB=true
 ```
 
 Si la **préprod** doit tester sur une copie recente de la prod sans jamais ecrire dans la DB prod, ajouter aussi:
@@ -164,6 +166,7 @@ Dans ce mode:
 - la préprod restaure d'abord une copie de la DB prod dans **sa propre** DB locale
 - le backend démarre ensuite et applique ses migrations Prisma sur la DB préprod
 - la prod n'est jamais modifiée par la préprod
+- si la DB n'est pas configurée apres le clone, le backend refuse de demarrer quand `REQUIRE_CONFIGURED_DB=true`
 
 ### Note stockage MariaDB
 

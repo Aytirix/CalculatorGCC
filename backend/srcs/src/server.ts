@@ -134,6 +134,12 @@ async function start() {
 		await loadConfigIntoEnv();
 
 		const configured = await isConfigured();
+		const requireConfiguredDb = process.env.REQUIRE_CONFIGURED_DB === 'true';
+
+		if (!configured && requireConfiguredDb) {
+			throw new Error('Database is not configured. Refusing to start because REQUIRE_CONFIGURED_DB=true.');
+		}
+
 		if (!configured) {
 			const setupToken = await ensureSetupToken();
 			console.log('⚠️  APPLICATION NOT CONFIGURED');
