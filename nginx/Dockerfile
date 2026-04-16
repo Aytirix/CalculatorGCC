@@ -8,7 +8,7 @@ WORKDIR /app
 COPY frontend/srcs/package*.json ./
 RUN npm ci
 COPY frontend/srcs/. ./
-RUN npm run build
+RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build
 
 # -----------------------------
 # Stage Nginx prod

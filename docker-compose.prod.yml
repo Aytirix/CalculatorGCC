@@ -60,7 +60,8 @@ services:
       TARGET_DB_WAIT_TIMEOUT: ${TARGET_DB_WAIT_TIMEOUT:-120}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
     env_file:
-      - ./backend/srcs/.env
+      - path: ./backend/srcs/.env
+        required: false
     restart: unless-stopped
     networks:
       - calculatorGCC_network
