@@ -51,6 +51,7 @@ services:
     environment:
       NODE_ENV: development
       VITE_APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
+      VITE_LOCAL_SETUP_PORT: ${LOCAL_SETUP_PORT:-3000}
       VITE_ENABLE_SSL: ${ENABLE_SSL:-false}
     volumes:
       - ./frontend/srcs:/app:delegated

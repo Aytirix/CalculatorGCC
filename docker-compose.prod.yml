@@ -5,6 +5,7 @@ services:
       dockerfile: nginx/Dockerfile
       args:
         APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
+        LOCAL_SETUP_PORT: ${LOCAL_SETUP_PORT:-3000}
     container_name: calculatorGCC_nginx_prod
     depends_on:
       - backend
@@ -20,10 +21,12 @@ services:
     environment:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
+    ports:
+      - "127.0.0.1:${LOCAL_SETUP_PORT:-3000}:3000"
     volumes:
       - ssl_certs:/etc/nginx/ssl
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -5,7 +5,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 ARG APP_DOMAIN=http://localhost:3000
+ARG LOCAL_SETUP_PORT=3000
 ENV VITE_APP_DOMAIN=$APP_DOMAIN
+ENV VITE_LOCAL_SETUP_PORT=$LOCAL_SETUP_PORT
 
 # Installer les dépendances
 COPY frontend/srcs/package*.json ./
