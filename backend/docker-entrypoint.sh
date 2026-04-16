@@ -82,8 +82,14 @@ TARGET_DB_WAIT_TIMEOUT="${TARGET_DB_WAIT_TIMEOUT:-120}"
 
 require_var "DB_ROOT_PASSWORD" "$TARGET_DB_ROOT_PASSWORD"
 
-log "Attente de la base cible $TARGET_DB_HOST:$TARGET_DB_PORT..."
+TARGET_DB_USER="${DB_USER:-calculatorgcc_user}"
+TARGET_DB_PASSWORD="${DB_PASSWORD:-}"
+
+log "Attente de la base cible $TARGET_DB_HOST:$TARGET_DB_PORT (root)..."
 wait_for_db "$TARGET_DB_HOST" "$TARGET_DB_PORT" "root" "$TARGET_DB_ROOT_PASSWORD" "$TARGET_DB_WAIT_TIMEOUT"
+
+log "Attente que l'utilisateur $TARGET_DB_USER soit pret..."
+wait_for_db "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_WAIT_TIMEOUT"
 
 if is_true "${CLONE_FROM_PROD_ENABLED:-false}"; then
 	PROD_DB_HOST="${PROD_DB_HOST:-}"
