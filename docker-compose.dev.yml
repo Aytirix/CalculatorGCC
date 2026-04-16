@@ -33,7 +33,7 @@ services:
       ENABLE_SSL: ${ENABLE_SSL:-false}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
     ports:
-      - "9229:9229"  # Port pour le débogage
+      - "9229:9229" # Port pour le débogage
     volumes:
       - ./backend/srcs:/app:delegated
       - /app/node_modules
