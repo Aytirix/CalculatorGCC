@@ -102,17 +102,9 @@ mkdir -p /data/calculatorgcc
 cp "$ENV_FILE" "$PERSISTENT_ENV"
 echo "✓ Configuration sauvegardée dans $PERSISTENT_ENV"
 
-# Déterminer le protocole et hostname
-HOSTNAME=$(grep "^HOSTNAME=" "$ENV_FILE" | cut -d '=' -f2)
-ENABLE_SSL=$(grep "^ENABLE_SSL=" "$ENV_FILE" | cut -d '=' -f2)
-HOSTNAME=${HOSTNAME:-localhost}
-
-if [ "$ENABLE_SSL" = "true" ]; then
-	PROTOCOL="https"
-else
-	PROTOCOL="http"
-fi
+APP_DOMAIN=$(grep "^APP_DOMAIN=" "$ENV_FILE" | cut -d '=' -f2)
+APP_DOMAIN=${APP_DOMAIN:-http://localhost:3000}
 
 echo ""
 echo "Configuration de la base de données terminée!"
-echo "Pour accéder à phpMyAdmin: $PROTOCOL://$HOSTNAME:3000/phpmyadmin"
+echo "Pour accéder à phpMyAdmin: $APP_DOMAIN/phpmyadmin"

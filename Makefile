@@ -222,19 +222,14 @@ db-show-password: ## Afficher les informations de connexion à la base de donné
 	@echo "$(BLUE)🔑 Informations de connexion à la base de données:$(RESET)"
 	@echo ""
 	@if [ -f .env ]; then \
-		ENABLE_SSL=$$(grep ENABLE_SSL .env | cut -d '=' -f2); \
-		HOSTNAME=$$(grep HOSTNAME .env | cut -d '=' -f2); \
-		if [ "$$ENABLE_SSL" = "true" ]; then \
-			PROTOCOL="https"; \
-		else \
-			PROTOCOL="http"; \
-		fi; \
+		APP_DOMAIN=$$(grep "^APP_DOMAIN=" .env | cut -d '=' -f2); \
+		APP_DOMAIN=$${APP_DOMAIN:-http://localhost:3000}; \
 		echo "$(YELLOW)Root Password:$(RESET) $$(grep DB_ROOT_PASSWORD .env | cut -d '=' -f2)"; \
 		echo "$(YELLOW)Database:$(RESET) $$(grep DB_NAME .env | cut -d '=' -f2)"; \
 		echo "$(YELLOW)User:$(RESET) $$(grep DB_USER .env | cut -d '=' -f2)"; \
 		echo "$(YELLOW)User Password:$(RESET) $$(grep DB_PASSWORD .env | cut -d '=' -f2)"; \
 		echo ""; \
-		echo "$(GREEN)phpMyAdmin:$(RESET) $$PROTOCOL://$$HOSTNAME:3000/phpmyadmin"; \
+		echo "$(GREEN)phpMyAdmin:$(RESET) $$APP_DOMAIN/phpmyadmin"; \
 		echo "$(GREEN)MariaDB Host:$(RESET) mariadb (accessible uniquement depuis le réseau Docker)"; \
 		echo "$(GREEN)MariaDB Port:$(RESET) 3306"; \
 	else \

@@ -4,6 +4,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+ARG APP_DOMAIN=http://localhost:3000
+ENV VITE_APP_DOMAIN=$APP_DOMAIN
+
 # Installer les dépendances
 COPY frontend/srcs/package*.json ./
 RUN npm ci

@@ -29,7 +29,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 7000
-      HOSTNAME: ${HOSTNAME:-localhost}
+      APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
       ENABLE_SSL: ${ENABLE_SSL:-false}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
     ports:
@@ -50,7 +50,7 @@ services:
     container_name: calculatorGCC_frontend_dev
     environment:
       NODE_ENV: development
-      VITE_HOSTNAME: ${HOSTNAME:-localhost}
+      VITE_APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
       VITE_ENABLE_SSL: ${ENABLE_SSL:-false}
     volumes:
       - ./frontend/srcs:/app:delegated
@@ -83,7 +83,7 @@ services:
       PMA_HOST: mariadb
       PMA_PORT: 3306
       UPLOAD_LIMIT: 50M
-      PMA_ABSOLUTE_URI: ${HOSTNAME:-localhost}:3000/phpmyadmin/
+      PMA_ABSOLUTE_URI: ${APP_DOMAIN:-http://localhost:3000}/phpmyadmin/
     restart: unless-stopped
     networks:
       - calculatorGCC_network

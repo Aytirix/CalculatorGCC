@@ -13,7 +13,7 @@ if (fs.existsSync(envPath)) {
 	dotenv.config({ path: envPath });
 }
 
-// Helper pour construire les URLs avec le bon protocole
+// Helper pour construire les URLs en dev (sans APP_DOMAIN)
 const buildUrl = (hostname: string, port: number, useSSL: boolean): string => {
 	const protocol = useSSL ? 'https' : 'http';
 	const hasPort = hostname.includes(':');
@@ -29,14 +29,11 @@ export const config = {
 	get nodeEnv() {
 		return process.env.NODE_ENV || 'development';
 	},
-	get hostname() {
-		return process.env.HOSTNAME || 'localhost';
-	},
 	get enableSSL() {
 		return process.env.ENABLE_SSL === 'true';
 	},
 	get frontendUrl() {
-		return buildUrl(this.hostname, 3000, this.enableSSL);
+		return process.env.APP_DOMAIN || buildUrl(process.env.HOSTNAME || 'localhost', 3000, this.enableSSL);
 	},
 
 	oauth42: {
@@ -47,9 +44,12 @@ export const config = {
 			return process.env.CLIENT_SECRET_42 || '';
 		},
 		get redirectUri() {
-			const hostname = process.env.HOSTNAME || 'localhost';
-			const enableSSL = process.env.ENABLE_SSL === 'true';
-			return `${buildUrl(hostname, 3000, enableSSL)}/api/auth/callback`;
+			const base = process.env.APP_DOMAIN || buildUrl(
+				process.env.HOSTNAME || 'localhost',
+				3000,
+				process.env.ENABLE_SSL === 'true'
+			);
+			return `${base}/api/auth/callback`;
 		},
 		authUrl: 'https://api.intra.42.fr/oauth/authorize',
 		tokenUrl: 'https://api.intra.42.fr/oauth/token',

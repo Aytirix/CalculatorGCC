@@ -8,30 +8,21 @@ if [ -f .env ]; then
 fi
 
 # Valeurs par défaut
-HOSTNAME=${HOSTNAME:-localhost}
-ENABLE_SSL=${ENABLE_SSL:-true}
-
-# Déterminer le protocole
-if [ "$ENABLE_SSL" = "true" ]; then
-    PROTOCOL="https"
-else
-    PROTOCOL="http"
-fi
+APP_DOMAIN=${APP_DOMAIN:-http://localhost:3000}
 
 echo ""
 echo "🌐 Configuration actuelle"
 echo "════════════════════════════════════════"
-echo "Hostname     : $HOSTNAME"
-echo "SSL          : $ENABLE_SSL"
-echo "Protocole    : $PROTOCOL"
+echo "App Domain   : $APP_DOMAIN"
+echo "SSL          : ${ENABLE_SSL:-false}"
 echo ""
 echo "📍 URLs d'accès"
 echo "════════════════════════════════════════"
-echo "Application  : $PROTOCOL://$HOSTNAME:3000"
-echo "phpMyAdmin   : $PROTOCOL://$HOSTNAME:3000/phpmyadmin"
-echo "API          : $PROTOCOL://$HOSTNAME:3000/api"
+echo "Application  : $APP_DOMAIN"
+echo "phpMyAdmin   : $APP_DOMAIN/phpmyadmin"
+echo "API          : $APP_DOMAIN/api"
 echo ""
 echo "🔧 Configuration OAuth 42"
 echo "════════════════════════════════════════"
-echo "Redirect URI : $PROTOCOL://$HOSTNAME:3000/api/auth/callback"
+echo "Redirect URI : $APP_DOMAIN/api/auth/callback"
 echo ""

@@ -62,16 +62,10 @@ fi
 
 echo ""
 echo "🌐 URLs d'accès:"
-HOSTNAME=$(grep HOSTNAME .env | cut -d '=' -f2)
-ENABLE_SSL=$(grep ENABLE_SSL .env | cut -d '=' -f2)
+APP_DOMAIN=$(grep "^APP_DOMAIN=" .env | cut -d '=' -f2)
+APP_DOMAIN=${APP_DOMAIN:-http://localhost:3000}
 
-if [ "$ENABLE_SSL" = "true" ]; then
-    PROTOCOL="https"
-else
-    PROTOCOL="http"
-fi
-
-echo "  phpMyAdmin: $PROTOCOL://${HOSTNAME:-localhost}:3000/phpmyadmin"
+echo "  phpMyAdmin: $APP_DOMAIN/phpmyadmin"
 
 echo ""
 echo "✅ Test terminé"

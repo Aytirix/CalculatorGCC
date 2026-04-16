@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
+      args:
+        APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
     container_name: calculatorGCC_nginx_prod
     depends_on:
       - backend
@@ -43,7 +45,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 7000
-      HOSTNAME: ${HOSTNAME:-localhost}
+      APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
       ENABLE_SSL: ${ENABLE_SSL:-false}
       REQUIRE_CONFIGURED_DB: ${REQUIRE_CONFIGURED_DB:-false}
       CLONE_FROM_PROD_ENABLED: ${CLONE_FROM_PROD_ENABLED:-false}
@@ -99,7 +101,7 @@ services:
       PMA_HOST: mariadb
       PMA_PORT: 3306
       UPLOAD_LIMIT: 50M
-      PMA_ABSOLUTE_URI: https://${HOSTNAME:-localhost}/phpmyadmin/
+      PMA_ABSOLUTE_URI: ${APP_DOMAIN:-http://localhost:3000}/phpmyadmin/
     restart: unless-stopped
     networks:
       - calculatorGCC_network
