@@ -38,7 +38,7 @@ wait_for_db() {
 	timeout="$5"
 	start_time=$(date +%s)
 
-	while ! mariadb-admin ping -h "$host" -P "$port" -u "$user" "-p$password" --silent >/dev/null 2>&1; do
+	while ! mariadb -h "$host" -P "$port" -u "$user" "-p$password" -e "SELECT 1;" >/dev/null 2>&1; do
 		now=$(date +%s)
 		elapsed=$((now - start_time))
 		if [ "$elapsed" -ge "$timeout" ]; then
