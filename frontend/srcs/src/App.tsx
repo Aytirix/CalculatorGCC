@@ -4,6 +4,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/useAuth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { TourProvider } from '@/contexts/TourContext';
+import { ViewingUserProvider } from '@/contexts/ViewingUserContext';
 import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
@@ -11,11 +12,15 @@ import Dashboard from '@/pages/Dashboard/Dashboard';
 import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import Calendar from '@/pages/Calendar/Calendar';
 import Setup from '@/pages/Setup/Setup';
+import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import { useSetupCheck } from '@/hooks/useSetupCheck';
+import { useViewingUser } from '@/contexts/useViewingUser';
 
 const AppRoutes: React.FC = () => {
 	const { isAuthenticated } = useAuth();
 	const { isConfigured, isChecking } = useSetupCheck();
+	const { viewingUser } = useViewingUser();
+	const viewKey = viewingUser?.userId42 ?? 'self';
 
 	// Affiche un écran de chargement pendant la vérification de la configuration
 	if (isChecking) {
@@ -50,7 +55,7 @@ const AppRoutes: React.FC = () => {
 				path="/dashboard"
 				element={
 					<ProtectedRoute>
-						<Dashboard />
+						<Dashboard key={viewKey} />
 					</ProtectedRoute>
 				}
 			/>
@@ -58,7 +63,7 @@ const AppRoutes: React.FC = () => {
 				path="/professional-experience"
 				element={
 					<ProtectedRoute>
-						<ProfessionalExperience />
+						<ProfessionalExperience key={viewKey} />
 					</ProtectedRoute>
 				}
 			/>
@@ -66,7 +71,15 @@ const AppRoutes: React.FC = () => {
 				path="/calendar"
 				element={
 					<ProtectedRoute>
-						<Calendar />
+						<Calendar key={viewKey} />
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/settings"
+				element={
+					<ProtectedRoute>
+						<AccountSettings />
 					</ProtectedRoute>
 				}
 			/>
@@ -80,9 +93,11 @@ function App() {
 		<ThemeProvider>
 			<AuthProvider>
 				<TourProvider>
-					<Router>
-						<AppRoutes />
-					</Router>
+					<ViewingUserProvider>
+						<Router>
+							<AppRoutes />
+						</Router>
+					</ViewingUserProvider>
 				</TourProvider>
 			</AuthProvider>
 		</ThemeProvider>

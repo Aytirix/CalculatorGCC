@@ -39,3 +39,10 @@ nginx/ssl/
 *.seed
 *.pid.lock
 .docker
+graphify-out/
+.claude/settings.json
+.codex/hooks.json
+.graphifyignore
+.gitignore
+AGENTS.md
+CLAUDE.md

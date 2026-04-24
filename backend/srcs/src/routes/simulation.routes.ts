@@ -10,6 +10,20 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.get(request, reply);
 	});
 
+	// Rechercher des utilisateurs (par login/prénom/nom)
+	fastify.get('/simulation/search', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.searchUsers(request, reply);
+	});
+
+	// Simulation d'un autre utilisateur (public seulement)
+	fastify.get('/simulation/user/:userId42', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.getUserPublic(request, reply);
+	});
+
 	// Utilisateurs qui ont simulé un projet spécifique (pour team matching)
 	fastify.get('/simulation/project-users/:projectId', {
 		preHandler: authenticate,
@@ -29,5 +43,12 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		preHandler: authenticate,
 	}, async (request: FastifyRequest, reply: FastifyReply) => {
 		return SimulationController.saveTourSeen(request, reply);
+	});
+
+	// Mettre à jour le statut public/privé
+	fastify.put('/simulation/privacy', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.updatePrivacy(request, reply);
 	});
 }

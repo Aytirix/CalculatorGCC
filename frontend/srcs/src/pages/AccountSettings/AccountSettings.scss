@@ -1,0 +1,187 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.account-settings-page {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.account-settings-main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: $spacing-xl $spacing-lg;
+}
+
+.settings-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-xl;
+  padding: $spacing-xl;
+  box-shadow: 0 4px 20px var(--shadow-color);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  margin-bottom: $spacing-xl;
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  border-radius: $radius-md;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+}
+
+.settings-user-info {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  padding: $spacing-md;
+  background-color: var(--bg-accent);
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-xl;
+
+  .settings-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 2px solid var(--color-primary);
+    object-fit: cover;
+  }
+
+  .settings-login {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    margin: 0 0 2px;
+  }
+
+  .settings-email {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
+}
+
+.settings-section {
+  h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: $spacing-md;
+  }
+}
+
+.privacy-cards {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+  margin-bottom: $spacing-md;
+}
+
+.privacy-option {
+  padding: $spacing-md;
+  background-color: var(--bg-accent);
+  border-radius: $radius-lg;
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  transition: all $transition-fast;
+  outline: none;
+
+  &:hover:not(.privacy-option--disabled):not(.privacy-option--active) {
+    border-color: var(--color-primary);
+    background-color: var(--bg-hover);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.25);
+  }
+
+  &--active {
+    border-color: var(--color-primary);
+    background-color: rgba(74, 158, 255, 0.06);
+    cursor: default;
+  }
+
+  &--disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .privacy-option-header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-sm;
+
+    .privacy-icon {
+      font-size: 1.1rem;
+    }
+
+    strong {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+
+  p {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.privacy-badge {
+  margin-left: auto;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.settings-loading {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: $spacing-md 0;
+}
+
+.settings-feedback {
+  font-size: 0.88rem;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $radius-md;
+  margin-top: $spacing-sm;
+
+  &--success {
+    background-color: rgba(34, 197, 94, 0.12);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  &--error {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+}

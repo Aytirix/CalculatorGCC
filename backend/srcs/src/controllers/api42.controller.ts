@@ -1,22 +1,37 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { API42Service } from '../services/api42.service.js';
+import { simulationRepository } from '../db/simulationRepository.js';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
 /**
- * En mode dev, permet d'override le user_id_42 via ?target_user_id=XXX
+ * Résout le user_id_42 effectif pour la requête.
+ * - En dev : ?target_user_id=XXX override (impersonation sans vérif privacy)
+ * - Partout : ?view_user_id=XXX si l'utilisateur cible est public
  */
-function getEffectiveUserId(request: FastifyRequest): number {
-  if (IS_DEV) {
-    const { target_user_id } = request.query as { target_user_id?: string };
-    if (target_user_id) {
-      const id = parseInt(target_user_id, 10);
-      if (!isNaN(id) && id > 0) {
-        console.log(`[DEV] Impersonating user ID: ${id} (real: ${request.user.user_id_42})`);
-        return id;
-      }
+async function getEffectiveUserId(request: FastifyRequest, reply: FastifyReply): Promise<number | null> {
+  const query = request.query as { target_user_id?: string; view_user_id?: string };
+
+  if (IS_DEV && query.target_user_id) {
+    const id = parseInt(query.target_user_id, 10);
+    if (!isNaN(id) && id > 0) {
+      console.log(`[DEV] Impersonating user ID: ${id} (real: ${request.user.user_id_42})`);
+      return id;
     }
   }
+
+  if (query.view_user_id) {
+    const id = parseInt(query.view_user_id, 10);
+    if (!isNaN(id) && id > 0) {
+      const pub = await simulationRepository.isPublic(id);
+      if (!pub) {
+        reply.code(403).send({ error: 'This profile is private' });
+        return null;
+      }
+      return id;
+    }
+  }
+
   return request.user.user_id_42;
 }
 
@@ -69,7 +84,8 @@ export class API42Controller {
   static async getAllProjects(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
       const { api_token } = request.user;
-      const userId = getEffectiveUserId(request);
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
 
       const projects = await API42Service.getUserProjects(userId, api_token);
 
@@ -88,7 +104,8 @@ export class API42Controller {
   static async getCursus(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
       const { api_token } = request.user;
-      const userId = getEffectiveUserId(request);
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
 
       const cursus = await API42Service.getUserCursus(userId, api_token);
 
@@ -107,7 +124,8 @@ export class API42Controller {
   static async getEvents(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
       const { api_token } = request.user;
-      const userId = getEffectiveUserId(request);
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
 
       const events = await API42Service.getUserEvents(userId, api_token);
 
@@ -126,7 +144,8 @@ export class API42Controller {
   static async getUserData(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
       const { api_token } = request.user;
-      const userId = getEffectiveUserId(request);
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
       const { refresh } = request.query as { refresh?: string };
 
       fastify.log.info(`[API42 Controller] Fetching user data for user ${userId}`);

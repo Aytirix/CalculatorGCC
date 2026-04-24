@@ -65,6 +65,8 @@ export class AuthController {
         login: userData.login,
         email: userData.email,
         image_url: userData.image?.link || userData.image?.versions?.medium,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
       };
       
       console.log('[Auth Controller] Generating JWT with payload:', {

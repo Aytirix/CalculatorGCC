@@ -68,7 +68,56 @@ function validateSimulationData(data: SimulationData): string[] {
 	return errors;
 }
 
+export interface UserSearchResult {
+	userId42: number;
+	login: string;
+	firstName: string | null;
+	lastName: string | null;
+	imageUrl: string | null;
+	isPublic: boolean;
+}
+
 export const simulationRepository = {
+	/**
+	 * Recherche des utilisateurs par login, prénom ou nom
+	 */
+	async searchUsers(query: string): Promise<UserSearchResult[]> {
+		const q = `%${query}%`;
+		const rows = await prisma.$queryRaw<UserSearchResult[]>`
+			SELECT userId42, login, firstName, lastName, imageUrl, isPublic
+			FROM user_simulation
+			WHERE login LIKE ${q}
+			   OR firstName LIKE ${q}
+			   OR lastName LIKE ${q}
+			ORDER BY login ASC
+			LIMIT 20
+		`;
+		return rows.map((r) => ({ ...r, isPublic: Boolean(r.isPublic) }));
+	},
+
+	/**
+	 * Met à jour le statut public/privé d'un utilisateur
+	 */
+	async updatePrivacy(userId42: number, isPublic: boolean): Promise<boolean> {
+		await prisma.$executeRaw`
+			UPDATE user_simulation
+			SET isPublic = ${isPublic ? 1 : 0}
+			WHERE userId42 = ${userId42}
+		`;
+		return isPublic;
+	},
+
+	/**
+	 * Vérifie si un utilisateur est public
+	 */
+	async isPublic(userId42: number): Promise<boolean> {
+		const rows = await prisma.$queryRaw<Array<{ isPublic: unknown }>>`
+			SELECT isPublic FROM user_simulation WHERE userId42 = ${userId42} LIMIT 1
+		`;
+		if (!rows[0]) return false;
+		return coerceBooleanFlag(rows[0].isPublic);
+	},
+
 	/**
 	 * Retourne les utilisateurs qui ont simulé un projet donné
 	 */
@@ -109,7 +158,7 @@ export const simulationRepository = {
 	/**
 	 * Sauvegarde la simulation d'un utilisateur (upsert)
 	 */
-	async save(userId42: number, login: string, imageUrl: string | null, data: SimulationData): Promise<SimulationData> {
+	async save(userId42: number, login: string, imageUrl: string | null, data: SimulationData, firstName?: string | null, lastName?: string | null): Promise<SimulationData> {
 		const errors = validateSimulationData(data);
 		if (errors.length > 0) {
 			throw new Error(`Validation failed: ${errors.join(', ')}`);
@@ -122,6 +171,8 @@ export const simulationRepository = {
 				userId42,
 				login,
 				imageUrl,
+				firstName: firstName ?? null,
+				lastName: lastName ?? null,
 				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
@@ -130,6 +181,8 @@ export const simulationRepository = {
 			update: {
 				login,
 				imageUrl,
+				...(firstName !== undefined && { firstName }),
+				...(lastName !== undefined && { lastName }),
 				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
@@ -164,17 +217,21 @@ export const simulationRepository = {
 	/**
 	 * Met à jour uniquement l'état "guide vu" de l'utilisateur.
 	 */
-	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean): Promise<boolean> {
+	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean, firstName?: string | null, lastName?: string | null): Promise<boolean> {
 		await prisma.userSimulation.upsert({
 			where: { userId42 },
 			create: {
 				userId42,
 				login,
 				imageUrl,
+				firstName: firstName ?? null,
+				lastName: lastName ?? null,
 			},
 			update: {
 				login,
 				imageUrl,
+				...(firstName !== undefined && { firstName }),
+				...(lastName !== undefined && { lastName }),
 			},
 		});
 

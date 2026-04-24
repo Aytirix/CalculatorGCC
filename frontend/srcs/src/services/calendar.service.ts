@@ -1,4 +1,5 @@
 import { backendAuthService } from './backend-auth.service';
+import { getViewUserId } from './backend-api42.service';
 import { config } from '@/config/config';
 
 const BACKEND_URL = config.backendUrl;
@@ -44,10 +45,14 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
 export const calendarService = {
 	async load(): Promise<CalendarData | null> {
-		return request<CalendarData | null>('/calendar');
+		const viewId = getViewUserId();
+		const endpoint = viewId !== null ? `/calendar?view_user_id=${viewId}` : '/calendar';
+		return request<CalendarData | null>(endpoint);
 	},
 
 	async save(data: CalendarData): Promise<void> {
+		// Jamais sauvegarder quand on consulte un autre profil
+		if (getViewUserId() !== null) return;
 		await request<CalendarData>('/calendar', {
 			method: 'PUT',
 			body: JSON.stringify(data),

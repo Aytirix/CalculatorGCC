@@ -81,6 +81,15 @@ export const TOUR_STEPS: TourStepDef[] = [
 		validation: 'button',
 	},
 
+	{
+		id: 'step-user-menu',
+		target: 'user-menu-trigger',
+		title: 'Votre profil',
+		text: 'Cliquez sur votre avatar pour accéder à :<br>• <strong>Mon profil</strong> — retourner au tableau de bord<br>• <strong>Paramètres du compte</strong> — gérer la visibilité de votre profil (public ou privé)<br>• <strong>Se déconnecter</strong>',
+		position: 'bottom-end',
+		validation: 'button',
+	},
+
 	// =========================================================================
 	// SECTION 2 — Niveaux & onglets RNCP
 	// =========================================================================

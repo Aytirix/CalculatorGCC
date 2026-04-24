@@ -10,6 +10,8 @@ declare module '@fastify/jwt' {
       login: string;
       email: string;
       image_url?: string;
+      first_name?: string;
+      last_name?: string;
     };
     user: {
       api_token: string;
@@ -19,6 +21,8 @@ declare module '@fastify/jwt' {
       login: string;
       email: string;
       image_url?: string;
+      first_name?: string;
+      last_name?: string;
     };
   }
 }

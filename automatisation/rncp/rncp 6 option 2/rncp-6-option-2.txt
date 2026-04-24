@@ -1,0 +1,17 @@
+curl 'https://gcc.42.fr/api/v1/student/me/24' \
+  -H 'accept: */*' \
+  -H 'accept-language: fr-FR,fr;q=0.6' \
+  -H 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICItNDhFdTBpMDZYU1BrMHpRMlZaZGFQdE9qS3JWZW5lYzRXeTFNdEplOGlVIn0.eyJleHAiOjE3NzcwMzY5MjcsImlhdCI6MTc3NzAzNjYyNywiYXV0aF90aW1lIjoxNzc3MDM2NjI2LCJqdGkiOiJmNjNkN2ZkNC0yMzc3LTQzNGYtYjRiNi1iZmRmY2JmM2FiMDUiLCJpc3MiOiJodHRwczovL2F1dGguNDIuZnIvYXV0aC9yZWFsbXMvc3R1ZGVudHMtNDIiLCJhdWQiOiJhY2NvdW50Iiwic3ViIjoiYmZlNDI1ZmUtMDAyMC00YzlkLTgyMzYtNjVkNjJjYjkzYTVkIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiZnJvbnRlbmQtcmVhY3QiLCJzZXNzaW9uX3N0YXRlIjoiOTIzNDI0MjQtOTI2NS00MGIzLThlNjQtZDQ5ZjQ4NTQxZjQ2IiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vcHJvZmlsZS12My5pbnRyYS40Mi5mciIsImh0dHBzOi8vd2VsY29tZS5pbnRyYS40Mi5mciIsImh0dHBzOi8vZnJlZXplLjQyLmZyIiwiaHR0cHM6Ly9mb3Jtcy40Mi5mciIsImh0dHBzOi8vcGFjZS1zeXN0ZW0uNDIuZnIiLCJodHRwczovL3Byb2ZpbGUuaW50cmEuNDIuZnIiLCJodHRwczovL2djYy40Mi5mciIsImh0dHBzOi8vY2ZhLjQyLmZyIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsImRlZmF1bHQtcm9sZXMtc3R1ZGVudHMtNDIiLCJ1bWFfYXV0aG9yaXphdGlvbiJdfSwicmVzb3VyY2VfYWNjZXNzIjp7ImFjY291bnQiOnsicm9sZXMiOlsidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsInNpZCI6IjkyMzQyNDI0LTkyNjUtNDBiMy04ZTY0LWQ0OWY0ODU0MWY0NiIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJ1c2VyX2lkIjoxNzg5NzEsIm5hbWUiOiJUaGVvIE1vdXR5IiwicHJlZmVycmVkX3VzZXJuYW1lIjoidGhtb3V0eSIsImdpdmVuX25hbWUiOiJUaGVvIiwiZmFtaWx5X25hbWUiOiJNb3V0eSIsImVtYWlsIjoidGhtb3V0eUBzdHVkZW50LjQybmljZS5mciJ9.b-Ml-3P_AMvixDwo5bCLyRDFxQBiwB2_ZWjIDKkRlv7Wa_ldyccAIGZs9aCpH_G1bNrEe_t16el8h4qjM4V5vaz_PwtYQLQm_1ejwAStum6n4SM_BUAPTyEtBJnxOm_5sxc76zf0w0VGzk_E0KsJ-Az0X6EyzEgyzUmunWslqpdEFq8ZBswnJuUzQp-D-3o1uMYxeKobbSq9Y2Cbz7txAvOrv89f0Ytv-uNMbSCcoj3QJtiEgSJGiZRK484UA0MruwkauqAoMEVWEl0N4q4Te4wpsULq7ROgAAUaU1Uunsz29nflKNtwujpKkCw4Jc8tZG31zBvSxw4rgCoJx5wjLg' \
+  -H 'content-type: application/json' \
+  -b 'cf_clearance=kpHvXtuK_3IvkG8cngJqLK2mCqm2KvDOWoxyL9asSrY-1777036470-1.2.1.1-1YmOLENvz0hM.EYPJh2o4SWsIRLVZy6aHoHrShXDgNIi1QHKhtPOiHboVpFMCGPoG6Y3ric.0tEYAHMu0wUpFTAns0KCqTrfRL3RAQxShXkufe8XS9W1lFrFXfvu_Pu0ZhjHvwUkWSFHRqAn9GIcjrs4IP9ufVWkuTz8HYEycR_raB4WMwCH8Drnzx7AujP6PxT2FS.cdjC4LsqL3lRxn.2faRT_4kDzlKzPwNX3UKFgxA1u_NFYSEw.fc90yoqUq0mjIcfAp4oJV.m9JrbqMe.hdGrwcXvbci8S4vWNcp0pg7CRyDpRB5dXWRztSB4LzoeXFtR4DWpPZ4if2TbcaQ' \
+  -H 'dnt: 1' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://gcc.42.fr/' \
+  -H 'sec-ch-ua: "Brave";v="147", "Not.A/Brand";v="8", "Chromium";v="147"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'sec-gpc: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'

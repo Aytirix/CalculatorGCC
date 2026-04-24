@@ -3,6 +3,17 @@ import { config } from '@/config/config';
 
 const BACKEND_URL = config.backendUrl;
 
+// ID de l'utilisateur consulté (mode lecture seule), null = profil propre
+let _viewSimUserId: number | null = null;
+
+export function setSimulationViewUserId(id: number | null) {
+  _viewSimUserId = id;
+}
+
+export function isReadOnlyMode(): boolean {
+  return _viewSimUserId !== null;
+}
+
 export interface SimulatedProjectData {
 	projectId: string;
 	percentage: number;
@@ -48,18 +59,58 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 	return response.json();
 }
 
+export interface UserSearchResult {
+	userId42: number;
+	login: string;
+	firstName: string | null;
+	lastName: string | null;
+	imageUrl: string | null;
+	isPublic: boolean;
+}
+
 export const simulationService = {
 	/**
-	 * Charge la simulation depuis le backend
+	 * Charge la simulation depuis le backend (redirige vers l'user consulté si en mode lecture)
 	 */
 	async load(): Promise<SimulationData> {
+		if (_viewSimUserId !== null) {
+			return request<SimulationData>(`/simulation/user/${_viewSimUserId}`);
+		}
 		return request<SimulationData>('/simulation');
 	},
 
 	/**
-	 * Sauvegarde la simulation vers le backend
+	 * Charge la simulation d'un autre utilisateur (public seulement)
+	 */
+	async loadUser(userId42: number): Promise<SimulationData> {
+		return request<SimulationData>(`/simulation/user/${userId42}`);
+	},
+
+	/**
+	 * Recherche des utilisateurs par login/prénom/nom
+	 */
+	async searchUsers(query: string): Promise<UserSearchResult[]> {
+		return request<UserSearchResult[]>(`/simulation/search?q=${encodeURIComponent(query)}`);
+	},
+
+	/**
+	 * Met à jour le statut public/privé du profil
+	 */
+	async updatePrivacy(isPublic: boolean): Promise<{ isPublic: boolean }> {
+		return request<{ isPublic: boolean }>('/simulation/privacy', {
+			method: 'PUT',
+			body: JSON.stringify({ isPublic }),
+		});
+	},
+
+	/**
+	 * Sauvegarde la simulation vers le backend (bloqué en mode lecture seule)
 	 */
 	async save(data: SimulationData): Promise<SimulationData> {
+		if (_viewSimUserId !== null) {
+			// Ne jamais modifier les données d'un autre utilisateur
+			return data;
+		}
 		return request<SimulationData>('/simulation', {
 			method: 'PUT',
 			body: JSON.stringify(data),

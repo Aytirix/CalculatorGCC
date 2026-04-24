@@ -1140,7 +1140,7 @@ const Dashboard: React.FC = () => {
 								)}
 							</div>
 							<div className="simulation-info">
-								{(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0) && (
+								{(simulatedProjects.length >= 0 || Object.keys(simulatedSubProjects).length > 0) && (
 									<p>
 										{simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
 									</p>

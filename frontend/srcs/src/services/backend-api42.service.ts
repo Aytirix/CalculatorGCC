@@ -23,6 +23,17 @@ export function getDevTargetUserId(): number {
   return _devTargetUserId;
 }
 
+// ID de l'utilisateur consulté (mode lecture seule)
+let _viewUserId: number | null = null;
+
+export function setViewUserId(id: number | null) {
+  _viewUserId = id;
+}
+
+export function getViewUserId(): number | null {
+  return _viewUserId;
+}
+
 export interface Project42 {
   id: number;
   project: {
@@ -76,11 +87,15 @@ export class BackendAPI42Service {
       throw new Error('No authentication token available. Please login first.');
     }
 
-    // En dev, ajouter target_user_id si un utilisateur est sélectionné
     let url = `${BACKEND_URL}${endpoint}`;
+    // En dev : impersonation directe via target_user_id
     if (isDev && _devTargetUserId > 0) {
       const separator = url.includes('?') ? '&' : '?';
       url += `${separator}target_user_id=${_devTargetUserId}`;
+    } else if (_viewUserId !== null) {
+      // Mode lecture seule : consulter un profil public
+      const separator = url.includes('?') ? '&' : '?';
+      url += `${separator}view_user_id=${_viewUserId}`;
     }
 
     const response = await fetch(url, {
