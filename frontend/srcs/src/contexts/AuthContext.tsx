@@ -6,6 +6,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isPublic: boolean | null | undefined; // undefined = pas encore chargé, null = pas encore choisi
+  setIsPublic: (value: boolean | null) => void;
   login: () => void;
   logout: () => Promise<void>;
   getApiToken: () => string | null;
@@ -21,6 +23,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPublic, setIsPublic] = useState<boolean | null | undefined>(undefined);
 
   useEffect(() => {
     initializeAuth();
@@ -28,33 +31,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initializeAuth = async () => {
     try {
-      console.log('[AuthContext] Starting auth initialization');
-      
-      // Vérifier si l'utilisateur est authentifié (token en localStorage)
       const isAuth = backendAuthService.isAuthenticated();
-      console.log('[AuthContext] Is authenticated:', isAuth);
-      
-      if (isAuth) {
-        // Valider le token auprès du backend
-        console.log('[AuthContext] Validating token with backend...');
-        const isValid = await backendAuthService.validateToken();
-        console.log('[AuthContext] Token valid:', isValid);
 
-        if (isValid) {
-          // Récupérer les infos utilisateur depuis le JWT
+      if (isAuth) {
+        const me = await backendAuthService.validateToken();
+
+        if (me) {
           const userInfo = backendAuthService.getUser();
-          console.log('[AuthContext] User info:', userInfo);
-          
-          // Enrichir avec image.link pour compatibilité
-          if (userInfo && userInfo.image_url) {
-            userInfo.image = { link: userInfo.image_url };
+          if (userInfo) {
+            userInfo.is_public = me.is_public;
+            if (userInfo.image_url) {
+              userInfo.image = { link: userInfo.image_url };
+            }
           }
-          
           setUser(userInfo);
-          console.log('[AuthContext] User set successfully');
+          setIsPublic(me.is_public);
         } else {
-          // Token invalide, déconnecter
-          console.log('[AuthContext] Token invalid, logging out');
           await backendAuthService.logout();
         }
       }
@@ -62,7 +54,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('[AuthContext] Auth initialization error:', error);
       await backendAuthService.logout();
     } finally {
-      console.log('[AuthContext] Auth initialization complete');
       setIsLoading(false);
     }
   };
@@ -90,6 +81,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated: !!user,
     isLoading,
+    isPublic,
+    setIsPublic,
     login,
     logout,
     getApiToken,

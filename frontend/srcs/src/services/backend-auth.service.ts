@@ -20,11 +20,21 @@ export interface User {
   login: string;
   email: string;
   image_url?: string;
+  is_public?: boolean | null;
   // Propriétés optionnelles pour compatibilité
   image?: {
     link?: string;
   };
   level?: number;
+}
+
+export interface MeResponse {
+  user_id_42: number;
+  login: string;
+  email: string;
+  image_url?: string;
+  api_token?: string;
+  is_public: boolean | null;
 }
 
 export const backendAuthService = {
@@ -91,31 +101,24 @@ export const backendAuthService = {
   /**
    * Vérifie la validité du JWT auprès du backend
    */
-  validateToken: async (): Promise<boolean> => {
+  validateToken: async (): Promise<MeResponse | null> => {
     const token = backendAuthService.getToken();
-    console.log('[Auth] validateToken - Token exists:', !!token);
-    console.log('[Auth] validateToken - Token preview:', token?.substring(0, 50) + '...');
-    
-    if (!token) return false;
+    if (!token) return null;
 
     try {
       const response = await fetch(`${BACKEND_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log('[Auth] validateToken - Response status:', response.status);
-      
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Auth] validateToken - Error response:', errorData);
+        console.error('[Auth] validateToken - Status:', response.status);
+        return null;
       }
 
-      return response.ok;
+      return (await response.json()) as MeResponse;
     } catch (error) {
       console.error('[Auth] validateToken - Network error:', error);
-      return false;
+      return null;
     }
   },
 

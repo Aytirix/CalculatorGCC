@@ -1,6 +1,8 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import axios from 'axios';
 import { config } from '../config/config.js';
+import { prisma } from '../db/connection.js';
+import { simulationRepository } from '../db/simulationRepository.js';
 
 export class AuthController {
   /**
@@ -100,9 +102,22 @@ export class AuthController {
    * Récupère les informations de l'utilisateur connecté depuis le JWT
    */
   static async getMe(request: FastifyRequest) {
-    console.log('[Auth Controller] getMe called');
     const user = request.user;
-    console.log('[Auth Controller] User from JWT:', user);
+
+    // Upsert pour pouvoir distinguer "pas encore choisi" (ligne absente → traité comme null)
+    await prisma.userSimulation.upsert({
+      where: { userId42: user.user_id_42 },
+      create: {
+        userId42: user.user_id_42,
+        login: user.login,
+        imageUrl: user.image_url ?? null,
+        firstName: user.first_name ?? null,
+        lastName: user.last_name ?? null,
+      },
+      update: {},
+    });
+
+    const isPublic = await simulationRepository.getPrivacyStatus(user.user_id_42);
 
     return {
       user_id_42: user.user_id_42,
@@ -110,6 +125,7 @@ export class AuthController {
       email: user.email,
       image_url: user.image_url,
       api_token: user.api_token,
+      is_public: isPublic,
     };
   }
 

@@ -46,9 +46,9 @@ const Callback: React.FC = () => {
 
         // Valider le token auprès du backend
         console.log('[Callback] Validating token with backend');
-        const isValid = await backendAuthService.validateToken();
+        const me = await backendAuthService.validateToken();
 
-        if (isValid) {
+        if (me) {
           console.log('[Callback] Token valid, refreshing auth context');
           // Rafraîchir le contexte d'authentification et attendre qu'il soit prêt
           await refreshAuth();
