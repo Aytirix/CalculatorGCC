@@ -10,14 +10,12 @@ services:
     depends_on:
       - backend
       - phpmyadmin
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.rule=Host(`${APP_DOMAIN:-rncp.theomouty.fr}`)"
-      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.entrypoints=https"
-      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.tls=true"
-      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-calculatorgcc}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.${TRAEFIK_SERVICE_NAME:-calculatorgcc}.loadbalancer.server.port=3000"
-      - "traefik.docker.network=coolify"
+    # Coolify gère lui-même les labels Traefik (router + cert + middlewares) à
+    # partir du domaine configuré dans son UI. Pas de labels manuels ici, sinon
+    # Coolify ne les interpole pas (`${VAR}` reste littéral) → Traefik tente de
+    # générer un certificat pour le texte brut, et deux apps Coolify déclarent
+    # le même routeur cassé → routing en round-robin et CSS 404 quand les deux
+    # tournent en parallèle.
     environment:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
