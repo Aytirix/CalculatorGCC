@@ -14,6 +14,7 @@ import Calendar from '@/pages/Calendar/Calendar';
 import Setup from '@/pages/Setup/Setup';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
+import GithubLink from '@/components/GithubLink/GithubLink';
 import { useSetupCheck } from '@/hooks/useSetupCheck';
 import { useViewingUser } from '@/contexts/useViewingUser';
 
@@ -45,6 +46,7 @@ const AppRoutes: React.FC = () => {
 	return (
 		<>
 			<PrivacyGate />
+			<GithubLink />
 			<Routes>
 				{/* Route de setup - accessible à tous */}
 				<Route path="/setup" element={<Setup />} />
