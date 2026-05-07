@@ -32,6 +32,8 @@ services:
       APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
       ENABLE_SSL: ${ENABLE_SSL:-false}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
+      CLIENT_ID_42: ${CLIENT_ID_42:-${API42_CLIENT_ID:-}}
+      CLIENT_SECRET_42: ${CLIENT_SECRET_42:-${API42_CLIENT_SECRET:-}}
     ports:
       - "9229:9229" # Port pour le débogage
     volumes:

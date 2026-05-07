@@ -34,7 +34,17 @@ export async function initConfig(): Promise<void> {
 	});
 }
 
+function envOverridesDb(): boolean {
+	// On n'override la DB que pour les environnements dérivés qui ont cloné la
+	// prod (ex. pre-prod). En prod, le wizard de setup reste la source de
+	// vérité — sinon on bypass-erait silencieusement les credentials saisis.
+	return process.env.CLONE_FROM_PROD_ENABLED === 'true'
+		&& !!process.env.CLIENT_ID_42
+		&& !!process.env.CLIENT_SECRET_42;
+}
+
 export async function isConfigured(): Promise<boolean> {
+	if (envOverridesDb()) return true;
 	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
 	return row?.isConfigured ?? false;
 }
@@ -73,6 +83,13 @@ export async function saveConfiguration(clientId: string, clientSecret: string):
 }
 
 export async function loadConfigIntoEnv(): Promise<void> {
+	// Override DB depuis l'env uniquement pour les environnements clonés (pre-prod).
+	// Évite que la pre-prod utilise les credentials 42 de prod copiés via DB clone.
+	if (envOverridesDb()) {
+		process.env.CONFIGURED = 'true';
+		return;
+	}
+
 	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
 	if (row?.isConfigured) {
 		process.env.CLIENT_ID_42 = decrypt(row.clientId42);
