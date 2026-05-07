@@ -8,10 +8,12 @@ export class AuthController {
   /**
    * Redirige vers la page d'authentification 42
    */
-  static initiateOAuth(request: FastifyRequest, reply: FastifyReply) {
-    const proto = request.headers['x-forwarded-proto'] || 'http';
-    const host = request.headers['x-forwarded-host'] || request.headers.host;
-    const redirectUri = `${proto}://${host}/api/auth/callback`;
+  static initiateOAuth(_request: FastifyRequest, reply: FastifyReply) {
+    // Toujours utiliser APP_DOMAIN comme source de vérité pour le redirect_uri.
+    // Si on dérive depuis les headers (x-forwarded-proto/host), le moindre écart
+    // entre init et callback (proto manquant, port suffixé, etc.) provoque un
+    // invalid_grant à l'échange du code → l'auth échoue silencieusement.
+    const redirectUri = config.oauth42.redirectUri;
 
     const authUrl = new URL(config.oauth42.authUrl);
     authUrl.searchParams.append('client_id', config.oauth42.clientId);
@@ -27,11 +29,10 @@ export class AuthController {
    */
   static async handleCallback(request: any, reply: FastifyReply) {
     const { code } = request.query as { code?: string };
-    const proto = request.headers['x-forwarded-proto'] || 'http';
-    const host = request.headers['x-forwarded-host'] || request.headers.host;
-    const redirectUri = `${proto}://${host}/api/auth/callback`;
+    const redirectUri = config.oauth42.redirectUri;
 
     console.log('[Auth Controller] OAuth callback received with code:', code);
+    console.log('[Auth Controller] Using redirect_uri:', redirectUri);
 
     if (!code) {
       return reply.code(400).send({ error: 'Missing authorization code' });
@@ -82,8 +83,7 @@ export class AuthController {
       console.log('[Auth Controller] JWT preview:', token.substring(0, 50) + '...');
 
       // Rediriger vers le frontend avec le token JWT
-      const frontendBase = `${proto}://${host}`;
-      const redirectUrl = new URL(`${frontendBase}/callback`);
+      const redirectUrl = new URL(`${config.frontendUrl}/callback`);
       redirectUrl.searchParams.append('token', token);
 
       console.log('[Auth Controller] Redirecting to:', redirectUrl.toString().substring(0, 100) + '...');
@@ -91,9 +91,9 @@ export class AuthController {
     } catch (error: any) {
       console.error('OAuth error:', error.response?.data || error.message);
 
-      const errorUrl = new URL(`${proto}://${host}`);
+      const errorUrl = new URL(config.frontendUrl);
       errorUrl.searchParams.append('error', 'authentication_failed');
-      
+
       return reply.redirect(errorUrl.toString());
     }
   }
