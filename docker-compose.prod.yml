@@ -20,11 +20,11 @@ services:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
     ports:
-      - "127.0.0.1:${LOCAL_SETUP_PORT:-3000}:3000"
+      - "127.0.0.1:${LOCAL_SETUP_PORT:-3000}:80"
     volumes:
       - ssl_certs:/etc/nginx/ssl
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:80" ]
       interval: 5s
       timeout: 3s
       retries: 5
