@@ -25,7 +25,7 @@ model UserSimulation {
   firstName             String?  @db.VarChar(64)
   lastName              String?  @db.VarChar(64)
   imageUrl              String?  @db.VarChar(512)
-  isPublic              Boolean  @default(true)
+  isPublic              Boolean?
   hasSeenTour           Boolean  @default(false)
   simulatedSubProjects  Json?    // Record<string, string[]>
   customProjects        Json?    // SimulatorProject[]

@@ -78,6 +78,30 @@ export const SimulationController = {
 	},
 
 	/**
+	 * GET /simulation/me/privacy - Statut privacy de l'utilisateur connecté
+	 * Retourne null si l'utilisateur n'a pas encore choisi.
+	 */
+	async getMyPrivacy(request: FastifyRequest, reply: FastifyReply) {
+		const { user_id_42, login, image_url, first_name, last_name } = request.user;
+
+		// S'assurer que la ligne existe pour pouvoir distinguer "pas encore choisi"
+		await prisma.userSimulation.upsert({
+			where: { userId42: user_id_42 },
+			create: {
+				userId42: user_id_42,
+				login,
+				imageUrl: image_url ?? null,
+				firstName: first_name ?? null,
+				lastName: last_name ?? null,
+			},
+			update: {},
+		});
+
+		const isPublic = await simulationRepository.getPrivacyStatus(user_id_42);
+		return reply.send({ isPublic });
+	},
+
+	/**
 	 * PUT /simulation/privacy - Met à jour le statut public/privé
 	 */
 	async updatePrivacy(request: FastifyRequest, reply: FastifyReply) {

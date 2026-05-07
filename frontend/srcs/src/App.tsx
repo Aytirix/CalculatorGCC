@@ -13,6 +13,7 @@ import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalE
 import Calendar from '@/pages/Calendar/Calendar';
 import Setup from '@/pages/Setup/Setup';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
+import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
 import { useSetupCheck } from '@/hooks/useSetupCheck';
 import { useViewingUser } from '@/contexts/useViewingUser';
 
@@ -42,9 +43,11 @@ const AppRoutes: React.FC = () => {
 	}
 
 	return (
-		<Routes>
-			{/* Route de setup - accessible à tous */}
-			<Route path="/setup" element={<Setup />} />
+		<>
+			<PrivacyGate />
+			<Routes>
+				{/* Route de setup - accessible à tous */}
+				<Route path="/setup" element={<Setup />} />
 
 			<Route
 				path="/"
@@ -83,8 +86,9 @@ const AppRoutes: React.FC = () => {
 					</ProtectedRoute>
 				}
 			/>
-			<Route path="*" element={<Navigate to="/" replace />} />
-		</Routes>
+				<Route path="*" element={<Navigate to="/" replace />} />
+			</Routes>
+		</>
 	);
 };
 

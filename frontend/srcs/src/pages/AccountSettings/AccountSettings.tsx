@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
 import { simulationService } from '@/services/simulation.service';
-import { backendAuthService } from '@/services/backend-auth.service';
-import { config } from '@/config/config';
 import Header from '@/components/Header/Header';
 import './AccountSettings.scss';
 
@@ -22,21 +20,10 @@ const AccountSettings: React.FC = () => {
 
   const loadPrivacyStatus = async () => {
     try {
-      const token = backendAuthService.getToken();
-      if (!token || !user) return;
-
-      const res = await fetch(`${config.backendUrl}/simulation/search?q=${encodeURIComponent(user.login)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const results = await res.json() as { userId42: number; isPublic: boolean }[];
-        const me = results.find((r) => r.userId42 === user.user_id_42);
-        setIsPublic(me?.isPublic ?? true);
-      } else {
-        setIsPublic(true);
-      }
+      const { isPublic: value } = await simulationService.getMyPrivacy();
+      setIsPublic(value);
     } catch {
-      setIsPublic(true);
+      setIsPublic(null);
     } finally {
       setLoading(false);
     }
@@ -88,6 +75,13 @@ const AccountSettings: React.FC = () => {
 
           <section className="settings-section" data-tour="account-settings-privacy">
             <h2>Visibilité du profil</h2>
+
+            {!loading && isPublic === null && (
+              <p className="settings-privacy-undefined">
+                Aucun choix enregistré — votre profil est traité comme <strong>privé</strong> tant
+                que vous n'avez pas choisi.
+              </p>
+            )}
 
             {loading ? (
               <div className="settings-loading">Chargement…</div>

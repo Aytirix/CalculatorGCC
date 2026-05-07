@@ -45,6 +45,13 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.saveTourSeen(request, reply);
 	});
 
+	// Récupérer le statut privacy de l'utilisateur connecté (null = non choisi)
+	fastify.get('/simulation/me/privacy', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.getMyPrivacy(request, reply);
+	});
+
 	// Mettre à jour le statut public/privé
 	fastify.put('/simulation/privacy', {
 		preHandler: authenticate,

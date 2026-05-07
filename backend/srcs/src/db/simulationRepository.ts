@@ -74,7 +74,7 @@ export interface UserSearchResult {
 	firstName: string | null;
 	lastName: string | null;
 	imageUrl: string | null;
-	isPublic: boolean;
+	isPublic: boolean | null;
 }
 
 export const simulationRepository = {
@@ -83,7 +83,7 @@ export const simulationRepository = {
 	 */
 	async searchUsers(query: string): Promise<UserSearchResult[]> {
 		const q = `%${query}%`;
-		const rows = await prisma.$queryRaw<UserSearchResult[]>`
+		const rows = await prisma.$queryRaw<Array<Omit<UserSearchResult, 'isPublic'> & { isPublic: unknown }>>`
 			SELECT userId42, login, firstName, lastName, imageUrl, isPublic
 			FROM user_simulation
 			WHERE login LIKE ${q}
@@ -92,7 +92,23 @@ export const simulationRepository = {
 			ORDER BY login ASC
 			LIMIT 20
 		`;
-		return rows.map((r) => ({ ...r, isPublic: Boolean(r.isPublic) }));
+		return rows.map((r) => ({
+			...r,
+			isPublic: r.isPublic === null || r.isPublic === undefined ? null : coerceBooleanFlag(r.isPublic),
+		}));
+	},
+
+	/**
+	 * Récupère le statut privacy brut (null = pas encore choisi)
+	 */
+	async getPrivacyStatus(userId42: number): Promise<boolean | null> {
+		const rows = await prisma.$queryRaw<Array<{ isPublic: unknown }>>`
+			SELECT isPublic FROM user_simulation WHERE userId42 = ${userId42} LIMIT 1
+		`;
+		if (!rows[0]) return null;
+		const raw = rows[0].isPublic;
+		if (raw === null || raw === undefined) return null;
+		return coerceBooleanFlag(raw);
 	},
 
 	/**

@@ -65,7 +65,7 @@ export interface UserSearchResult {
 	firstName: string | null;
 	lastName: string | null;
 	imageUrl: string | null;
-	isPublic: boolean;
+	isPublic: boolean | null;
 }
 
 export const simulationService = {
@@ -91,6 +91,13 @@ export const simulationService = {
 	 */
 	async searchUsers(query: string): Promise<UserSearchResult[]> {
 		return request<UserSearchResult[]>(`/simulation/search?q=${encodeURIComponent(query)}`);
+	},
+
+	/**
+	 * Récupère le statut privacy de l'utilisateur connecté (null = pas encore choisi)
+	 */
+	async getMyPrivacy(): Promise<{ isPublic: boolean | null }> {
+		return request<{ isPublic: boolean | null }>('/simulation/me/privacy');
 	},
 
 	/**
