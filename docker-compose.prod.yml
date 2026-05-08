@@ -109,6 +109,14 @@ services:
     container_name: calculatorGCC_phpmyadmin_prod
     depends_on:
       - mariadb
+    # Coolify détecte automatiquement `phpmyadmin` comme service publiable et
+    # recrée `SERVICE_FQDN_PHPMYADMIN` à chaque deploy. On force `traefik.enable=false`
+    # pour bloquer la génération de routers Traefik : phpmyadmin reste accessible
+    # uniquement via nginx (proxy_pass interne sur `/phpmyadmin/`), ce qui évite
+    # un router orphelin qui ne pourrait pas joindre le container (phpmyadmin
+    # n'est pas sur le réseau `coolify`).
+    labels:
+      - "traefik.enable=false"
     environment:
       PMA_HOST: mariadb
       PMA_PORT: 3306
