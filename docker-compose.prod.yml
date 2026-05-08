@@ -71,11 +71,16 @@ services:
       - path: ./backend/srcs/.env
         required: false
     restart: unless-stopped
-    # Backend ne doit pas être sur le réseau partagé `coolify` : si plusieurs
-    # apps Coolify (prod + pre-prod) y publient un alias `backend`, Docker DNS
-    # round-robin renvoie l'IP d'une autre app → mismatch credentials OAuth.
     networks:
-      - calculatorGCC_network
+      # Alias `app-backend` unique au réseau interne du projet : nginx ciblera
+      # ce nom (impossible de collision avec une autre app Coolify), tandis que
+      # le réseau `coolify` ne sert qu'au backend pour joindre la DB de prod
+      # via son alias partagé pendant le clone.
+      calculatorGCC_network:
+        aliases:
+          - app-backend
+      coolify:
+        aliases: []
 
   mariadb:
     image: mariadb:latest
