@@ -71,9 +71,11 @@ services:
       - path: ./backend/srcs/.env
         required: false
     restart: unless-stopped
+    # Backend ne doit pas être sur le réseau partagé `coolify` : si plusieurs
+    # apps Coolify (prod + pre-prod) y publient un alias `backend`, Docker DNS
+    # round-robin renvoie l'IP d'une autre app → mismatch credentials OAuth.
     networks:
       - calculatorGCC_network
-      - coolify
 
   mariadb:
     image: mariadb:latest
