@@ -80,7 +80,6 @@ services:
         aliases:
           - app-backend
       coolify:
-        aliases: []
 
   mariadb:
     image: mariadb:latest
