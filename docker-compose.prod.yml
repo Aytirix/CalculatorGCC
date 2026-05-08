@@ -79,7 +79,7 @@ services:
       calculatorGCC_network:
         aliases:
           - app-backend
-      coolify:
+      coolify: {}
 
   mariadb:
     image: mariadb:latest
