@@ -10,12 +10,12 @@ services:
     depends_on:
       - backend
       - phpmyadmin
-    # Coolify gère lui-même les labels Traefik (router + cert + middlewares) à
-    # partir du domaine configuré dans son UI. Pas de labels manuels ici, sinon
-    # Coolify ne les interpole pas (`${VAR}` reste littéral) → Traefik tente de
-    # générer un certificat pour le texte brut, et deux apps Coolify déclarent
-    # le même routeur cassé → routing en round-robin et CSS 404 quand les deux
-    # tournent en parallèle.
+    # Coolify gère lui-même les routers/middlewares Traefik à partir du domaine
+    # configuré dans son UI. On ajoute uniquement la déclaration du réseau
+    # cible : sans elle, Traefik peut tenter de joindre le container par un
+    # réseau interne au projet auquel il n'a pas accès → Gateway Timeout.
+    labels:
+      - "traefik.docker.network=coolify"
     environment:
       NODE_PROJET: production
       ENABLE_SSL: ${ENABLE_SSL:-false}
