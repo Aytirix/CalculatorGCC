@@ -44,6 +44,12 @@
     font-size: 0.9rem;
     opacity: 0.7;
   }
+
+  .callback-actions {
+    margin-top: $spacing-lg;
+    display: flex;
+    justify-content: center;
+  }
 }
 
 @keyframes spin {

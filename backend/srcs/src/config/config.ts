@@ -57,9 +57,6 @@ export const config = {
 	},
 	
 	jwt: {
-		get secret() {
-			return process.env.JWT_SECRET || 'temporary-secret-for-setup';
-		},
 		expiresIn: '7d',
 	},
 	
@@ -75,28 +72,19 @@ export const config = {
 
 // Validate configuration (only logs warnings if not configured yet)
 function validateConfig() {
-	// Vérifie si on est en mode setup
 	const isSetupMode = process.env.CONFIGURED !== 'true';
-	
+
 	if (isSetupMode) {
 		console.log('⚠️  Application in SETUP mode');
 		console.log('   Configuration will be required before normal operation');
 	} else {
-		// Vérifie les variables requises seulement si configuré
-		const required = [
-			'CLIENT_ID_42',
-			'CLIENT_SECRET_42',
-			'JWT_SECRET',
-		];
-		
+		const required = ['CLIENT_ID_42', 'CLIENT_SECRET_42'];
 		const missing = required.filter(key => !process.env[key]);
-		
 		if (missing.length > 0) {
 			throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
 		}
 	}
-	
-	// Log des URLs construites pour debug
+
 	console.log('🔧 Configuration:');
 	console.log(`   Frontend URL: ${config.frontendUrl}`);
 	console.log(`   Redirect URI: ${config.oauth42.redirectUri}`);

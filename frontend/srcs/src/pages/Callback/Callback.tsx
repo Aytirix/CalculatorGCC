@@ -3,7 +3,25 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { backendAuthService } from '@/services/backend-auth.service';
 import { useAuth } from '@/contexts/useAuth';
+import { Button } from '@/components/ui/button';
 import './Callback.scss';
+
+/**
+ * Traduit la raison technique renvoyée par 42 en message lisible.
+ */
+const messageForReason = (reason: string | null): string => {
+  switch (reason) {
+    case 'invalid_client':
+    case 'unauthorized_client':
+      return "La clé d'API 42 a expiré ou n'est plus valide. Contactez l'administrateur du site.";
+    case 'access_denied':
+      return "Vous avez refusé l'autorisation. Réessayez pour vous connecter.";
+    case 'invalid_grant':
+      return "Le lien d'authentification a expiré. Veuillez réessayer.";
+    default:
+      return "L'authentification 42 a échoué. Veuillez réessayer.";
+  }
+};
 
 /**
  * Page de callback OAuth
@@ -13,22 +31,26 @@ const Callback: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const { refreshAuth } = useAuth();
+  // Erreur d'auth 42 explicite : on laisse l'utilisateur lire et réessayer
+  // au lieu de le renvoyer en silence vers Login (effet de "boucle").
+  const [showRetry, setShowRetry] = useState(false);
+  const { refreshAuth, login } = useAuth();
 
   useEffect(() => {
     const processCallback = async () => {
       console.log('[Callback] Processing OAuth callback');
-      
+
       // Récupérer le token et l'erreur depuis l'URL
       const token = searchParams.get('token');
       const urlError = searchParams.get('error');
+      const reason = searchParams.get('reason');
 
-      console.log('[Callback] URL params:', { hasToken: !!token, hasError: !!urlError });
+      console.log('[Callback] URL params:', { hasToken: !!token, hasError: !!urlError, reason });
 
       if (urlError) {
-        console.error('[Callback] Authentication error:', urlError);
-        setError('Erreur lors de l\'authentification');
-        setTimeout(() => navigate('/', { replace: true }), 3000);
+        console.error('[Callback] Authentication error:', urlError, 'reason:', reason);
+        setError(messageForReason(reason));
+        setShowRetry(true);
         return;
       }
 
@@ -85,7 +107,15 @@ const Callback: React.FC = () => {
             <div className="error-icon">❌</div>
             <h2>Erreur</h2>
             <p>{error}</p>
-            <p className="redirect-info">Redirection vers la page de connexion...</p>
+            {showRetry ? (
+              <div className="callback-actions">
+                <Button onClick={login} size="lg">
+                  Réessayer la connexion
+                </Button>
+              </div>
+            ) : (
+              <p className="redirect-info">Redirection vers la page de connexion...</p>
+            )}
           </>
         ) : (
           <>

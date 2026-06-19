@@ -26,7 +26,7 @@ const SetupInfo: React.FC = () => {
 					<div className="lock-icon">🔒</div>
 					<h1>Configuration Requise</h1>
 					<p className="subtitle">
-						L'API 42 n'est pas encore configurée pour cette application
+						La configuration de l'API 42 doit être effectuée ou mise à jour
 					</p>
 				</div>
 

@@ -2,7 +2,8 @@ import * as crypto from 'crypto';
 import { prisma } from './connection.js';
 
 function getEncryptionKey(): Buffer {
-	const secret = process.env.JWT_SECRET || 'temporary-secret-for-setup';
+	const secret = process.env.JWT_SECRET;
+	if (!secret) throw new Error('JWT_SECRET not loaded — call loadOrGenerateJwtSecret() first');
 	return crypto.scryptSync(secret, 'calculatorgcc-salt', 32);
 }
 
@@ -32,6 +33,25 @@ export async function initConfig(): Promise<void> {
 		update: {},
 		create: { id: 1 },
 	});
+}
+
+export async function loadOrGenerateJwtSecret(): Promise<void> {
+	if (process.env.JWT_SECRET) return;
+
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+
+	if (row?.jwtSecret) {
+		process.env.JWT_SECRET = row.jwtSecret;
+		return;
+	}
+
+	const secret = crypto.randomBytes(64).toString('hex');
+	await prisma.configuration.update({
+		where: { id: 1 },
+		data: { jwtSecret: secret },
+	});
+	process.env.JWT_SECRET = secret;
+	console.log('✅ JWT secret auto-generated and persisted');
 }
 
 function envOverridesDb(): boolean {
@@ -80,6 +100,46 @@ export async function saveConfiguration(clientId: string, clientSecret: string):
 	process.env.CLIENT_SECRET_42 = clientSecret;
 	process.env.CONFIGURED = 'true';
 	delete process.env.SETUP_TOKEN;
+}
+
+export async function rotateEncryptionKey(nextSecret: string): Promise<void> {
+	const currentSecret = process.env.JWT_SECRET;
+	if (!currentSecret) throw new Error('JWT_SECRET is required');
+	if (currentSecret === nextSecret) return;
+
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	if (!row?.isConfigured) {
+		await prisma.configuration.update({
+			where: { id: 1 },
+			data: { jwtSecret: nextSecret },
+		});
+		process.env.JWT_SECRET = nextSecret;
+		return;
+	}
+
+	console.log('🔄 Rotating encryption key...');
+
+	const clientId = decrypt(row.clientId42);
+	const clientSecret = decrypt(row.clientSecret42);
+
+	const prevSecret = process.env.JWT_SECRET!;
+	process.env.JWT_SECRET = nextSecret;
+
+	try {
+		await prisma.configuration.update({
+			where: { id: 1 },
+			data: {
+				jwtSecret: nextSecret,
+				clientId42: encrypt(clientId),
+				clientSecret42: encrypt(clientSecret),
+			},
+		});
+	} catch (err) {
+		process.env.JWT_SECRET = prevSecret;
+		throw err;
+	}
+
+	console.log('✅ Encryption key rotated');
 }
 
 export async function loadConfigIntoEnv(): Promise<void> {

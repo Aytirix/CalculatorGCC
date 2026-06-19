@@ -25,17 +25,34 @@ export class AuthController {
   }
 
   /**
+   * Redirige vers la page /callback du frontend avec une erreur exploitable.
+   * Important : on cible /callback (et pas la racine), sinon aucun composant
+   * ne lit le paramètre ?error et l'utilisateur reste bloqué sur Login.
+   */
+  private static redirectWithError(reply: FastifyReply, reason?: string) {
+    const errorUrl = new URL(`${config.frontendUrl}/callback`);
+    errorUrl.searchParams.append('error', 'authentication_failed');
+    if (reason) {
+      errorUrl.searchParams.append('reason', reason);
+    }
+    return reply.redirect(errorUrl.toString());
+  }
+
+  /**
    * Callback OAuth 42 - échange le code contre un token et crée un JWT
    */
   static async handleCallback(request: any, reply: FastifyReply) {
-    const { code } = request.query as { code?: string };
+    const { code, error: oauthError } = request.query as { code?: string; error?: string };
     const redirectUri = config.oauth42.redirectUri;
 
     console.log('[Auth Controller] OAuth callback received with code:', code);
     console.log('[Auth Controller] Using redirect_uri:', redirectUri);
 
+    // 42 peut rediriger ici sans code mais avec ?error= (app révoquée, accès refusé,
+    // clé OAuth expirée...). On redirige vers le front au lieu d'un JSON 400 cul-de-sac.
     if (!code) {
-      return reply.code(400).send({ error: 'Missing authorization code' });
+      console.error('[Auth Controller] No authorization code in callback. 42 error:', oauthError);
+      return AuthController.redirectWithError(reply, oauthError || 'missing_code');
     }
 
     try {
@@ -91,10 +108,10 @@ export class AuthController {
     } catch (error: any) {
       console.error('OAuth error:', error.response?.data || error.message);
 
-      const errorUrl = new URL(config.frontendUrl);
-      errorUrl.searchParams.append('error', 'authentication_failed');
-
-      return reply.redirect(errorUrl.toString());
+      // Raison réelle renvoyée par 42 (ex: invalid_client quand le secret a été
+      // régénéré / la clé OAuth a expiré) pour pouvoir l'afficher côté front.
+      const reason = error.response?.data?.error || error.response?.data?.message;
+      return AuthController.redirectWithError(reply, reason);
     }
   }
 

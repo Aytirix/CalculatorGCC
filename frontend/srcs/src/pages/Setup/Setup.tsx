@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { setupService } from '../../services/setup.service';
 import { Button } from '../../components/ui/button';
@@ -7,13 +6,16 @@ import { config } from '../../config/config';
 import SetupInfo from './SetupInfo';
 import './Setup.scss';
 
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 const Setup: React.FC = () => {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [setupToken, setSetupToken] = useState('');
+  const [isReconfigure, setIsReconfigure] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
     clientSecret: '',
+    nextSecret: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -29,30 +31,26 @@ const Setup: React.FC = () => {
 
   const checkSetupStatus = async () => {
     try {
-      const status = await setupService.getStatus();
-      
-      if (status.configured) {
-        navigate('/');
-        return;
-      }
-
-      const token = await setupService.getSetupToken();
+      const [token, status] = await Promise.all([
+        setupService.getSetupToken(),
+        setupService.getStatus(),
+      ]);
       setSetupToken(token);
+      setIsReconfigure(status.configured);
       setLoading(false);
     } catch (err: any) {
-      // Si l'erreur indique un accès distant bloqué
       if (err.response?.data?.remoteAccessBlocked) {
         setIsRemoteAccess(true);
         setLoading(false);
         return;
       }
-      
+
       setError('Impossible de charger la configuration. Veuillez redémarrer le serveur.');
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
@@ -68,6 +66,7 @@ const Setup: React.FC = () => {
         setupToken,
         clientId: formData.clientId,
         clientSecret: formData.clientSecret,
+        ...(isLocalhost && formData.nextSecret ? { nextSecret: formData.nextSecret } : {}),
       });
 
       if (response.success) {
@@ -133,8 +132,12 @@ const Setup: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1>🔧 Configuration Initiale</h1>
-        <p className="subtitle">Configurez vos identifiants API 42 pour démarrer</p>
+        <h1>🔧 {isReconfigure ? 'Reconfiguration' : 'Configuration Initiale'}</h1>
+        <p className="subtitle">
+          {isReconfigure
+            ? 'Mettez à jour vos identifiants API 42'
+            : 'Configurez vos identifiants API 42 pour démarrer'}
+        </p>
 
         {error && (
           <div className="error-message">
@@ -182,9 +185,24 @@ const Setup: React.FC = () => {
             />
           </div>
 
+          {isLocalhost && (
+            <div className="form-group">
+              <label htmlFor="nextSecret">Nouveau JWT Secret <span className="optional">(optionnel)</span></label>
+              <input
+                id="nextSecret"
+                name="nextSecret"
+                type="password"
+                value={formData.nextSecret}
+                onChange={handleInputChange}
+                placeholder="Laisser vide pour conserver l'actuel"
+                disabled={submitting}
+              />
+            </div>
+          )}
+
           <div className="security-note">
             <span>🔒</span>
-            <p>Vos identifiants sont stockés en toute sécurité dans le fichier .env du backend. Cette page ne sera plus accessible après la configuration.</p>
+            <p>Vos identifiants sont chiffrés en base de données. Ce formulaire n'est accessible qu'en localhost.</p>
           </div>
 
           <motion.div
@@ -197,7 +215,11 @@ const Setup: React.FC = () => {
               className="submit-button"
               disabled={submitting}
             >
-              {submitting ? 'Configuration en cours...' : 'Terminer la configuration'}
+              {submitting
+                ? 'Configuration en cours...'
+                : isReconfigure
+                  ? 'Mettre à jour les identifiants'
+                  : 'Terminer la configuration'}
             </Button>
           </motion.div>
         </form>

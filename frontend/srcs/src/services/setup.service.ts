@@ -23,6 +23,7 @@ export interface ConfigureRequest {
   setupToken: string;
   clientId: string;
   clientSecret: string;
+  nextSecret?: string;
 }
 
 export interface ConfigureResponse {

@@ -66,7 +66,7 @@ setup_backend_env
 if [ -f "$PERSISTENT_ENV" ]; then
 	echo "✓ Configuration persistée trouvée, utilisation de /data/calculatorgcc/.env"
 	cp "$PERSISTENT_ENV" "$ENV_FILE"
-	cp "$ENV_FILE" "/artifacts/build-time.env"
+	cp "$ENV_FILE" "/artifacts/build-time.env" 2>/dev/null || true
 	echo "Configuration de la base de données terminée!"
 	exit 0
 fi
@@ -97,10 +97,11 @@ elif ! grep -q "^DB_PASSWORD=.\+" "$ENV_FILE" 2>/dev/null; then
 	echo "✓ Mot de passe utilisateur généré"
 fi
 
-# Persister le .env sur le serveur pour les prochains déploiements
-mkdir -p /data/calculatorgcc
-cp "$ENV_FILE" "$PERSISTENT_ENV"
-echo "✓ Configuration sauvegardée dans $PERSISTENT_ENV"
+# Persister le .env sur le serveur pour les prochains déploiements (ignoré en local)
+if mkdir -p /data/calculatorgcc 2>/dev/null; then
+	cp "$ENV_FILE" "$PERSISTENT_ENV"
+	echo "✓ Configuration sauvegardée dans $PERSISTENT_ENV"
+fi
 
 APP_DOMAIN=$(grep "^APP_DOMAIN=" "$ENV_FILE" | cut -d '=' -f2)
 APP_DOMAIN=${APP_DOMAIN:-http://localhost:3000}

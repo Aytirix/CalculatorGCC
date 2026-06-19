@@ -9,6 +9,7 @@ datasource db {
 
 model Configuration {
   id             Int      @id @default(1)
+  jwtSecret      String?  @db.VarChar(256)
   clientId42     String   @default("") @db.Text
   clientSecret42 String   @default("") @db.Text
   setupToken     String?  @db.VarChar(128)

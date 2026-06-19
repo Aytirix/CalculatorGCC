@@ -2,7 +2,9 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import {
   isConfigured,
   getSetupToken,
+  ensureSetupToken,
   saveConfiguration,
+  rotateEncryptionKey,
 } from '../db/configRepository.js';
 import { validateApi42Credentials } from '../utils/validateApi42Credentials.js';
 
@@ -10,6 +12,7 @@ interface ConfigureRequest {
   setupToken: string;
   clientId: string;
   clientSecret: string;
+  nextSecret?: string;
 }
 
 class SetupController {
@@ -25,14 +28,7 @@ class SetupController {
   }
 
   async getSetupToken(_request: FastifyRequest, reply: FastifyReply) {
-    const setupToken = await getSetupToken();
-
-    if (!setupToken) {
-      return reply.status(500).send({
-        error: 'Setup token not found',
-        message: 'Please restart the server to generate a new setup token'
-      });
-    }
+    const setupToken = await ensureSetupToken();
 
     return reply.send({
       setupToken,
@@ -73,6 +69,11 @@ class SetupController {
     console.log('✅ Credentials validés, sauvegarde...');
 
     try {
+      if (body.nextSecret) {
+        await rotateEncryptionKey(body.nextSecret);
+        console.log('✅ JWT secret rotaté');
+      }
+
       await saveConfiguration(body.clientId, body.clientSecret);
       console.log('✅ Configuration sauvegardée en base de données');
 

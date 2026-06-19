@@ -10,7 +10,7 @@ import { setupRoutes } from './routes/setup.routes.js';
 import { simulationRoutes } from './routes/simulation.routes.js';
 import { calendarRoutes } from './routes/calendar.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
-import { initConfig, isConfigured, ensureSetupToken, loadConfigIntoEnv } from './db/configRepository.js';
+import { initConfig, isConfigured, ensureSetupToken, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
 
 const fastify = Fastify({
 	logger: {
@@ -64,7 +64,7 @@ await fastify.register(rateLimit, {
 
 // JWT
 await fastify.register(jwt, {
-	secret: config.jwt.secret,
+	secret: () => process.env.JWT_SECRET!,
 	sign: {
 		expiresIn: config.jwt.expiresIn,
 	},
@@ -131,6 +131,7 @@ async function start() {
 	try {
 		// Init DB : s'assure que la ligne de config existe et charge les credentials
 		await initConfig();
+		await loadOrGenerateJwtSecret();
 		await loadConfigIntoEnv();
 
 		const configured = await isConfigured();
