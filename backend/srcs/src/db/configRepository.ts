@@ -1,14 +1,17 @@
 import * as crypto from 'crypto';
 import { prisma } from './connection.js';
 
-function getEncryptionKey(): Buffer {
-	const secret = process.env.JWT_SECRET;
-	if (!secret) throw new Error('JWT_SECRET not loaded — call loadOrGenerateJwtSecret() first');
+function deriveKey(secret: string): Buffer {
 	return crypto.scryptSync(secret, 'calculatorgcc-salt', 32);
 }
 
-function encrypt(text: string): string {
-	const key = getEncryptionKey();
+function getEncryptionKey(): Buffer {
+	const secret = process.env.JWT_SECRET;
+	if (!secret) throw new Error('JWT_SECRET not loaded — call loadOrGenerateJwtSecret() first');
+	return deriveKey(secret);
+}
+
+function encryptWithKey(text: string, key: Buffer): string {
 	const iv = crypto.randomBytes(16);
 	const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 	const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
@@ -16,8 +19,7 @@ function encrypt(text: string): string {
 	return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
 }
 
-function decrypt(data: string): string {
-	const key = getEncryptionKey();
+function decryptWithKey(data: string, key: Buffer): string {
 	const [ivHex, authTagHex, encryptedHex] = data.split(':');
 	const iv = Buffer.from(ivHex, 'hex');
 	const authTag = Buffer.from(authTagHex, 'hex');
@@ -25,6 +27,14 @@ function decrypt(data: string): string {
 	const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
 	decipher.setAuthTag(authTag);
 	return decipher.update(encrypted).toString('utf8') + decipher.final('utf8');
+}
+
+function encrypt(text: string): string {
+	return encryptWithKey(text, getEncryptionKey());
+}
+
+function decrypt(data: string): string {
+	return decryptWithKey(data, getEncryptionKey());
 }
 
 export async function initConfig(): Promise<void> {
@@ -35,16 +45,92 @@ export async function initConfig(): Promise<void> {
 	});
 }
 
+type ConfigRow = NonNullable<Awaited<ReturnType<typeof prisma.configuration.findUnique>>>;
+
+/**
+ * Promotion du « Next Secret » → « Secret » quand le secret courant a expiré.
+ * Re-chiffre les credentials 42 avec la nouvelle clé (ancien secret → next),
+ * puis vide le next et la date d'expiration.
+ *
+ * Ne s'exécute QUE si l'env JWT_SECRET n'est pas posé : sinon le secret actif
+ * est celui de l'env (immuable côté app) et re-chiffrer sous le next casserait
+ * le déchiffrement. Avec env posé, on log seulement que la rotation est en
+ * attente.
+ */
+async function promoteIfExpired(row: ConfigRow): Promise<ConfigRow> {
+	if (!row.jwtSecretNext || !row.jwtSecretExpiresAt) return row;
+	if (Date.now() < row.jwtSecretExpiresAt.getTime()) return row;
+
+	if (process.env.JWT_SECRET) {
+		console.warn(
+			'⚠️  Rotation JWT due (secret expiré) mais ignorée : JWT_SECRET (env) est prioritaire. ' +
+			'Retire la variable d\'env pour activer la rotation par la base.'
+		);
+		return row;
+	}
+
+	console.log('🔄 Secret JWT expiré → promotion du Next Secret...');
+
+	const nextSecret = row.jwtSecretNext;
+
+	// Instance configurée : re-chiffrer les creds avec la nouvelle clé.
+	if (row.isConfigured && row.jwtSecret) {
+		const oldKey = deriveKey(row.jwtSecret);
+		const newKey = deriveKey(nextSecret);
+		const clientId = decryptWithKey(row.clientId42, oldKey);
+		const clientSecret = decryptWithKey(row.clientSecret42, oldKey);
+		await prisma.configuration.update({
+			where: { id: 1 },
+			data: {
+				jwtSecret: nextSecret,
+				jwtSecretNext: null,
+				jwtSecretExpiresAt: null,
+				clientId42: encryptWithKey(clientId, newKey),
+				clientSecret42: encryptWithKey(clientSecret, newKey),
+			},
+		});
+	} else {
+		await prisma.configuration.update({
+			where: { id: 1 },
+			data: {
+				jwtSecret: nextSecret,
+				jwtSecretNext: null,
+				jwtSecretExpiresAt: null,
+			},
+		});
+	}
+
+	console.log('✅ Promotion effectuée : Next Secret → Secret (Next Secret vidé)');
+
+	return (await prisma.configuration.findUnique({ where: { id: 1 } }))!;
+}
+
 export async function loadOrGenerateJwtSecret(): Promise<void> {
-	if (process.env.JWT_SECRET) return;
+	let row = await prisma.configuration.findUnique({ where: { id: 1 } });
 
-	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	// 1) Promotion auto si le secret courant a expiré et qu'un Next Secret est prêt.
+	if (row) row = await promoteIfExpired(row);
 
+	// 2) env prioritaire. On le mirroite dans la DB pour que jwtSecret reflète
+	//    toujours le secret actif : évite toute divergence env/DB et rend un futur
+	//    retrait de l'env sûr (les creds restent déchiffrables).
+	if (process.env.JWT_SECRET) {
+		if (row && row.jwtSecret !== process.env.JWT_SECRET) {
+			await prisma.configuration.update({
+				where: { id: 1 },
+				data: { jwtSecret: process.env.JWT_SECRET },
+			});
+		}
+		return;
+	}
+
+	// 3) Sinon, secret depuis la DB.
 	if (row?.jwtSecret) {
 		process.env.JWT_SECRET = row.jwtSecret;
 		return;
 	}
 
+	// 4) Sinon, génère un secret aléatoire (instance vierge).
 	const secret = crypto.randomBytes(64).toString('hex');
 	await prisma.configuration.update({
 		where: { id: 1 },
@@ -102,44 +188,19 @@ export async function saveConfiguration(clientId: string, clientSecret: string):
 	delete process.env.SETUP_TOKEN;
 }
 
-export async function rotateEncryptionKey(nextSecret: string): Promise<void> {
-	const currentSecret = process.env.JWT_SECRET;
-	if (!currentSecret) throw new Error('JWT_SECRET is required');
-	if (currentSecret === nextSecret) return;
-
-	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
-	if (!row?.isConfigured) {
-		await prisma.configuration.update({
-			where: { id: 1 },
-			data: { jwtSecret: nextSecret },
-		});
-		process.env.JWT_SECRET = nextSecret;
-		return;
-	}
-
-	console.log('🔄 Rotating encryption key...');
-
-	const clientId = decrypt(row.clientId42);
-	const clientSecret = decrypt(row.clientSecret42);
-
-	const prevSecret = process.env.JWT_SECRET!;
-	process.env.JWT_SECRET = nextSecret;
-
-	try {
-		await prisma.configuration.update({
-			where: { id: 1 },
-			data: {
-				jwtSecret: nextSecret,
-				clientId42: encrypt(clientId),
-				clientSecret42: encrypt(clientSecret),
-			},
-		});
-	} catch (err) {
-		process.env.JWT_SECRET = prevSecret;
-		throw err;
-	}
-
-	console.log('✅ Encryption key rotated');
+/**
+ * Programme un futur secret JWT : il sera promu automatiquement au boot une fois
+ * la date d'expiration dépassée (voir promoteIfExpired). N'altère pas le secret
+ * actif ni le chiffrement des creds — la rotation effective a lieu à la promotion.
+ */
+export async function stageNextSecret(nextSecret: string, expiresAt: Date): Promise<void> {
+	await prisma.configuration.update({
+		where: { id: 1 },
+		data: {
+			jwtSecretNext: nextSecret,
+			jwtSecretExpiresAt: expiresAt,
+		},
+	});
 }
 
 export async function loadConfigIntoEnv(): Promise<void> {

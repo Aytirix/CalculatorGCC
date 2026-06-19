@@ -6,8 +6,6 @@ import { config } from '../../config/config';
 import SetupInfo from './SetupInfo';
 import './Setup.scss';
 
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
 const Setup: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [setupToken, setSetupToken] = useState('');
@@ -16,6 +14,7 @@ const Setup: React.FC = () => {
     clientId: '',
     clientSecret: '',
     nextSecret: '',
+    nextSecretExpiresAt: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -57,7 +56,14 @@ const Setup: React.FC = () => {
 
     try {
       if (!formData.clientId || !formData.clientSecret) {
-        setError('Tous les champs sont requis');
+        setError('Le Client ID et le Client Secret sont requis');
+        setSubmitting(false);
+        return;
+      }
+
+      // Si un Next Secret est fourni, sa date d'expiration est obligatoire.
+      if (formData.nextSecret && !formData.nextSecretExpiresAt) {
+        setError('Renseignez une date d\'expiration pour le Next Secret');
         setSubmitting(false);
         return;
       }
@@ -66,7 +72,13 @@ const Setup: React.FC = () => {
         setupToken,
         clientId: formData.clientId,
         clientSecret: formData.clientSecret,
-        ...(isLocalhost && formData.nextSecret ? { nextSecret: formData.nextSecret } : {}),
+        ...(formData.nextSecret
+          ? {
+              nextSecret: formData.nextSecret,
+              // datetime-local → ISO pour le backend
+              nextSecretExpiresAt: new Date(formData.nextSecretExpiresAt).toISOString(),
+            }
+          : {}),
       });
 
       if (response.success) {
@@ -185,16 +197,35 @@ const Setup: React.FC = () => {
             />
           </div>
 
-          {isLocalhost && (
+          <div className="form-group">
+            <label htmlFor="nextSecret">
+              Next Secret JWT <span className="optional">(optionnel — rotation programmée)</span>
+            </label>
+            <input
+              id="nextSecret"
+              name="nextSecret"
+              type="password"
+              value={formData.nextSecret}
+              onChange={handleInputChange}
+              placeholder="Laisser vide pour ne pas programmer de rotation"
+              disabled={submitting}
+            />
+            <p className="field-hint">
+              Le secret actuel provient de la variable d'environnement <code>JWT_SECRET</code> (ou de la base si absente).
+              Renseignez un Next Secret et une date d'expiration : il remplacera automatiquement le secret actuel une fois la date dépassée.
+            </p>
+          </div>
+
+          {formData.nextSecret && (
             <div className="form-group">
-              <label htmlFor="nextSecret">Nouveau JWT Secret <span className="optional">(optionnel)</span></label>
+              <label htmlFor="nextSecretExpiresAt">Date d'expiration du secret actuel *</label>
               <input
-                id="nextSecret"
-                name="nextSecret"
-                type="password"
-                value={formData.nextSecret}
+                id="nextSecretExpiresAt"
+                name="nextSecretExpiresAt"
+                type="datetime-local"
+                value={formData.nextSecretExpiresAt}
                 onChange={handleInputChange}
-                placeholder="Laisser vide pour conserver l'actuel"
+                required
                 disabled={submitting}
               />
             </div>

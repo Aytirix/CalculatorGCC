@@ -80,7 +80,7 @@ export class AuthController {
       const payload = {
         api_token: access_token,
         refresh_token: refresh_token,
-        token_expires_at: expires_in ? Date.now() + expires_in * 1000 : null,
+        token_expires_at: expires_in ? Date.now() + expires_in * 1000 : undefined,
         user_id_42: userData.id,
         login: userData.login,
         email: userData.email,
@@ -95,6 +95,8 @@ export class AuthController {
         email: payload.email,
       });
       
+      // Secret statique (chargé avant l'enregistrement du plugin) → signature
+      // synchrone qui renvoie bien la chaîne du token.
       const token = request.server.jwt.sign(payload);
       console.log('[Auth Controller] JWT generated, length:', token.length);
       console.log('[Auth Controller] JWT preview:', token.substring(0, 50) + '...');

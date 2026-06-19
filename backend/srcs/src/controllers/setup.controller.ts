@@ -4,7 +4,7 @@ import {
   getSetupToken,
   ensureSetupToken,
   saveConfiguration,
-  rotateEncryptionKey,
+  stageNextSecret,
 } from '../db/configRepository.js';
 import { validateApi42Credentials } from '../utils/validateApi42Credentials.js';
 
@@ -13,6 +13,7 @@ interface ConfigureRequest {
   clientId: string;
   clientSecret: string;
   nextSecret?: string;
+  nextSecretExpiresAt?: string; // ISO date : promotion auto une fois dépassée
 }
 
 class SetupController {
@@ -66,16 +67,36 @@ class SetupController {
       });
     }
 
+    // Si un Next Secret est fourni, sa date d'expiration est obligatoire.
+    if (body.nextSecret && !body.nextSecretExpiresAt) {
+      return reply.status(400).send({
+        error: 'Missing expiry date',
+        message: 'nextSecretExpiresAt est requis lorsque nextSecret est fourni'
+      });
+    }
+
+    let nextExpiresAt: Date | null = null;
+    if (body.nextSecret && body.nextSecretExpiresAt) {
+      nextExpiresAt = new Date(body.nextSecretExpiresAt);
+      if (isNaN(nextExpiresAt.getTime())) {
+        return reply.status(400).send({
+          error: 'Invalid expiry date',
+          message: 'nextSecretExpiresAt doit être une date valide'
+        });
+      }
+    }
+
     console.log('✅ Credentials validés, sauvegarde...');
 
     try {
-      if (body.nextSecret) {
-        await rotateEncryptionKey(body.nextSecret);
-        console.log('✅ JWT secret rotaté');
-      }
-
       await saveConfiguration(body.clientId, body.clientSecret);
       console.log('✅ Configuration sauvegardée en base de données');
+
+      // Programme le futur secret (promu automatiquement à l'expiration).
+      if (body.nextSecret && nextExpiresAt) {
+        await stageNextSecret(body.nextSecret, nextExpiresAt);
+        console.log('✅ Next Secret JWT programmé (expiration :', nextExpiresAt.toISOString(), ')');
+      }
 
       return reply.send({
         success: true,

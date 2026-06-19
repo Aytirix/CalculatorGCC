@@ -8,13 +8,15 @@ datasource db {
 }
 
 model Configuration {
-  id             Int      @id @default(1)
-  jwtSecret      String?  @db.VarChar(256)
-  clientId42     String   @default("") @db.Text
-  clientSecret42 String   @default("") @db.Text
-  setupToken     String?  @db.VarChar(128)
-  isConfigured   Boolean  @default(false)
-  updatedAt      DateTime @updatedAt
+  id                 Int       @id @default(1)
+  jwtSecret          String?   @db.VarChar(256)
+  jwtSecretNext      String?   @db.VarChar(256)
+  jwtSecretExpiresAt DateTime?
+  clientId42         String    @default("") @db.Text
+  clientSecret42     String    @default("") @db.Text
+  setupToken         String?   @db.VarChar(128)
+  isConfigured       Boolean   @default(false)
+  updatedAt          DateTime  @updatedAt
 
   @@map("configuration")
 }

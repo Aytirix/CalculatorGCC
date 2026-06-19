@@ -63,8 +63,15 @@ await fastify.register(rateLimit, {
 });
 
 // JWT
+// On charge/génère le secret depuis la DB AVANT d'enregistrer le plugin afin
+// d'utiliser un secret STATIQUE : la signature/vérification restent synchrones
+// et correctement typées (un secret-fonction rendrait jwt.sign asynchrone).
+// Gère aussi la promotion d'un éventuel Next Secret expiré (rotation).
+await initConfig();
+await loadOrGenerateJwtSecret();
+
 await fastify.register(jwt, {
-	secret: () => process.env.JWT_SECRET!,
+	secret: process.env.JWT_SECRET!,
 	sign: {
 		expiresIn: config.jwt.expiresIn,
 	},
@@ -129,9 +136,9 @@ fastify.setErrorHandler((error, _request, reply) => {
 
 async function start() {
 	try {
-		// Init DB : s'assure que la ligne de config existe et charge les credentials
-		await initConfig();
-		await loadOrGenerateJwtSecret();
+		// initConfig() + loadOrGenerateJwtSecret() ont déjà été exécutés avant
+		// l'enregistrement du plugin JWT (voir plus haut). On charge ici les
+		// credentials 42 déchiffrés dans l'environnement.
 		await loadConfigIntoEnv();
 
 		const configured = await isConfigured();

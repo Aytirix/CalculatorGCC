@@ -24,6 +24,7 @@ export interface ConfigureRequest {
   clientId: string;
   clientSecret: string;
   nextSecret?: string;
+  nextSecretExpiresAt?: string; // ISO date : promotion auto une fois dépassée
 }
 
 export interface ConfigureResponse {
