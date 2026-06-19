@@ -151,9 +151,29 @@ export async function loadConfigIntoEnv(): Promise<void> {
 	}
 
 	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
-	if (row?.isConfigured) {
+	if (!row?.isConfigured) return;
+
+	try {
 		process.env.CLIENT_ID_42 = decrypt(row.clientId42);
 		process.env.CLIENT_SECRET_42 = decrypt(row.clientSecret42);
 		process.env.CONFIGURED = 'true';
+	} catch {
+		// Le secret courant ne déchiffre pas les credentials (JWT_SECRET changé ou
+		// régénéré). On NE crash PAS et on ne tente aucun ancien secret : on repasse
+		// l'instance en mode setup pour que l'admin re-saisisse les credentials 42
+		// via le wizard (ils seront re-chiffrés sous le secret courant).
+		// Aucune donnée utilisateur n'est touchée : les tables user_simulation /
+		// simulated_project sont indépendantes de la table configuration.
+		console.error(
+			'⚠️  Credentials 42 indéchiffrables (JWT_SECRET différent de celui du chiffrement). ' +
+			'Passage en mode setup : re-saisie requise via /setup. Aucune donnée utilisateur perdue.'
+		);
+		await prisma.configuration.update({
+			where: { id: 1 },
+			data: { isConfigured: false },
+		});
+		process.env.CONFIGURED = 'false';
+		delete process.env.CLIENT_ID_42;
+		delete process.env.CLIENT_SECRET_42;
 	}
 }
