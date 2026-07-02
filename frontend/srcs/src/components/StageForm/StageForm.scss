@@ -3,10 +3,27 @@
 
 .stage-form {
   .form-header {
+    position: relative;
     text-align: center;
     margin-bottom: $spacing-xl;
     padding-bottom: $spacing-lg;
     border-bottom: 1px solid var(--border-color);
+
+    .info-gear {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: none;
+      border: none;
+      font-size: 1.15rem;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: all $transition-fast;
+      line-height: 1;
+      padding: $spacing-xs;
+
+      &:hover { opacity: 1; transform: rotate(45deg); }
+    }
 
     h3 {
       font-size: 1.5rem;
@@ -160,15 +177,121 @@
     }
   }
 
+  // Aide + verrouillage des sous-notes
+  .note-help {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 0 0 $spacing-sm 0;
+    line-height: 1.4;
+  }
+
+  .note-min {
+    font-weight: 600;
+    opacity: 0.85;
+  }
+
+  .note-weight {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: $spacing-sm;
+
+    b { color: var(--color-primary); }
+
+    .note-weight__sep { margin: 0 $spacing-xs; opacity: 0.5; }
+  }
+
+  .duration-guide {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: $border-radius-md;
+    padding: $spacing-sm $spacing-md;
+    margin-bottom: $spacing-sm;
+
+    &__title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: $spacing-xs;
+    }
+
+    &__row {
+      display: grid;
+      grid-template-columns: 64px 56px 1fr;
+      gap: $spacing-md;
+      align-items: baseline;
+      padding: 2px 0;
+
+      .dg-label { font-weight: 600; color: var(--text-primary); }
+      .dg-avg { color: var(--color-primary); font-weight: 700; text-align: right; }
+      .dg-range { opacity: 0.85; }
+    }
+
+    &__foot {
+      margin-top: $spacing-xs;
+      opacity: 0.85;
+    }
+  }
+
+  .note-scale {
+    font-weight: 400;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  // Ligne de note : vert = officiel (verrouillé), bleu = simulé
+  .note-group {
+    padding-left: $spacing-md;
+    border-left: 3px solid transparent;
+
+    &.note-official { border-left-color: var(--success); }
+    &.note-simulated { border-left-color: var(--color-primary); }
+
+    .note-tag {
+      margin-left: $spacing-sm;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 1px 7px;
+      border-radius: 10px;
+      vertical-align: middle;
+
+      &.official { color: var(--success); background: rgba(var(--success-rgb), 0.14); }
+      &.sim { color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.14); }
+    }
+
+    &.note-official input:not([type="range"]) { border-color: rgba(var(--success-rgb), 0.45); }
+    &.note-simulated input:not([type="range"]) { border-color: rgba(var(--color-primary-rgb), 0.35); }
+  }
+
+  .form-group {
+    input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    input[type="range"]:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
   .xp-preview {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: $spacing-sm;
     padding: $spacing-lg;
     background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-primary-rgb), 0.05));
     border: 2px solid var(--color-primary);
     border-radius: $border-radius-lg;
     margin: $spacing-xl 0;
+
+    .xp-preview-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
 
     .xp-label {
       font-size: 1rem;
@@ -180,6 +303,11 @@
       font-size: 1.5rem;
       font-weight: 700;
       color: var(--color-primary);
+
+      &.note {
+        font-size: 1.25rem;
+        color: var(--text-primary);
+      }
     }
   }
 
@@ -224,5 +352,68 @@
         }
       }
     }
+  }
+
+  // Fenêtre d'explication (⚙️)
+  .info-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: $spacing-lg;
+  }
+
+  .info-modal {
+    position: relative;
+    max-width: 540px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: $border-radius-lg;
+    padding: $spacing-xl;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+
+    h4 { margin: 0 0 $spacing-md 0; font-size: 1.2rem; color: var(--text-primary); }
+    h5 { margin: $spacing-lg 0 $spacing-sm 0; font-size: 0.95rem; color: var(--color-primary); }
+    p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 $spacing-sm 0; }
+
+    .info-modal-close {
+      position: absolute;
+      top: $spacing-md;
+      right: $spacing-md;
+      background: none;
+      border: none;
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      &:hover { color: var(--text-primary); }
+    }
+
+    .info-notes {
+      margin: 0 0 $spacing-sm 0;
+      padding-left: $spacing-lg;
+      li { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: $spacing-xs; }
+    }
+
+    .info-formula {
+      display: block;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: $border-radius-md;
+      padding: $spacing-sm $spacing-md;
+      font-size: 0.8rem;
+      color: var(--color-primary);
+      margin-bottom: $spacing-xs;
+      overflow-x: auto;
+    }
+
+    .info-accuracy { font-size: 0.85rem; margin-top: $spacing-sm; }
+    .info-drift { margin-top: $spacing-md; }
+    .muted { color: var(--text-secondary); opacity: 0.8; }
   }
 }

@@ -90,14 +90,20 @@ const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience, index, onDe
           </div>
         )}
 
-        <div className="info-row">
-          <span className="info-label">⏱️ Durée</span>
-          <span className="info-value">{getDurationText()}</span>
-        </div>
+        {experience.type === 'alternance' && (
+          <div className="info-row">
+            <span className="info-label">⏱️ Durée</span>
+            <span className="info-value">{getDurationText()}</span>
+          </div>
+        )}
 
         <div className="info-row">
-          <span className="info-label">✅ Validation</span>
-          <span className="info-value">{experience.validationPercentage}%</span>
+          <span className="info-label">{experience.type === 'stage' ? '🎯 Note finale' : '✅ Validation'}</span>
+          <span className="info-value">
+            {experience.type === 'stage'
+              ? (experience.predictedNote ?? experience.validationPercentage)
+              : `${experience.validationPercentage}%`}
+          </span>
         </div>
 
         {experience.coalitionBoost > 0 && (

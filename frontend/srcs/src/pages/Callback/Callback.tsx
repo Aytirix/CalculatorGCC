@@ -6,6 +6,14 @@ import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import './Callback.scss';
 
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+/** Une erreur de credentials 42 (clé invalide) est réparable via le setup en local. */
+const isCredentialError = (reason: string | null): boolean =>
+  reason === 'invalid_client' || reason === 'unauthorized_client';
+
 /**
  * Traduit la raison technique renvoyée par 42 en message lisible.
  */
@@ -13,6 +21,7 @@ const messageForReason = (reason: string | null): string => {
   switch (reason) {
     case 'invalid_client':
     case 'unauthorized_client':
+      // En local on redirige vers /setup avant d'arriver ici (voir useEffect).
       return "La clé d'API 42 a expiré ou n'est plus valide. Contactez l'administrateur du site.";
     case 'access_denied':
       return "Vous avez refusé l'autorisation. Réessayez pour vous connecter.";
@@ -49,6 +58,13 @@ const Callback: React.FC = () => {
 
       if (urlError) {
         console.error('[Callback] Authentication error:', urlError, 'reason:', reason);
+        // En local, une clé API 42 invalide se répare via le setup : on y redirige
+        // automatiquement au lieu d'afficher une impasse.
+        if (isLocalhost && isCredentialError(reason)) {
+          console.log('[Callback] Clé 42 invalide en local → redirection vers /setup');
+          navigate('/setup', { replace: true });
+          return;
+        }
         setError(messageForReason(reason));
         setShowRetry(true);
         return;

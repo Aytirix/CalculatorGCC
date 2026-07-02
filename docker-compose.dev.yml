@@ -42,7 +42,10 @@ services:
     working_dir: /app
     restart: unless-stopped
     networks:
-      - calculatorGCC_network
+      # Alias `app-backend` : nginx proxie /api/ vers ce nom (cf. docker-compose.prod.yml).
+      calculatorGCC_network:
+        aliases:
+          - app-backend
 
   frontend:
     build:

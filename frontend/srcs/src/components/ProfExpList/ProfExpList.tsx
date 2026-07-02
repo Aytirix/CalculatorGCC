@@ -113,7 +113,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 				<span className="prof-exp-item__name">
 					{exp.type === 'alternance'
 						? `Alternance ${exp.duration} an${exp.duration > 1 ? 's' : ''}`
-						: `Stage ${exp.duration} mois`}
+						: 'Stage'}
 				</span>
 				<div className="prof-exp-item__marks">
 					<span className="prof-exp-item__mark prof-exp-item__mark--sub">{exp.xpEarned.toLocaleString()} XP</span>

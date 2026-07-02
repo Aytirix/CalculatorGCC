@@ -75,8 +75,8 @@ const Setup: React.FC = () => {
         ...(formData.nextSecret
           ? {
               nextSecret: formData.nextSecret,
-              // datetime-local → ISO pour le backend
-              nextSecretExpiresAt: new Date(formData.nextSecretExpiresAt).toISOString(),
+              // Date (jour) → fin de journée locale (23:59:59) → ISO pour le backend
+              nextSecretExpiresAt: new Date(`${formData.nextSecretExpiresAt}T23:59:59`).toISOString(),
             }
           : {}),
       });
@@ -222,12 +222,13 @@ const Setup: React.FC = () => {
               <input
                 id="nextSecretExpiresAt"
                 name="nextSecretExpiresAt"
-                type="datetime-local"
+                type="date"
                 value={formData.nextSecretExpiresAt}
                 onChange={handleInputChange}
                 required
                 disabled={submitting}
               />
+              <p className="field-hint">Le secret expire à la fin de la journée choisie (23:59).</p>
             </div>
           )}
 

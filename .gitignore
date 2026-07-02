@@ -10,6 +10,10 @@ lerna-debug.log*
 **/.env
 **/node_modules
 **/dist
+
+# Scripts de debug : contiennent des credentials API 42 (uid/secret) et des
+# sorties avec données perso étudiants (emails, logins). Ne jamais committer.
+debug/
 dist-ssr
 *.local
 

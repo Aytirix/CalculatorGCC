@@ -7,6 +7,8 @@ import ExperienceCard from '@/components/ExperienceCard/ExperienceCard';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import './ProfessionalExperience.scss';
 
+import type { StageSubNotes } from '@/utils/stageModel';
+
 export interface ProfessionalExperience {
   id: string;
   type: 'stage' | 'alternance';
@@ -16,6 +18,8 @@ export interface ProfessionalExperience {
   coalitionBoost: number;
   isSimulation: boolean;
   xpEarned: number;
+  subNotes?: StageSubNotes; // stage : les 4 notes de sous-projets ayant servi à la prédiction
+  predictedNote?: number;   // stage : note finale prédite (0-125)
 }
 
 const ProfessionalExperience: React.FC = () => {
