@@ -160,12 +160,9 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             {key === 'duration' && (
               <div className="duration-guide">
                 <div className="duration-guide__title">📊 Moyennes réelles (dataset)</div>
-                {[
-                  { lbl: '4 mois', d: model.durationGuide.fourMonths },
-                  { lbl: '6 mois', d: model.durationGuide.sixMonths },
-                ].map(({ lbl, d }) => (
-                  <div className="duration-guide__row" key={lbl}>
-                    <span className="dg-label">{lbl}</span>
+                {model.durationGuide.rows.map((d) => (
+                  <div className="duration-guide__row" key={d.label}>
+                    <span className="dg-label">{d.label}</span>
                     <span className="dg-avg">~{d.avg}%</span>
                     <span className="dg-range">{d.min}–{d.max}%</span>
                   </div>

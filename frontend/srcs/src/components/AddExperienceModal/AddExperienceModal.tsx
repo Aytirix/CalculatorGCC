@@ -127,7 +127,7 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
             ) : selectedType === 'stage' ? (
               <StageForm
                 onSubmit={handleAdd}
-                onCancel={() => setSelectedStageLevel(null)}
+                onCancel={editingExperience ? handleClose : () => setSelectedStageLevel(null)}
                 initialValues={editingExperience}
                 knownNotes={knownStageNotes}
                 we={selectedStageLevel ?? 1}

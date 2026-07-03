@@ -42,7 +42,7 @@ export const STAGE_NOTE_MIN: Record<StageNoteKey, number> = {
 export const STAGE_NOTE_INFO: Record<StageNoteKey, { label: string; help: string }> = {
   duration: {
     label: 'Duration',
-    help: "Durée validée du stage (en %). Principal moteur de l'XP — repères 4/6 mois ci-dessous.",
+    help: "Durée validée du stage (en %). Principal moteur de l'XP — repères réels ci-dessous.",
   },
   mid: {
     label: 'Company Mid Evaluation',
@@ -66,10 +66,17 @@ export const STAGE_NOTE_CAP = 125; // plafond de la note finale
 // ---------------------------------------------------------------------------
 // Modèle par niveau de stage (WE I / WE II)
 // ---------------------------------------------------------------------------
+export interface StageDurationRow {
+  label: string; // "4 mois", "6 mois"
+  avg: number;
+  min: number;
+  max: number;
+  n: number;
+}
+
+/** Repères de Duration (%) observés dans le dataset, par tranche de durée réelle. */
 export interface StageDurationGuide {
-  threshold: number; // >= threshold ⇒ 6 mois ; < ⇒ 4 mois
-  fourMonths: { avg: number; min: number; max: number; n: number };
-  sixMonths: { avg: number; min: number; max: number; n: number };
+  rows: StageDurationRow[];
 }
 
 export interface StageModel {
@@ -110,9 +117,10 @@ export const STAGE_MODELS: Record<WorkExperienceLevel, StageModel> = {
     xpImportance: { duration: 59, mid: 10, final: 29, peer: 2 },
     noteImportance: { duration: 35, mid: 24, final: 40, peer: 1 },
     durationGuide: {
-      threshold: 110,
-      fourMonths: { avg: 102, min: 100, max: 108, n: 30 },
-      sixMonths: { avg: 116, min: 110, max: 125, n: 110 },
+      rows: [
+        { label: '4 mois', avg: 102, min: 100, max: 108, n: 30 },
+        { label: '6 mois', avg: 116, min: 110, max: 125, n: 110 },
+      ],
     },
     info: {
       xpFormula: 'XP ≈ 1008·Duration + 74·Mid + 267·Final + 89·Peer − 114841',
@@ -142,11 +150,10 @@ export const STAGE_MODELS: Record<WorkExperienceLevel, StageModel> = {
     noteWeights: { duration: 0.3782, mid: 0.3205, final: 0.5344, peer: -0.1690 },
     noteIntercept: -3.29,
     xpImportance: { duration: 35, mid: 15, final: 42, peer: 8 },
-    noteImportance: { duration: 19, mid: 32, final: 48, peer: 2 },
+    noteImportance: { duration: 19, mid: 32, final: 47, peer: 2 },
     durationGuide: {
-      threshold: 110,
-      fourMonths: { avg: 101, min: 100, max: 102, n: 12 },
-      sixMonths: { avg: 118, min: 114, max: 125, n: 5 },
+      // WE II est toujours un stage de 6 mois : une seule tranche (n=17, tout le dataset).
+      rows: [{ label: '6 mois', avg: 106, min: 100, max: 125, n: 17 }],
     },
     info: {
       xpFormula: 'XP ≈ 552·Duration + 143·Mid + 487·Final + 463·Peer − 99747',
@@ -155,8 +162,9 @@ export const STAGE_MODELS: Record<WorkExperienceLevel, StageModel> = {
       noteAccuracy: 'n = 8 seulement → indicatif (± ~4.5 pts)',
       trainingWindow: '2023-2026 (WE II validés, campus de Nice)',
       durationNote:
-        "Comme pour WE I, la Duration est en %. Les moyennes réelles WE II (affichées sous le champ) " +
-        "aident à estimer. L'échantillon WE II est encore réduit, la durée reste indicative.",
+        "Le Work Experience II est toujours un stage de 6 mois — seule la Duration validée (en %) varie " +
+        "(100-125 %). La moyenne réelle WE II est affichée sous le champ. L'échantillon reste réduit, " +
+        "la durée est indicative.",
       interceptNote:
         "La constante de la formule XP est un décalage d'équilibrage (elle correspond à des notes = 0, " +
         "qui n'existent jamais), pas un vrai montant.",
