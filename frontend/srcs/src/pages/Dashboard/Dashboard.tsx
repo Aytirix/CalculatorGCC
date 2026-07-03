@@ -6,7 +6,7 @@ import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomP
 import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
 import { RNCP_DATA } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
-import type { Project42 } from '@/services/backend-api42.service';
+import type { Project42, UserData } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
@@ -17,6 +17,8 @@ import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import { useTour } from '@/contexts/TourContext';
+import { useRefresh } from '@/contexts/useRefresh';
+import { useViewingUser } from '@/contexts/useViewingUser';
 import './Dashboard.scss';
 
 const findConfiguredProjectById = (
@@ -85,7 +87,7 @@ const Dashboard: React.FC = () => {
 		isOpen: boolean;
 		editProject: SimulatorProject | null;
 	}>({ isOpen: false, editProject: null });
-	const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+	const [syncing, setSyncing] = useState(false);
 	const [apiStages, setApiStages] = useState<Project42[]>([]);
 	const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
 	const [apiExpPercentages, setApiExpPercentages] = useState<Record<number, number>>(() => {
@@ -98,6 +100,8 @@ const Dashboard: React.FC = () => {
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
 
 	const { startTour, hasSeenTour, syncTourSeen } = useTour();
+	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
+	const { isViewingOther } = useViewingUser();
 
 	// Flag pour éviter de sauvegarder pendant le chargement initial
 	const isInitialLoad = useRef(true);
@@ -272,6 +276,11 @@ const Dashboard: React.FC = () => {
 		saveToBackend();
 	}, [saveToBackend]);
 
+	// Nettoyer le timer de sauvegarde au démontage (évite une fuite / un save perdu).
+	useEffect(() => () => {
+		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+	}, []);
+
 	const stageFilter = (p: Project42) => {
 		const slug = p.project.slug?.toLowerCase() || '';
 		const name = p.project.name?.toLowerCase() || '';
@@ -317,184 +326,69 @@ const Dashboard: React.FC = () => {
 		return result;
 	};
 
-	const loadUserData = async (forceRefresh = false) => {
+	const applyUserData = (userData: UserData) => {
+		const completedProjectSlugs = userData.projects;
+		const realPercentages: Record<string, number> = {};
+		userData.allProjects.forEach((project) => {
+			if (project.validated === true) {
+				const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
+				realPercentages[project.project.name] = percentage;
+			}
+		});
+		setCompletedProjectsPercentages(realPercentages);
+		setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
+		setApiStages(userData.allProjects.filter(stageFilter));
+
+		const professionalExpXP = professionalExperienceStorage.getRealXP();
+		const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
+		const progress: UserProgress = {
+			currentLevel: userData.level,
+			currentXP: xpService.getXPFromLevel(userData.level),
+			events: userData.eventsCount,
+			professionalExperience: professionalExpCount,
+			completedProjects: completedProjectSlugs,
+			simulatedProjects: [],
+		};
+		setUserProgress(progress);
+		setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
+	};
+
+	// Charge l'instantané des données 42 depuis le backend (AUCUN appel API 42 ici :
+	// l'usage normal ne rafraîchit jamais). Le refresh explicite passe par le contexte.
+	const loadUserData = async () => {
 		try {
-			// Throttle : éviter les appels trop rapprochés (moins de 30 secondes)
-			const now = Date.now();
-			const timeSinceLastFetch = now - lastFetchTime;
-			const MIN_FETCH_INTERVAL = 30 * 1000; // 30 secondes minimum entre deux fetch
-
-			if (timeSinceLastFetch < MIN_FETCH_INTERVAL && !forceRefresh) {
-				console.log(`[Dashboard] ⚠️  Throttle: only ${Math.round(timeSinceLastFetch / 1000)}s since last fetch, skipping...`);
-				return;
-			}
-
-			// Si forceRefresh mais que le dernier fetch est très récent (< 10s), refuser
-			if (forceRefresh && timeSinceLastFetch < 10000) {
-				console.log(`[Dashboard] ⚠️  Force refresh denied: only ${Math.round(timeSinceLastFetch / 1000)}s since last fetch`);
-				setError('Veuillez attendre quelques secondes avant de rafraîchir à nouveau.');
-				setTimeout(() => setError(null), 3000);
-				return;
-			}
-
-			setLoading(true);
 			setError(null);
-			setLastFetchTime(now);
+			const resp = await BackendAPI42Service.getUserData();
+			const viewingOther = resp._meta.isViewingOther;
 
-			// Vérifier le cache localStorage d'abord
-			const CACHE_KEY = 'user_data_cache';
-			const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 jours
-			const CACHE_MIN_AGE = 10 * 60 * 1000; // 10 minutes minimum avant de permettre un refresh
+			// Un job de refresh ne concerne que MON profil : ne pas adopter celui d'un autre.
+			if (!viewingOther && resp._meta.job) syncJob(resp._meta.job);
 
-			const cachedData = localStorage.getItem(CACHE_KEY);
-			if (cachedData) {
-				try {
-					const { data, timestamp } = JSON.parse(cachedData);
-					const age = Date.now() - timestamp;
-
-					// Si le cache a moins de 10 minutes, TOUJOURS l'utiliser (même avec forceRefresh)
-					// pour éviter de spam l'API 42
-					if (age < CACHE_MIN_AGE) {
-						console.log(`[Dashboard] ⚠️  Cache too fresh (${Math.round(age / 1000)}s / ${Math.round(CACHE_MIN_AGE / 1000)}s min), refusing to bypass - preventing rate limit`);
-						const userData = data;
-
-						// Traiter les données cachées
-						const completedProjectSlugs = userData.projects;
-						const realPercentages: Record<string, number> = {};
-						(userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
-							if (project.validated === true) {
-								const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
-								realPercentages[project.project.name] = percentage;
-							}
-						});
-						setCompletedProjectsPercentages(realPercentages);
-						setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
-						setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
-
-						const professionalExpXP = professionalExperienceStorage.getRealXP();
-						const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
-						const progress: UserProgress = {
-							currentLevel: userData.level,
-							currentXP: xpService.getXPFromLevel(userData.level),
-							events: userData.eventsCount,
-							professionalExperience: professionalExpCount,
-							completedProjects: completedProjectSlugs,
-							simulatedProjects: [],
-						};
-
-						setUserProgress(progress);
-						setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
-						setLoading(false);
-						return;
-					}
-
-					// Si pas de forceRefresh et cache valide, l'utiliser
-					if (!forceRefresh && age < CACHE_TTL) {
-						console.log(`[Dashboard] Using cached data (age: ${Math.round(age / 1000)}s)`);
-						const userData = data;
-
-						// Traiter les données cachées (même logique qu'après l'API)
-						const completedProjectSlugs = userData.projects;
-						const realPercentages: Record<string, number> = {};
-						(userData.allProjects as Array<{ validated: boolean; final_mark?: number; project: { name: string } }>).forEach((project) => {
-							if (project.validated === true) {
-								const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
-								realPercentages[project.project.name] = percentage;
-							}
-						});
-						setCompletedProjectsPercentages(realPercentages);
-						setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
-						setApiStages((userData.allProjects as Project42[]).filter(stageFilter));
-
-						const professionalExpXP = professionalExperienceStorage.getRealXP();
-						const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
-						const progress: UserProgress = {
-							currentLevel: userData.level,
-							currentXP: xpService.getXPFromLevel(userData.level),
-							events: userData.eventsCount,
-							professionalExperience: professionalExpCount,
-							completedProjects: completedProjectSlugs,
-							simulatedProjects: [],
-						};
-
-						setUserProgress(progress);
-						setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
-						setLoading(false);
-						return; // Sortir sans appeler l'API
-					}
-
-					// Cache expiré
-					if (age >= CACHE_TTL) {
-						console.log('[Dashboard] Cache expired, fetching fresh data');
-						localStorage.removeItem(CACHE_KEY);
-					} else if (forceRefresh) {
-						console.log('[Dashboard] Force refresh requested (cache older than 10 minutes) - fetching fresh data');
-					}
-				} catch (err) {
-					console.error('[Dashboard] Error reading cache:', err);
-					localStorage.removeItem(CACHE_KEY);
+			if (!resp._meta.fetchedAt) {
+				setLoading(false);
+				if (viewingOther) {
+					// Profil consulté sans données : état vide explicite (pas « ma synchro »).
+					setSyncing(false);
+					setError("Ce profil n'a pas encore synchronisé ses données 42.");
+				} else {
+					// Mon profil sans données : on affiche TOUJOURS « récupération en cours »
+					// (jamais un mur d'erreur). Le retry auto + la file s'en chargent.
+					setError(null);
+					setSyncing(true);
 				}
+				return;
 			}
 
-			// Récupérer les données de l'utilisateur depuis le backend
-			console.log('[Dashboard] Fetching data from backend...');
-			const userData = await BackendAPI42Service.getUserData(forceRefresh);
-
-			// Mettre en cache
-			localStorage.setItem(CACHE_KEY, JSON.stringify({
-				data: userData,
-				timestamp: Date.now(),
-			}));
-			console.log('[Dashboard] Data cached in localStorage');
-
-			// La liste des slugs des projets validés est déjà dans userData.projects
-			const completedProjectSlugs = userData.projects;
-
-			// Extraire les pourcentages réels (final_mark) de TOUS les projets validés
-			// peu importe leur note (50%, 75%, 100%, 125%, etc.)
-			const realPercentages: Record<string, number> = {};
-			userData.allProjects.forEach((project) => {
-				if (project.validated === true) {
-					// Convertir la note sur 100 en pourcentage (125 max devient 125%)
-					const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
-					// Utiliser project.name comme clé car c'est ce qui est retourné par l'API
-					realPercentages[project.project.name] = percentage;
-				}
-			});
-			setCompletedProjectsPercentages(realPercentages);
-			setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
-			const filtered = userData.allProjects.filter(stageFilter);
-			setApiStages(filtered);
-
-			// Créer la progression utilisateur
-			const professionalExpXP = professionalExperienceStorage.getRealXP();
-			const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
-			const progress: UserProgress = {
-				currentLevel: userData.level,
-				currentXP: xpService.getXPFromLevel(userData.level),
-				events: userData.eventsCount,
-				professionalExperience: professionalExpCount,
-				completedProjects: completedProjectSlugs,
-				simulatedProjects: [],
-			};
-
-			setUserProgress(progress);
-			setProjectedLevel(xpService.getLevelFromXP(xpService.getXPFromLevel(userData.level) + professionalExpXP));
+			setSyncing(false);
+			applyUserData(resp);
 			setLoading(false);
 		} catch (err) {
 			const error = err as Error;
 			console.error('Erreur lors du chargement des données utilisateur:', error);
-
-			// Message d'erreur plus spécifique selon le type d'erreur
 			let errorMessage = 'Impossible de charger vos données. Veuillez réessayer.';
-
 			if (error.message?.includes('expired') || error.message?.includes('login again')) {
 				errorMessage = 'Votre session a expiré. Vous allez être redirigé vers la page de connexion...';
-				// La redirection est déjà gérée par le service
-			} else if (error.message?.includes('rate limit')) {
-				errorMessage = 'Limite de requêtes API 42 atteinte. Veuillez patienter quelques minutes.';
 			}
-
 			setError(errorMessage);
 			setLoading(false);
 		}
@@ -526,6 +420,26 @@ const Dashboard: React.FC = () => {
 		return () => window.removeEventListener('storage', handleStorageChange);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	// Recharger l'instantané dès qu'un refresh se termine (badge file d'attente).
+	useEffect(() => {
+		if (completedTick > 0) loadUserData();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [completedTick]);
+
+	// Tant qu'on n'a pas encore les données (première synchro), on retente
+	// périodiquement : le backend gère le cooldown, donc ça n'émet un vrai fetch
+	// que quand c'est autorisé. Évite tout écran figé, sans mur d'erreur.
+	const refreshingRef = useRef(refreshing);
+	refreshingRef.current = refreshing;
+	useEffect(() => {
+		if (!syncing) return;
+		const id = setInterval(() => {
+			if (!refreshingRef.current) loadUserData();
+		}, 3000);
+		return () => clearInterval(id);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [syncing]);
 
 	// Mettre à jour le niveau projeté quand les projets simulés changent
 	useEffect(() => {
@@ -1011,7 +925,38 @@ const Dashboard: React.FC = () => {
 				<div className="dashboard-container">
 					<div className="error-state">
 						<p>{error}</p>
-						<button onClick={() => loadUserData(true)}>Réessayer</button>
+						{!isViewingOther && (
+							<button onClick={() => { requestRefresh(); loadUserData(); }}>Réessayer</button>
+						)}
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Première récupération : aucune donnée encore, la synchro se fait via la file.
+	// On n'affiche JAMAIS d'erreur ici — juste l'état d'avancement (place + temps estimé).
+	if (syncing && !userProgress) {
+		const syncDetail =
+			job?.state === 'queued'
+				? `Position ${job.position} dans la file · temps estimé ~${job.etaSeconds}s`
+				: job?.state === 'running'
+					? `C'est ton tour · temps estimé ~${job.etaSeconds}s`
+					: cooldownSeconds > 0
+						? `Nouvelle tentative dans ${cooldownSeconds}s…`
+						: "Connexion à l'API 42…";
+		return (
+			<div className="dashboard-page">
+				<Header />
+				<div className="dashboard-container">
+					<div className="loading-state sync-state">
+						<motion.div
+							className="spinner"
+							animate={{ rotate: 360 }}
+							transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+						/>
+						<p className="sync-title">Récupération de vos infos en cours…</p>
+						<p className="sync-detail">{syncDetail}</p>
 					</div>
 				</div>
 			</div>
@@ -1152,26 +1097,42 @@ const Dashboard: React.FC = () => {
 								)}
 							</div>
 						</div>
-						<div className="header-actions">
-							<button
-								className="reset-button"
-								data-tour="reset-button"
-								onClick={handleResetModifications}
-								title="Réinitialiser les modifications"
-								disabled={simulatedProjects.length === 0 && Object.keys(simulatedSubProjects).length === 0 && Object.keys(projectPercentages).length === 0}
-							>
-								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-									<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-									<line x1="10" y1="11" x2="10" y2="17" />
-									<line x1="14" y1="11" x2="14" y2="17" />
-								</svg>
-							</button>
-							<button className="refresh-button" data-tour="refresh-button" onClick={() => loadUserData(true)} title="Rafraîchir les données">
-								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-									<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-								</svg>
-							</button>
-						</div>
+						<button
+							className="reset-button"
+							data-tour="reset-button"
+							onClick={handleResetModifications}
+							title="Réinitialiser les modifications"
+							disabled={simulatedProjects.length === 0 && Object.keys(simulatedSubProjects).length === 0 && Object.keys(projectPercentages).length === 0}
+						>
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+								<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+								<line x1="10" y1="11" x2="10" y2="17" />
+								<line x1="14" y1="11" x2="14" y2="17" />
+							</svg>
+						</button>
+						{!isViewingOther && (
+							<div className="header-actions">
+								<button
+									className="fetch-btn"
+									data-tour="refresh-button"
+									onClick={requestRefresh}
+									disabled={refreshing || cooldownSeconds > 0}
+								>
+									<span className="fetch-btn__label">Récupérer mes infos</span>
+									<span className="fetch-btn__status">
+										{refreshing && job?.state === 'queued'
+											? `File · ${job.position}ᵉ · ~${job.etaSeconds}s`
+											: refreshing && job?.state === 'running'
+												? `Mise à jour… ~${job.etaSeconds}s`
+												: refreshing
+													? 'Mise à jour…'
+													: cooldownSeconds > 0
+														? `Disponible dans ${cooldownSeconds}s`
+														: ''}
+									</span>
+								</button>
+							</div>
+						)}
 					</div>
 				</motion.div>
 

@@ -27,11 +27,32 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getEvents(request, reply, fastify);
 	});
 
-	// Récupérer toutes les données utilisateur en une fois
+	// Récupérer toutes les données utilisateur (instantané en base, aucun appel 42)
 	fastify.get('/api42/user-data', {
 		preHandler: authenticate,
 	}, async (request: FastifyRequest, reply: FastifyReply) => {
 		return API42Controller.getUserData(request, reply, fastify);
+	});
+
+	// Déclencher un refresh (mise en file d'attente, soi uniquement)
+	fastify.post('/api42/refresh', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.refreshUserData(request, reply, fastify);
+	});
+
+	// État du refresh en cours (position / ETA / cooldown)
+	fastify.get('/api42/refresh/status', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getRefreshStatus(request, reply, fastify);
+	});
+
+	// Usage courant de l'API 42 (page Conso API) — lecture mémoire, aucun appel 42
+	fastify.get('/api42/usage', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getUsage(request, reply, fastify);
 	});
 
 	// Récupérer les infos complètes de l'utilisateur depuis l'API 42

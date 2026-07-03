@@ -59,3 +59,21 @@ model SimulatedProject {
   @@index([projectId])
   @@map("simulated_project")
 }
+
+// Instantané des données 42 d'un utilisateur (dernier fetch réussi).
+// Servi tel quel en usage normal : aucune requête vers l'API 42 tant que
+// l'utilisateur ne déclenche pas explicitement un refresh. `fetchedAt` sert
+// à la fois d'horodatage d'affichage et de base au cooldown anti-spam.
+model UserData42 {
+  userId42     Int      @id
+  level        Float    @default(0)
+  eventsCount  Int      @default(0)
+  projects     Json?    // string[] : noms des projets validés
+  allProjects  Json?    // Project42[]
+  allCursus    Json?    // CursusUser[]
+  allEvents    Json?    // Event42[]
+  fetchedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_data_42")
+}

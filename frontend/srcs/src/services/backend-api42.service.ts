@@ -1,27 +1,7 @@
 import { backendAuthService } from './backend-auth.service';
 import { config } from '@/config/config';
-import { isDev } from '@/config/devUsers';
 
 const BACKEND_URL = config.backendUrl;
-
-// ID de l'utilisateur impersonné en mode dev (0 = pas d'impersonation)
-const DEV_USER_KEY = 'dev_target_user_id';
-let _devTargetUserId = isDev ? parseInt(localStorage.getItem(DEV_USER_KEY) || '0', 10) : 0;
-
-export function setDevTargetUserId(id: number) {
-  _devTargetUserId = id;
-  if (isDev) {
-    if (id > 0) {
-      localStorage.setItem(DEV_USER_KEY, String(id));
-    } else {
-      localStorage.removeItem(DEV_USER_KEY);
-    }
-  }
-}
-
-export function getDevTargetUserId(): number {
-  return _devTargetUserId;
-}
 
 // ID de l'utilisateur consulté (mode lecture seule)
 let _viewUserId: number | null = null;
@@ -73,6 +53,60 @@ export interface UserData {
   allEvents: Event42[];
 }
 
+/** État d'un job de refresh dans la file d'attente serveur. */
+export interface RefreshJobStatus {
+  state: 'queued' | 'running';
+  position: number; // 0 = en cours, 1 = prochain, ...
+  etaSeconds: number;
+}
+
+/** Métadonnées renvoyées avec l'instantané (fraîcheur, job en cours, cooldown). */
+export interface UserDataMeta {
+  fetchedAt: string | null; // null = jamais synchronisé
+  job: RefreshJobStatus | null;
+  cooldownSeconds: number; // temps restant avant prochain refresh possible
+  canRefresh: boolean;
+  isViewingOther: boolean;
+  // Catégorie de la dernière synchro en échec (aucune donnée) : 'auth' = token 42 expiré.
+  lastError: 'auth' | 'other' | null;
+}
+
+export type UserDataResponse = UserData & { _meta: UserDataMeta };
+
+/** Réponse à une demande de refresh (POST /api42/refresh). */
+export interface RefreshEnqueueResult {
+  ok: boolean;
+  job?: RefreshJobStatus;
+  code?: 'COOLDOWN';
+  retryInSeconds?: number;
+  message?: string;
+}
+
+/** Usage courant de l'API 42 (GET /api42/usage) — pour la page Conso API. */
+export interface ApiUsageStats {
+  hourlyLimit: number;
+  hourlyRemaining: number | null; // null tant qu'aucune requête n'a été observée
+  secondlyLimit: number;
+  secondlyRemaining: number | null;
+  requestsLastHour: number; // requêtes émises par notre backend sur la dernière heure
+  queueDepth: number; // requêtes bas-niveau en attente dans le rate limiter
+  paused: boolean;
+  pausedForSeconds: number;
+  minDelayMs: number;
+  lastRequestAt: string | null;
+  refresh: { waiting: number; running: number };
+}
+
+/** État courant du refresh (GET /api42/refresh/status). */
+export interface RefreshStatusResult {
+  job: RefreshJobStatus | null;
+  fetchedAt: string | null;
+  cooldownSeconds: number;
+  canRefresh: boolean;
+  /** Dernière tentative en échec et toujours aucune donnée (première synchro ratée). */
+  lastFailed: boolean;
+}
+
 /**
  * Service pour récupérer les données de l'API 42 via le backend
  */
@@ -80,7 +114,7 @@ export class BackendAPI42Service {
   /**
    * Effectue une requête vers le backend
    */
-  private static async request<T>(endpoint: string): Promise<T> {
+  private static async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const jwtToken = backendAuthService.getToken();
 
     if (!jwtToken) {
@@ -88,19 +122,17 @@ export class BackendAPI42Service {
     }
 
     let url = `${BACKEND_URL}${endpoint}`;
-    // En dev : impersonation directe via target_user_id
-    if (isDev && _devTargetUserId > 0) {
-      const separator = url.includes('?') ? '&' : '?';
-      url += `${separator}target_user_id=${_devTargetUserId}`;
-    } else if (_viewUserId !== null) {
-      // Mode lecture seule : consulter un profil public
+    // Mode lecture seule : consulter le profil public d'un autre utilisateur.
+    if (_viewUserId !== null) {
       const separator = url.includes('?') ? '&' : '?';
       url += `${separator}view_user_id=${_viewUserId}`;
     }
 
     const response = await fetch(url, {
+      ...options,
       headers: {
         Authorization: `Bearer ${jwtToken}`,
+        ...(options?.headers as Record<string, string> | undefined),
       },
     });
 
@@ -152,13 +184,36 @@ export class BackendAPI42Service {
   }
 
   /**
-   * Récupère toutes les données utilisateur en une fois (optimisé)
+   * Récupère l'instantané des données utilisateur (stocké en base côté serveur).
+   * NE déclenche AUCUN appel à l'API 42 : l'usage normal ne rafraîchit jamais.
+   * Utiliser requestRefresh() pour forcer une mise à jour.
    */
-  static async getUserData(forceRefresh = false): Promise<UserData> {
-    const endpoint = forceRefresh 
-      ? '/api42/user-data?refresh=true' 
-      : '/api42/user-data';
-    return this.request<UserData>(endpoint);
+  static async getUserData(): Promise<UserDataResponse> {
+    return this.request<UserDataResponse>('/api42/user-data');
+  }
+
+  /**
+   * Déclenche un refresh (mise en file d'attente serveur, soi uniquement).
+   * Renvoie la position/ETA, ou un refus si cooldown non écoulé.
+   */
+  static async requestRefresh(): Promise<RefreshEnqueueResult> {
+    return this.request<RefreshEnqueueResult>('/api42/refresh', { method: 'POST' });
+  }
+
+  /**
+   * État courant du refresh (job en cours + cooldown). Permet de restaurer
+   * le badge après un rechargement de page.
+   */
+  static async getRefreshStatus(): Promise<RefreshStatusResult> {
+    return this.request<RefreshStatusResult>('/api42/refresh/status');
+  }
+
+  /**
+   * Usage courant de l'API 42 (budget restant, file, débit). Lecture en mémoire
+   * côté serveur : appeler cet endroit ne consomme AUCUNE requête 42.
+   */
+  static async getUsage(): Promise<ApiUsageStats> {
+    return this.request<ApiUsageStats>('/api42/usage');
   }
 
   /**

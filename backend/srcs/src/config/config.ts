@@ -68,7 +68,49 @@ export const config = {
 			return parseInt(process.env.RATE_LIMIT_TIMEWINDOW || '60000', 10);
 		},
 	},
+
+	// Débit vers l'API 42. Limites mesurées : 2 req/s et 1200 req/h (par application).
+	// minDelay 550 ms => ~1.8 req/s (marge sous 2/s). Budget horaire gardé sous 1200.
+	// intParam garantit un fallback si la variable d'env est absente OU non numérique
+	// (sinon un NaN désactiverait silencieusement le throttle).
+	api42: {
+		get minDelayMs() {
+			return intParam(process.env.API42_MIN_DELAY_MS, 550);
+		},
+		// Si le header `x-hourly-ratelimit-remaining` passe sous ce seuil, on met la file en pause.
+		get hourlyReserve() {
+			return intParam(process.env.API42_HOURLY_RESERVE, 50);
+		},
+		// Durée de pause quand le budget horaire est presque épuisé.
+		get hourlyPauseMs() {
+			return intParam(process.env.API42_HOURLY_PAUSE_MS, 60000);
+		},
+		// Nombre de retries sur 429 avant d'abandonner la requête.
+		get maxRetriesOn429() {
+			return intParam(process.env.API42_MAX_RETRIES_429, 4);
+		},
+		// Cooldown après un refresh réussi (anti-spam) : 10 min.
+		get refreshCooldownMs() {
+			return intParam(process.env.API42_REFRESH_COOLDOWN_MS, 10 * 60 * 1000);
+		},
+		// Cooldown après un refresh en ÉCHEC : court, pour retenter sans marteler l'API.
+		get failureCooldownMs() {
+			return intParam(process.env.API42_FAILURE_COOLDOWN_MS, 15 * 1000);
+		},
+		// Timeout d'une requête vers 42 : sans ça, une requête pendue bloquerait
+		// toute la file (un seul traitement à la fois) jusqu'au redémarrage.
+		get requestTimeoutMs() {
+			return intParam(process.env.API42_REQUEST_TIMEOUT_MS, 15 * 1000);
+		},
+	},
 };
+
+/** parseInt tolérant : retourne `fallback` si absent ou non numérique. */
+function intParam(value: string | undefined, fallback: number): number {
+	if (value == null || value === '') return fallback;
+	const n = parseInt(value, 10);
+	return Number.isNaN(n) ? fallback : n;
+}
 
 // Validate configuration (only logs warnings if not configured yet)
 function validateConfig() {

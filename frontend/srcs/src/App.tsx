@@ -5,12 +5,14 @@ import { useAuth } from '@/contexts/useAuth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { TourProvider } from '@/contexts/TourContext';
 import { ViewingUserProvider } from '@/contexts/ViewingUserContext';
+import { RefreshProvider } from '@/contexts/RefreshContext';
 import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
 import Dashboard from '@/pages/Dashboard/Dashboard';
 import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import Calendar from '@/pages/Calendar/Calendar';
+import ApiUsage from '@/pages/ApiUsage/ApiUsage';
 import Setup from '@/pages/Setup/Setup';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
@@ -81,6 +83,14 @@ const AppRoutes: React.FC = () => {
 				}
 			/>
 			<Route
+				path="/api-usage"
+				element={
+					<ProtectedRoute>
+						<ApiUsage />
+					</ProtectedRoute>
+				}
+			/>
+			<Route
 				path="/settings"
 				element={
 					<ProtectedRoute>
@@ -100,9 +110,11 @@ function App() {
 			<AuthProvider>
 				<TourProvider>
 					<ViewingUserProvider>
-						<Router>
-							<AppRoutes />
-						</Router>
+						<RefreshProvider>
+							<Router>
+								<AppRoutes />
+							</Router>
+						</RefreshProvider>
 					</ViewingUserProvider>
 				</TourProvider>
 			</AuthProvider>

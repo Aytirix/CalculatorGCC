@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useTour } from '@/contexts/TourContext';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import {
   DropdownMenu,
@@ -13,17 +12,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { DEV_USERS, isDev } from '@/config/devUsers';
-import { setDevTargetUserId, getDevTargetUserId } from '@/services/backend-api42.service';
 import { simulationService, type UserSearchResult } from '@/services/simulation.service';
 import './Header.scss';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { hasSeenTour } = useTour();
   const { viewingUser, setViewingUser, clearViewingUser, isViewingOther } = useViewingUser();
-  const [devUserId, setDevUserId] = useState<number>(getDevTargetUserId());
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,46 +197,14 @@ const Header: React.FC = () => {
             >
               Calendrier
             </Button>
-          </div>
-
-          {isDev && DEV_USERS.length > 0 && (
-            <select
-              className="dev-user-select"
-              value={devUserId}
-              onChange={async (e: React.ChangeEvent<HTMLSelectElement>) => {
-                const id = Number(e.target.value);
-                setDevUserId(id);
-                setDevTargetUserId(id);
-                try {
-                  await simulationService.save({
-                    simulatedProjects: [],
-                    simulatedSubProjects: {},
-                    customProjects: [],
-                    manualExperiences: [],
-                    apiExpPercentages: {},
-                    hasSeenTour: hasSeenTour(),
-                  });
-                } catch {}
-                localStorage.removeItem('simulated_projects');
-                localStorage.removeItem('simulated_sub_projects');
-                localStorage.removeItem('project_percentages');
-                localStorage.removeItem('custom_projects');
-                localStorage.removeItem('project_notes');
-                localStorage.removeItem('coalition_boosts');
-                localStorage.removeItem('api_exp_percentages');
-                localStorage.removeItem('professional_experiences');
-                localStorage.removeItem('user_data_cache');
-                window.location.reload();
-              }}
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/api-usage')}
+              className="nav-button"
             >
-              <option value={0}>Mon compte</option>
-              {DEV_USERS.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.login} ({u.id})
-                </option>
-              ))}
-            </select>
-          )}
+              Conso API
+            </Button>
+          </div>
 
           <Button
             variant="ghost"
