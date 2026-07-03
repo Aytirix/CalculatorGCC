@@ -1,10 +1,22 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { API42Service, refreshJobManager } from '../services/api42.service.js';
+import { token42Service } from '../services/token42.service.js';
 import { simulationRepository } from '../db/simulationRepository.js';
 import { userData42Repository } from '../db/userData42Repository.js';
 import { config } from '../config/config.js';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
+
+/**
+ * Token 42 valide pour l'APPELANT (jamais pour un profil consulté), rafraîchi
+ * au besoin. Amorce d'abord le store depuis le JWT (sessions ouvertes avant le
+ * déploiement), puis retombe sur le token du JWT si le store est vide.
+ */
+async function callerAccessToken(request: FastifyRequest): Promise<string> {
+  const selfId = request.user.user_id_42;
+  await token42Service.ensureStored(selfId, request.user);
+  return (await token42Service.getValidAccessToken(selfId)) ?? request.user.api_token;
+}
 
 /**
  * Secondes restantes avant qu'un nouveau refresh soit autorisé (0 = dispo).
@@ -113,7 +125,7 @@ export class API42Controller {
    */
   static async getAllProjects(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token } = request.user;
+      const api_token = await callerAccessToken(request);
       const userId = await getEffectiveUserId(request, reply);
       if (userId === null) return;
 
@@ -133,7 +145,7 @@ export class API42Controller {
    */
   static async getCursus(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token } = request.user;
+      const api_token = await callerAccessToken(request);
       const userId = await getEffectiveUserId(request, reply);
       if (userId === null) return;
 
@@ -153,7 +165,7 @@ export class API42Controller {
    */
   static async getEvents(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token } = request.user;
+      const api_token = await callerAccessToken(request);
       const userId = await getEffectiveUserId(request, reply);
       if (userId === null) return;
 
@@ -189,7 +201,10 @@ export class API42Controller {
       // Première synchro auto : seulement pour soi, et pas pendant un cooldown
       // (sinon un échec de synchro se réenfilerait en boucle).
       if (!snap && isSelf && !job && cooldownSeconds === 0) {
-        job = refreshJobManager.enqueue(userId, request.user.api_token);
+        // Amorce le store de tokens depuis le JWT avant d'enfiler (le job résout
+        // ensuite un token 42 valide tout seul, rafraîchi si nécessaire).
+        await token42Service.ensureStored(userId, request.user);
+        job = refreshJobManager.enqueue(userId);
         fastify.log.info(`[API42 Controller] Première synchro mise en file pour ${userId}`);
       }
 
@@ -241,7 +256,8 @@ export class API42Controller {
         });
       }
 
-      const job = refreshJobManager.enqueue(userId, request.user.api_token);
+      await token42Service.ensureStored(userId, request.user);
+      const job = refreshJobManager.enqueue(userId);
       fastify.log.info(`[API42 Controller] Refresh mis en file pour ${userId} (position ${job.position})`);
       return reply.send({ ok: true, job });
     } catch (error: any) {
@@ -281,7 +297,7 @@ export class API42Controller {
    */
   static async getMe(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token } = request.user;
+      const api_token = await callerAccessToken(request);
 
       const userInfo = await API42Service.getMe(api_token);
 
@@ -299,7 +315,7 @@ export class API42Controller {
    */
   static async getProjectRegisteredUsers(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     try {
-      const { api_token } = request.user;
+      const api_token = await callerAccessToken(request);
       const { slug } = request.params as { slug: string };
 
       const users = await API42Service.getProjectRegisteredUsers(slug, api_token);

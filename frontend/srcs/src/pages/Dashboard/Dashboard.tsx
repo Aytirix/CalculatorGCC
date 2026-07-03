@@ -19,6 +19,7 @@ import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/Prof
 import { useTour } from '@/contexts/TourContext';
 import { useRefresh } from '@/contexts/useRefresh';
 import { useViewingUser } from '@/contexts/useViewingUser';
+import { useAuth } from '@/contexts/useAuth';
 import './Dashboard.scss';
 
 const findConfiguredProjectById = (
@@ -102,6 +103,10 @@ const Dashboard: React.FC = () => {
 	const { startTour, hasSeenTour, syncTourSeen } = useTour();
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
 	const { isViewingOther } = useViewingUser();
+	const { login } = useAuth();
+	// Session 42 réellement expirée (refresh_token mort) : filet de sécurité pour
+	// couper la boucle de synchro et proposer une reconnexion, au lieu de retenter à l'infini.
+	const [authExpired, setAuthExpired] = useState(false);
 
 	// Flag pour éviter de sauvegarder pendant le chargement initial
 	const isInitialLoad = useRef(true);
@@ -370,16 +375,23 @@ const Dashboard: React.FC = () => {
 					// Profil consulté sans données : état vide explicite (pas « ma synchro »).
 					setSyncing(false);
 					setError("Ce profil n'a pas encore synchronisé ses données 42.");
+				} else if (resp._meta.lastError === 'auth') {
+					// Session 42 réellement expirée : retenter ne servira à rien tant que
+					// l'utilisateur ne se reconnecte pas. On coupe la boucle et on l'invite à le faire.
+					setSyncing(false);
+					setAuthExpired(true);
 				} else {
 					// Mon profil sans données : on affiche TOUJOURS « récupération en cours »
 					// (jamais un mur d'erreur). Le retry auto + la file s'en chargent.
 					setError(null);
+					setAuthExpired(false);
 					setSyncing(true);
 				}
 				return;
 			}
 
 			setSyncing(false);
+			setAuthExpired(false);
 			applyUserData(resp);
 			setLoading(false);
 		} catch (err) {
@@ -928,6 +940,27 @@ const Dashboard: React.FC = () => {
 						{!isViewingOther && (
 							<button onClick={() => { requestRefresh(); loadUserData(); }}>Réessayer</button>
 						)}
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Session 42 expirée (refresh_token mort) et aucune donnée à afficher : on
+	// sort de la boucle de synchro et on propose une reconnexion 42.
+	if (authExpired && !userProgress) {
+		return (
+			<div className="dashboard-page">
+				<Header />
+				<div className="dashboard-container">
+					<div className="loading-state sync-state">
+						<p className="sync-title">Session 42 expirée</p>
+						<p className="sync-detail">
+							Ta connexion à l'intra 42 a expiré. Reconnecte-toi pour récupérer tes infos.
+						</p>
+						<button className="fetch-btn" onClick={login} style={{ marginTop: '1rem' }}>
+							<span className="fetch-btn__label">Se reconnecter à 42</span>
+						</button>
 					</div>
 				</div>
 			</div>

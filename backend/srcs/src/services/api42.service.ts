@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { config } from '../config/config.js';
 import { userData42Repository, UserData42Snapshot } from '../db/userData42Repository.js';
+import { token42Service } from './token42.service.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -277,7 +278,6 @@ export interface RefreshJobStatus {
 
 interface RefreshJob {
 	userId42: number;
-	token: string;
 	enqueuedAt: number;
 }
 
@@ -324,12 +324,16 @@ class RefreshJobManager {
 		return this.running?.userId42 === userId42 || this.waiting.some((j) => j.userId42 === userId42);
 	}
 
-	/** Met un refresh en file (ou renvoie le job existant si déjà présent). */
-	enqueue(userId42: number, token: string): RefreshJobStatus {
+	/**
+	 * Met un refresh en file (ou renvoie le job existant si déjà présent).
+	 * Le token 42 n'est PAS capturé ici : il est résolu (et rafraîchi si besoin)
+	 * au moment de l'exécution du job, pour ne jamais dépendre d'un token gelé.
+	 */
+	enqueue(userId42: number): RefreshJobStatus {
 		const existing = this.getStatus(userId42);
 		if (existing) return existing;
 
-		this.waiting.push({ userId42, token, enqueuedAt: Date.now() });
+		this.waiting.push({ userId42, enqueuedAt: Date.now() });
 		void this.process();
 		return this.getStatus(userId42)!;
 	}
@@ -344,14 +348,21 @@ class RefreshJobManager {
 			let ok = false;
 			let status: number | undefined;
 			try {
-				const snapshot = await API42Service.fetchFresh(job.userId42, job.token);
+				// Token 42 valide, rafraîchi au besoin. null => reconnexion requise :
+				// on marque 401 pour que le front affiche « session expirée ».
+				const token = await token42Service.getValidAccessToken(job.userId42);
+				if (!token) {
+					status = 401;
+					throw new Error('Aucun token 42 valide (reconnexion requise)');
+				}
+				const snapshot = await API42Service.fetchFresh(job.userId42, token);
 				await userData42Repository.upsert(job.userId42, snapshot);
 				ok = true;
 				console.log(`[Refresh] Instantané mis à jour pour ${job.userId42}`);
 			} catch (error: any) {
 				// Échec : `fetchedAt` reste inchangé, mais on mémorise la tentative
 				// (lastResult) pour appliquer un cooldown et éviter le réenfilage en boucle.
-				status = error?.response?.status;
+				status = status ?? error?.response?.status;
 				console.error(`[Refresh] Échec du job pour ${job.userId42} (status ${status ?? '?'}):`, error?.message || error);
 			} finally {
 				this.lastResult.set(job.userId42, { at: Date.now(), ok, status });

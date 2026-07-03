@@ -3,6 +3,7 @@ import axios from 'axios';
 import { config } from '../config/config.js';
 import { prisma } from '../db/connection.js';
 import { simulationRepository } from '../db/simulationRepository.js';
+import { userToken42Repository } from '../db/userToken42Repository.js';
 
 export class AuthController {
   /**
@@ -76,6 +77,17 @@ export class AuthController {
 
       const userData = userResponse.data;
 
+      // Stocker les tokens 42 côté serveur (chiffrés) : source de vérité pour
+      // les rafraîchir plus tard sans dépendre du token gelé dans le JWT (qui
+      // expire en ~2h alors que la session dure 7j).
+      if (refresh_token) {
+        await userToken42Repository.save(userData.id, {
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresAt: new Date(expires_in ? Date.now() + expires_in * 1000 : Date.now() + 2 * 60 * 60 * 1000),
+        });
+      }
+
       // Générer un JWT contenant le token de l'API 42 et les infos utilisateur
       const payload = {
         api_token: access_token,
@@ -98,14 +110,14 @@ export class AuthController {
       // Secret statique (chargé avant l'enregistrement du plugin) → signature
       // synchrone qui renvoie bien la chaîne du token.
       const token = request.server.jwt.sign(payload);
-      console.log('[Auth Controller] JWT generated, length:', token.length);
-      console.log('[Auth Controller] JWT preview:', token.substring(0, 50) + '...');
+      // Ne jamais logger le JWT (même tronqué) : il contient les tokens 42.
+      console.log(`[Auth Controller] JWT généré pour ${payload.login} (len ${token.length})`);
 
       // Rediriger vers le frontend avec le token JWT
       const redirectUrl = new URL(`${config.frontendUrl}/callback`);
       redirectUrl.searchParams.append('token', token);
 
-      console.log('[Auth Controller] Redirecting to:', redirectUrl.toString().substring(0, 100) + '...');
+      console.log('[Auth Controller] Redirection vers le callback frontend');
       return reply.redirect(redirectUrl.toString());
     } catch (error: any) {
       console.error('OAuth error:', error.response?.data || error.message);
