@@ -7,7 +7,7 @@ import ExperienceCard from '@/components/ExperienceCard/ExperienceCard';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import './ProfessionalExperience.scss';
 
-import type { StageSubNotes } from '@/utils/stageModel';
+import type { StageSubNotes, WorkExperienceLevel } from '@/utils/stageModel';
 
 export interface ProfessionalExperience {
   id: string;
@@ -20,6 +20,7 @@ export interface ProfessionalExperience {
   xpEarned: number;
   subNotes?: StageSubNotes; // stage : les 4 notes de sous-projets ayant servi à la prédiction
   predictedNote?: number;   // stage : note finale prédite (0-125)
+  stageLevel?: WorkExperienceLevel; // stage : 1 = Work Experience I, 2 = II (absent ⇒ I, rétro-compat)
 }
 
 const ProfessionalExperience: React.FC = () => {

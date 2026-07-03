@@ -7,14 +7,12 @@ import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/Prof
 import {
   type StageSubNotes,
   type StageNoteKey,
+  type WorkExperienceLevel,
   STAGE_NOTE_INFO,
   STAGE_NOTE_MAX,
   STAGE_NOTE_MIN,
   STAGE_NOTE_ORDER,
-  STAGE_MODEL_INFO,
-  STAGE_DURATION_GUIDE,
-  STAGE_XP_IMPORTANCE,
-  STAGE_NOTE_IMPORTANCE,
+  STAGE_MODELS,
   predictStageXP,
   predictStageNote,
   applyCoalitionBoost,
@@ -27,11 +25,14 @@ interface StageFormProps {
   initialValues?: ProfessionalExperience | null;
   /** Vraies notes déjà connues (API) : ces champs sont pré-remplis et verrouillés. */
   knownNotes?: Partial<StageSubNotes>;
+  /** Niveau du stage à simuler (Work Experience I ou II). Défaut : I. */
+  we?: WorkExperienceLevel;
 }
 
 const DEFAULT_NOTES: StageSubNotes = { duration: 100, mid: 100, final: 100, peer: 100 };
 
-const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues, knownNotes }) => {
+const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues, knownNotes, we = 1 }) => {
+  const model = STAGE_MODELS[we];
   // Notes de départ : défauts <- valeurs éditées <- notes réelles connues (prioritaires)
   const initialNotes: StageSubNotes = {
     ...DEFAULT_NOTES,
@@ -51,9 +52,9 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
     setNotes((prev) => ({ ...prev, [key]: clamped }));
   };
 
-  const baseXP = useMemo(() => predictStageXP(notes), [notes]);
+  const baseXP = useMemo(() => predictStageXP(notes, we), [notes, we]);
   const finalXP = useMemo(() => applyCoalitionBoost(baseXP, coalitionBoost), [baseXP, coalitionBoost]);
-  const predictedNote = useMemo(() => predictStageNote(notes), [notes]);
+  const predictedNote = useMemo(() => predictStageNote(notes, we), [notes, we]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +68,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
       xpEarned: finalXP,
       subNotes: notes,
       predictedNote,
+      stageLevel: we,
     });
   };
 
@@ -84,11 +86,14 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
         >
           ?
         </button>
-        <h3>🎓 Stage — Work Experience I</h3>
+        <h3>🎓 Stage — {model.label}</h3>
         <p className="form-description">
           Estime les notes des sous-projets pour prédire l'XP et la note finale.
           {hasKnown && ' Les notes déjà connues sont verrouillées 🔒.'}
         </p>
+        {model.preliminary && model.info.sampleNote && (
+          <p className="form-description" style={{ color: '#d29922' }}>⚠️ {model.info.sampleNote}</p>
+        )}
       </div>
 
       {showInfo && (
@@ -98,7 +103,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             <h4>ℹ️ Comment marche la simulation</h4>
             <p>
               On estime les 4 notes des sous-projets du stage. Une <b>régression linéaire</b> — entraînée
-              sur les vrais stages validés ({STAGE_MODEL_INFO.trainingWindow}) — prédit l'<b>XP réel</b> et
+              sur les vrais stages validés ({model.info.trainingWindow}) — prédit l'<b>XP réel</b> et
               la <b>note finale</b>. Les notes déjà connues (via l'API) sont verrouillées 🔒.
             </p>
 
@@ -111,19 +116,19 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             </ul>
 
             <h5>À propos de la Duration</h5>
-            <p>{STAGE_MODEL_INFO.durationNote}</p>
+            <p>{model.info.durationNote}</p>
 
             <h5>Formules (poids de la régression)</h5>
-            <code className="info-formula">{STAGE_MODEL_INFO.xpFormula}</code>
-            <code className="info-formula">{STAGE_MODEL_INFO.noteFormula} <span className="muted">(plafond 125)</span></code>
+            <code className="info-formula">{model.info.xpFormula}</code>
+            <code className="info-formula">{model.info.noteFormula} <span className="muted">(plafond 125)</span></code>
             <p className="muted">
               Le <b>%</b> affiché sous chaque note = sa part dans ce qui fait <b>varier</b> le résultat
               (les 4 somment à 100 %). Duration pèse le plus sur l'XP, Final sur la note.
             </p>
-            <p className="muted">{STAGE_MODEL_INFO.interceptNote}</p>
+            <p className="muted">{model.info.interceptNote}</p>
             <p className="info-accuracy">
-              XP : {STAGE_MODEL_INFO.xpAccuracy}<br />
-              Note : {STAGE_MODEL_INFO.noteAccuracy}
+              XP : {model.info.xpAccuracy}<br />
+              Note : {model.info.noteAccuracy}
             </p>
 
             <p className="muted info-drift">
@@ -148,16 +153,16 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             </Label>
             <p className="note-help">{info.help} <span className="note-min">Min : {min}.</span></p>
             <div className="note-weight" title="Part de ce paramètre dans ce qui fait varier l'XP / la note (les 4 somment à 100 %)">
-              ⚖️ Poids : <b>{STAGE_XP_IMPORTANCE[key]}%</b> de l'XP
+              ⚖️ Poids : <b>{model.xpImportance[key]}%</b> de l'XP
               <span className="note-weight__sep">·</span>
-              {STAGE_NOTE_IMPORTANCE[key]}% de la note
+              {model.noteImportance[key]}% de la note
             </div>
             {key === 'duration' && (
               <div className="duration-guide">
                 <div className="duration-guide__title">📊 Moyennes réelles (dataset)</div>
                 {[
-                  { lbl: '4 mois', d: STAGE_DURATION_GUIDE.fourMonths },
-                  { lbl: '6 mois', d: STAGE_DURATION_GUIDE.sixMonths },
+                  { lbl: '4 mois', d: model.durationGuide.fourMonths },
+                  { lbl: '6 mois', d: model.durationGuide.sixMonths },
                 ].map(({ lbl, d }) => (
                   <div className="duration-guide__row" key={lbl}>
                     <span className="dg-label">{lbl}</span>

@@ -50,7 +50,9 @@ const ExperienceCard: React.FC<ExperienceCardProps> = ({ experience, index, onDe
             {experience.type === 'stage' ? '🎓' : '💼'}
           </span>
           <span className="type-label">
-            {experience.type === 'stage' ? 'Stage' : 'Alternance'}
+            {experience.type === 'stage'
+              ? `Stage · ${experience.stageLevel === 2 ? 'WE II' : 'WE I'}`
+              : 'Alternance'}
           </span>
         </div>
         {experience.isSimulation && (
