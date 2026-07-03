@@ -176,4 +176,35 @@ export const SimulationController = {
 
 		return reply.send({ hasSeenTour });
 	},
+
+	/**
+	 * GET /simulation/changelog-seen - Version du dernier changelog acquitté par l'utilisateur.
+	 */
+	async getChangelogSeen(request: FastifyRequest, reply: FastifyReply) {
+		const lastSeenChangelog = await simulationRepository.getLastSeenChangelog(request.user.user_id_42);
+		return reply.send({ lastSeenChangelog });
+	},
+
+	/**
+	 * PUT /simulation/changelog-seen - Marque une version de changelog comme vue.
+	 */
+	async saveChangelogSeen(request: FastifyRequest, reply: FastifyReply) {
+		const { user_id_42, login, image_url, first_name, last_name } = request.user;
+		const body = request.body as { version?: unknown } | undefined;
+
+		if (!body || typeof body.version !== 'string' || body.version.length === 0 || body.version.length > 32) {
+			return reply.code(400).send({ error: 'version must be a non-empty string (max 32 chars)' });
+		}
+
+		const lastSeenChangelog = await simulationRepository.saveLastSeenChangelog(
+			user_id_42,
+			login,
+			image_url ?? null,
+			body.version,
+			first_name,
+			last_name
+		);
+
+		return reply.send({ lastSeenChangelog });
+	},
 };

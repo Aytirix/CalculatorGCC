@@ -140,4 +140,21 @@ export const simulationService = {
 	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number; imageUrl: string | null }[]> {
 		return request<{ login: string; userId42: number; imageUrl: string | null }[]>(`/simulation/project-users/${encodeURIComponent(projectId)}`);
 	},
+
+	/**
+	 * Version du dernier changelog acquitté par l'utilisateur (null = jamais vu).
+	 */
+	async getChangelogSeen(): Promise<{ lastSeenChangelog: string | null }> {
+		return request<{ lastSeenChangelog: string | null }>('/simulation/changelog-seen');
+	},
+
+	/**
+	 * Marque une version de changelog comme vue (stocké côté serveur, cross-device).
+	 */
+	async saveChangelogSeen(version: string): Promise<{ lastSeenChangelog: string | null }> {
+		return request<{ lastSeenChangelog: string | null }>('/simulation/changelog-seen', {
+			method: 'PUT',
+			body: JSON.stringify({ version }),
+		});
+	},
 };

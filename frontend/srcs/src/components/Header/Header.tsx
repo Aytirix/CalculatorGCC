@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useViewingUser } from '@/contexts/useViewingUser';
+import { useChangelog } from '@/contexts/useChangelog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { viewingUser, setViewingUser, clearViewingUser, isViewingOther } = useViewingUser();
+  const { open: openChangelog } = useChangelog();
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,6 +107,16 @@ const Header: React.FC = () => {
       )}
 
       <div className="header-container">
+        {/* Changelog — tout à gauche */}
+        <button
+          className="changelog-nav-btn"
+          onClick={openChangelog}
+          title="Voir les nouveautés"
+        >
+          <span className="changelog-nav-dot" />
+          Changelog
+        </button>
+
         <motion.div
           className="logo"
           initial={{ opacity: 0, x: -20 }}

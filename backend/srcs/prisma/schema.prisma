@@ -30,6 +30,7 @@ model UserSimulation {
   imageUrl              String?  @db.VarChar(512)
   isPublic              Boolean?
   hasSeenTour           Boolean  @default(false)
+  lastSeenChangelog     String?  @db.VarChar(32) // version du dernier changelog acquitté (null = jamais)
   simulatedSubProjects  Json?    // Record<string, string[]>
   customProjects        Json?    // SimulatorProject[]
   manualExperiences     Json?    // ProfessionalExperience[]

@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { TourProvider } from '@/contexts/TourContext';
 import { ViewingUserProvider } from '@/contexts/ViewingUserContext';
 import { RefreshProvider } from '@/contexts/RefreshContext';
+import { ChangelogProvider } from '@/contexts/ChangelogContext';
 import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
@@ -111,9 +112,11 @@ function App() {
 				<TourProvider>
 					<ViewingUserProvider>
 						<RefreshProvider>
-							<Router>
-								<AppRoutes />
-							</Router>
+							<ChangelogProvider>
+								<Router>
+									<AppRoutes />
+								</Router>
+							</ChangelogProvider>
 						</RefreshProvider>
 					</ViewingUserProvider>
 				</TourProvider>

@@ -45,6 +45,20 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.saveTourSeen(request, reply);
 	});
 
+	// Récupérer la version du dernier changelog vu par l'utilisateur
+	fastify.get('/simulation/changelog-seen', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.getChangelogSeen(request, reply);
+	});
+
+	// Marquer une version de changelog comme vue
+	fastify.put('/simulation/changelog-seen', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.saveChangelogSeen(request, reply);
+	});
+
 	// Récupérer le statut privacy de l'utilisateur connecté (null = non choisi)
 	fastify.get('/simulation/me/privacy', {
 		preHandler: authenticate,

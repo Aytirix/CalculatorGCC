@@ -1,0 +1,175 @@
+@use '../../styles/variables' as *;
+
+.changelog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: $spacing-md;
+}
+
+.changelog-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: $border-radius-xl;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-lg $spacing-xl;
+  border-bottom: 1px solid var(--border-color);
+
+  h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .changelog-close {
+    background: transparent;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: $spacing-xs;
+    border-radius: $border-radius-md;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+    }
+  }
+}
+
+.changelog-body {
+  padding: $spacing-lg $spacing-xl;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+}
+
+.changelog-empty {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.changelog-entry {
+  &:not(:last-child) {
+    padding-bottom: $spacing-lg;
+    border-bottom: 1px dashed var(--border-color);
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+}
+
+.changelog-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--color-primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.changelog-date {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.changelog-list {
+  margin: $spacing-sm 0 0 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+
+  li {
+    color: var(--text-primary);
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+}
+
+.changelog-footer {
+  padding: $spacing-md $spacing-xl $spacing-lg;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+
+  .changelog-ok {
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: $border-radius-md;
+    padding: $spacing-sm $spacing-lg;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--color-primary-hover);
+    }
+  }
+}
+
+// Bouton « Changelog » dans la navbar (tout à gauche)
+.changelog-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: $border-radius-md;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--bg-secondary);
+    border-color: var(--color-primary);
+  }
+
+  .changelog-nav-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary);
+  }
+}

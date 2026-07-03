@@ -259,4 +259,43 @@ export const simulationRepository = {
 
 		return hasSeenTour;
 	},
+
+	/** Version du dernier changelog acquitté par l'utilisateur (null = jamais vu). */
+	async getLastSeenChangelog(userId42: number): Promise<string | null> {
+		const rows = await prisma.$queryRaw<Array<{ lastSeenChangelog: string | null }>>`
+			SELECT lastSeenChangelog
+			FROM user_simulation
+			WHERE userId42 = ${userId42}
+			LIMIT 1
+		`;
+		return rows[0]?.lastSeenChangelog ?? null;
+	},
+
+	/** Enregistre la version du changelog vue par l'utilisateur (upsert la ligne au besoin). */
+	async saveLastSeenChangelog(userId42: number, login: string, imageUrl: string | null, version: string, firstName?: string | null, lastName?: string | null): Promise<string> {
+		await prisma.userSimulation.upsert({
+			where: { userId42 },
+			create: {
+				userId42,
+				login,
+				imageUrl,
+				firstName: firstName ?? null,
+				lastName: lastName ?? null,
+			},
+			update: {
+				login,
+				imageUrl,
+				...(firstName !== undefined && { firstName }),
+				...(lastName !== undefined && { lastName }),
+			},
+		});
+
+		await prisma.$executeRaw`
+			UPDATE user_simulation
+			SET lastSeenChangelog = ${version}
+			WHERE userId42 = ${userId42}
+		`;
+
+		return version;
+	},
 };
