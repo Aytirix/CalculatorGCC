@@ -4,27 +4,50 @@ Application web pour calculer et suivre votre progression dans le cursus 42, ave
 
 ### 🔧 Configuration Initiale
 
-Au premier démarrage, vous serez redirigé vers la page de configuration :
+Tant que l'application n'est pas configurée, toutes les URLs mènent à `/admin/login`.
+La configuration passe par un **administrateur autonome**, indépendant d'OAuth 42 — sans
+quoi un secret 42 révoqué empêcherait aussi l'administrateur de se connecter pour le
+corriger.
 
 1. **Créer une application OAuth 42** :
    - Allez sur https://profile.intra.42.fr/oauth/applications
    - Créez une nouvelle application
-   - Redirect URI: `http://localhost:3000/callback`
+   - Redirect URI : `http://localhost:3000/api/auth/callback`
+     (en production : `https://<votre-domaine>/api/auth/callback`)
 
-2. **Configurer l'application** :
-   - Visitez http://localhost:3000/setup
-   - Entrez votre Client ID et Client Secret
-   - Cliquez sur "Complete Setup"
+2. **Récupérer le token console** :
+   - Il est affiché dans les logs du backend à **chaque** démarrage :
+     ```
+     🔐 Admin console token (this boot only — bootstrap & recovery):
+        a1b2c3…
+     ```
+   - `make logs`, ou `docker logs calculatorGCC_backend_dev | grep -A1 "console token"`
+   - Il n'est jamais stocké : le connaître prouve qu'on a accès au serveur.
 
-3. **C'est prêt !** 🎉
-   - L'application redémarre automatiquement
-   - Vous pouvez maintenant vous connecter avec votre compte 42
+3. **S'authentifier** :
+   - Ouvrez http://localhost:3000/admin/login et collez le token
+   - Dans le panneau, **enrôlez une passkey** (WebAuthn : clé matérielle, biométrie,
+     gestionnaire de mots de passe…) pour ne plus dépendre des logs aux prochains accès
+
+4. **Renseigner les identifiants 42** :
+   - Client ID + Client Secret, validés auprès de l'API 42 avant d'être chiffrés en base
+   - Le **« Next Secret 42 »** est optionnel mais recommandé : c'est le prochain secret
+     affiché par l'intra. Il prend le relais automatiquement dès que le secret courant
+     cesse de fonctionner — sans coupure ni date à gérer.
+
+5. **C'est prêt !** 🎉
+   - Vous pouvez vous connecter avec votre compte 42
+   - Depuis le panneau, vous pouvez déclarer des **admins délégués** : des logins 42 qui
+     pourront mettre à jour les secrets 42 (menu utilisateur → « Identifiants API 42 »),
+     mais **jamais** toucher à l'identité administrateur (passkeys, délégués)
+
+> **Accès perdu ?** Redémarrez le backend : un nouveau token console est généré et
+> affiché. C'est la voie de secours permanente, elle ne dépend ni du réseau ni d'OAuth 42.
 
 ## 📚 Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Guide de démarrage rapide (commencez ici !)
-- **[DOCKER.md](DOCKER.md)** - Documentation Docker complète
-- **[SUMMARY.md](SUMMARY.md)** - Résumé de la configuration Docker
+- **[coolify-init-app.md](coolify-init-app.md)** - Initialisation d'une application sur Coolify
+- **[docs/DATABASE_BACKEND.md](docs/DATABASE_BACKEND.md)** - Schéma et accès base de données
 
 ## 🛠️ Commandes Principales
 
@@ -74,9 +97,13 @@ Au premier démarrage, vous serez redirigé vers la page de configuration :
 - Notes et pourcentages personnalisables
 
 ### 🔐 Authentification & Sécurité
-- OAuth 42 avec configuration initiale sécurisée
-- Setup wizard avec token one-time
-- JWT pour l'API
+- OAuth 42 pour les utilisateurs, JWT pour l'API
+- **Administration découplée d'OAuth 42** : token console (régénéré à chaque démarrage,
+  jamais persisté) puis **passkeys WebAuthn** avec vérification utilisateur obligatoire
+- Deux rôles : **owner** (identité admin + secrets 42) et **délégués** (secrets 42 seuls)
+- Secrets 42 chiffrés en base, validés auprès de l'API 42 avant enregistrement
+- Rotation sans coupure via le « Next Secret 42 »
+- Rate limiting par IP client réelle sur les routes d'authentification admin
 - Protection automatique des routes avant configuration
 
 ## 📦 Stack Technique

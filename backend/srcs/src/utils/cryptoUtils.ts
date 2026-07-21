@@ -4,10 +4,6 @@ export function generateJWTSecret(): string {
 	return crypto.randomBytes(32).toString('base64');
 }
 
-export function generateSetupToken(): string {
-	return crypto.randomBytes(32).toString('hex');
-}
-
 // ---------------------------------------------------------------------------
 // Chiffrement symétrique (AES-256-GCM) pour les secrets stockés en base.
 // Clé dérivée de JWT_SECRET (même schéma que les credentials 42). Si JWT_SECRET

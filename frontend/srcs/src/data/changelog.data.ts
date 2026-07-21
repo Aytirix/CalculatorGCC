@@ -24,9 +24,20 @@ export interface ChangelogEntry {
 	changes: string[];
 }
 
-// Vide pour l'instant. Pour publier une note : ajoute un objet EN TÊTE du tableau
-// (le plus récent en premier) avec un `version` unique. Voir le bloc de doc ci-dessus.
-export const CHANGELOG: ChangelogEntry[] = [];
+// Pour publier une note : ajoute un objet EN TÊTE du tableau (le plus récent en
+// premier) avec un `version` unique. Voir le bloc de doc ci-dessus.
+export const CHANGELOG: ChangelogEntry[] = [
+	{
+		version: '2026-07-03',
+		date: '3 juillet 2026',
+		title: 'Stages Work Experience I & II : la durée, au clair',
+		changes: [
+			"La « Duration » d'un stage ne vaut pas simplement 100 % à 4 mois et 125 % à 6 mois comme le laisse croire le sujet : les vraies stats du campus montrent qu'elle varie en continu (un stage de 6 mois validé est presque toujours ≥ 110 %). Le simulateur affiche maintenant ces repères réels sous le champ Duration pour t'aider à estimer.",
+			"Le Work Experience II est toujours un stage de 6 mois : le guide de durée a été corrigé (il proposait avant un choix 4 / 6 mois qui n'a pas lieu d'être pour le WE II).",
+			"Correctif : en modifiant une expérience, le bouton « Annuler » referme bien la fenêtre au lieu de rouvrir le choix du niveau de stage.",
+		],
+	},
+];
 
 /** Version du changelog le plus récent (celle à comparer au « déjà vu » de l'utilisateur). */
 export const LATEST_CHANGELOG_VERSION = CHANGELOG[0]?.version ?? '';

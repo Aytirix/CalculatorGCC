@@ -4,6 +4,9 @@ import { config } from '../config/config.js';
 import { prisma } from '../db/connection.js';
 import { simulationRepository } from '../db/simulationRepository.js';
 import { userToken42Repository } from '../db/userToken42Repository.js';
+import { requestOAuth42Token } from '../services/oauth42.service.js';
+import { getAdminConfigStatus } from '../db/configRepository.js';
+import { isDelegate } from '../db/adminRepository.js';
 
 export class AuthController {
   /**
@@ -57,11 +60,11 @@ export class AuthController {
     }
 
     try {
-      // Échanger le code contre un access token
-      const tokenResponse = await axios.post(config.oauth42.tokenUrl, {
+      // Échange du code contre un access token — via le helper qui bascule
+      // automatiquement sur le « Next Secret 42 » si le secret courant a été
+      // révoqué côté intra (invalid_client).
+      const tokenResponse = await requestOAuth42Token({
         grant_type: 'authorization_code',
-        client_id: config.oauth42.clientId,
-        client_secret: config.oauth42.clientSecret,
         code,
         redirect_uri: redirectUri,
       });
@@ -150,6 +153,20 @@ export class AuthController {
 
     const isPublic = await simulationRepository.getPrivacyStatus(user.user_id_42);
 
+    // Admin délégué = login 42 inscrit par l'owner dans la liste des délégués (DB).
+    // Ces logins peuvent éditer les SEULS secrets 42 (voie /setup admin) et voient les
+    // bannières d'alerte. L'owner, lui, s'authentifie séparément (passkey / console).
+    const isAdmin = await isDelegate(user.login);
+    // État de config réservé à l'admin (booléens uniquement, jamais les secrets) —
+    // et on évite le hit DB pour les utilisateurs normaux.
+    let credentialsInvalid = false;
+    let nextSecretMissing = false;
+    if (isAdmin) {
+      const status = await getAdminConfigStatus();
+      credentialsInvalid = status.credentialsInvalidSince !== null;
+      nextSecretMissing = status.nextSecretMissing;
+    }
+
     return {
       user_id_42: user.user_id_42,
       login: user.login,
@@ -157,6 +174,9 @@ export class AuthController {
       image_url: user.image_url,
       api_token: user.api_token,
       is_public: isPublic,
+      is_admin: isAdmin,
+      credentials_invalid: credentialsInvalid,
+      next_secret_missing: nextSecretMissing,
     };
   }
 

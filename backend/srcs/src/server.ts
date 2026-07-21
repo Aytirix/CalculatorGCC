@@ -9,8 +9,10 @@ import { api42Routes } from './routes/api42.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { simulationRoutes } from './routes/simulation.routes.js';
 import { calendarRoutes } from './routes/calendar.routes.js';
+import { adminRoutes } from './routes/admin.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
-import { initConfig, isConfigured, ensureSetupToken, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
+import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
+import { initConsoleToken } from './services/adminAuth.service.js';
 
 const fastify = Fastify({
 	logger: {
@@ -52,10 +54,29 @@ await fastify.register(helmet, {
 });
 
 // Rate limiting
+// Derrière nginx, `request.ip` vaut l'IP DU PROXY pour tout l'internet : sans clé
+// par client, un seul visiteur consomme le quota de tous — et peut verrouiller en
+// permanence le login admin (console + passkey). nginx pose `X-Real-IP` à partir de
+// la VRAIE IP client (bloc `real_ip` des confs de prod, qui résout X-Forwarded-For
+// derrière Traefik) ; on retombe sur `request.ip` si l'en-tête est absent.
+// Portée exacte de la garantie : sur le chemin PUBLIC (Internet → Traefik → nginx),
+// Traefik écrase le X-Forwarded-For envoyé par le client, donc la clé n'est pas
+// forgeable. Un appelant qui joint nginx en direct (port loopback de l'hôte — donc
+// accès serveur déjà acquis) peut en revanche choisir sa clé : résiduel accepté.
+// NB : `trustProxy: true` serait pire — la clé viendrait d'un en-tête client sans
+// aucune normalisation en amont.
 await fastify.register(rateLimit, {
 	max: config.rateLimit.max,
 	timeWindow: config.rateLimit.timeWindow,
+	keyGenerator: (request) => {
+		const realIp = request.headers['x-real-ip'];
+		return (typeof realIp === 'string' && realIp.length > 0) ? realIp : request.ip;
+	},
+	// `statusCode` est indispensable : l'objet est *lancé* comme erreur et le
+	// setErrorHandler retombe sur `error.statusCode || 500` — sans lui, un quota
+	// dépassé répondait 500 au lieu de 429.
 	errorResponseBuilder: () => ({
+		statusCode: 429,
 		code: 429,
 		error: 'Too Many Requests',
 		message: 'Rate limit exceeded, retry later',
@@ -98,6 +119,10 @@ fastify.get('/health', async () => {
 // Routes de setup - accessibles même si non configuré (le middleware global les laisse passer)
 await fastify.register(setupRoutes);
 
+// Routes admin (auth autonome, découplée d'OAuth 42) - accessibles même si non
+// configuré : le bootstrap owner par token console doit fonctionner sur une instance vierge.
+await fastify.register(adminRoutes);
+
 // Routes protégées - nécessitent que l'application soit configurée (vérifié par le middleware global)
 await fastify.register(authRoutes);
 await fastify.register(api42Routes);
@@ -114,6 +139,16 @@ fastify.setErrorHandler((error, _request, reply) => {
 		return reply.code(401).send({
 			error: 'Unauthorized',
 			message: error.message,
+		});
+	}
+
+	// Rate limit : @fastify/rate-limit *lance* l'objet de errorResponseBuilder ; sans
+	// cette branche, le corps était réécrit en « Internal Server Error » et l'admin
+	// verrouillé ne comprenait pas pourquoi il était refusé.
+	if (error.statusCode === 429) {
+		return reply.code(429).send({
+			error: 'Too Many Requests',
+			message: 'Trop de tentatives — réessayez dans un instant.',
 		});
 	}
 
@@ -149,11 +184,17 @@ async function start() {
 		}
 
 		if (!configured) {
-			const setupToken = await ensureSetupToken();
 			console.log('⚠️  APPLICATION NOT CONFIGURED');
-			console.log('📝 Please visit /setup to complete initial configuration');
-			console.log(`🔑 Setup Token: ${setupToken}`);
+			console.log('📝 Ouvrez /admin/login et authentifiez-vous avec le token console ci-dessous');
 		}
+
+		// Token console (bootstrap + recovery de l'auth admin autonome) : régénéré à
+		// CHAQUE démarrage, affiché ici une seule fois. Prouve l'accès au serveur
+		// (lire ces logs = contrôler la machine) → permet de créer la première passkey
+		// admin, ou de récupérer l'accès si toutes les méthodes sont perdues.
+		const consoleToken = initConsoleToken();
+		console.log('🔐 Admin console token (this boot only — bootstrap & recovery):');
+		console.log(`   ${consoleToken}`);
 
 		await fastify.listen({
 			port: config.port,

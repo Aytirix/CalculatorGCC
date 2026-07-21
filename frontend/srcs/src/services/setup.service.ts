@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { config } from '../config/config';
+import { backendAuthService } from './backend-auth.service';
 
 const api = axios.create({
   baseURL: config.backendUrl,
@@ -14,23 +15,28 @@ export interface SetupStatus {
   message: string;
 }
 
-export interface SetupTokenResponse {
-  setupToken: string;
-  message: string;
-}
-
-export interface ConfigureRequest {
-  setupToken: string;
+// Reconfiguration par un admin délégué : pas de setupToken (l'auth JWT 42 en tient lieu).
+// Le bootstrap d'une instance vierge ne passe plus par ici mais par /admin.
+export interface AdminConfigureRequest {
   clientId: string;
   clientSecret: string;
-  nextSecret?: string;
-  nextSecretExpiresAt?: string; // ISO date : promotion auto une fois dépassée
+  clientSecret42Next?: string; // Next Secret 42 de l'intra : relais automatique si le courant est révoqué
 }
 
 export interface ConfigureResponse {
   success: boolean;
   message: string;
   configured: boolean;
+}
+
+// État des credentials 42 tel que vu par un délégué : jamais les secrets eux-mêmes,
+// seulement le Client ID courant (à préremplir) et ce qui est déjà en place.
+export interface Api42ConfigState {
+  configured: boolean;
+  client_id: string | null;
+  current_secret_set: boolean;
+  next_secret_set: boolean;
+  credentials_invalid: boolean;
 }
 
 class SetupService {
@@ -43,19 +49,25 @@ class SetupService {
   }
 
   /**
-   * Récupère le token de setup
-   * Ce token est nécessaire pour configurer l'application
+   * État des credentials 42 pour préremplir le formulaire du délégué (JWT 42 en Bearer).
    */
-  async getSetupToken(): Promise<string> {
-    const response = await api.get<SetupTokenResponse>('/setup/token');
-    return response.data.setupToken;
+  async getAdminConfig(): Promise<Api42ConfigState> {
+    const token = backendAuthService.getToken();
+    const response = await api.get<Api42ConfigState>('/setup/admin/config', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return response.data;
   }
 
   /**
-   * Configure l'application avec les credentials 42 API
+   * Reconfiguration par un admin délégué : envoie le JWT 42 en Bearer.
+   * Le backend (requireDelegate) refuse si le login n'est pas un délégué enregistré.
    */
-  async configure(config: ConfigureRequest): Promise<ConfigureResponse> {
-    const response = await api.post<ConfigureResponse>('/setup/configure', config);
+  async configureAsAdmin(payload: AdminConfigureRequest): Promise<ConfigureResponse> {
+    const token = backendAuthService.getToken();
+    const response = await api.post<ConfigureResponse>('/setup/admin/configure', payload, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     return response.data;
   }
 }

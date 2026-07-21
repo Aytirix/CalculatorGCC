@@ -15,6 +15,8 @@ import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalE
 import Calendar from '@/pages/Calendar/Calendar';
 import ApiUsage from '@/pages/ApiUsage/ApiUsage';
 import Setup from '@/pages/Setup/Setup';
+import AdminLogin from '@/pages/Admin/AdminLogin';
+import AdminPanel from '@/pages/Admin/AdminPanel';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
 import GithubLink from '@/components/GithubLink/GithubLink';
@@ -41,9 +43,11 @@ const AppRoutes: React.FC = () => {
 		);
 	}
 
-	// Si non configuré, redirige vers setup (sauf si déjà sur /setup)
-	if (isConfigured === false && window.location.pathname !== '/setup') {
-		return <Navigate to="/setup" replace />;
+	// Si non configuré, tout mène au bootstrap admin autonome (token console affiché au
+	// démarrage, puis passkey) : c'est la seule voie de configuration initiale depuis le
+	// retrait de /setup localhost. On ne redirige évidemment pas /admin* sur lui-même.
+	if (isConfigured === false && !window.location.pathname.startsWith('/admin')) {
+		return <Navigate to="/admin/login" replace />;
 	}
 
 	return (
@@ -53,6 +57,10 @@ const AppRoutes: React.FC = () => {
 			<Routes>
 				{/* Route de setup - accessible à tous */}
 				<Route path="/setup" element={<Setup />} />
+
+				{/* Accès admin autonome (auth passkey / token console, hors OAuth 42) */}
+				<Route path="/admin/login" element={<AdminLogin />} />
+				<Route path="/admin" element={<AdminPanel />} />
 
 			<Route
 				path="/"

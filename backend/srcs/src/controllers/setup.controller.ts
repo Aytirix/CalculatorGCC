@@ -1,19 +1,14 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import {
-  isConfigured,
-  getSetupToken,
-  ensureSetupToken,
-  saveConfiguration,
-  stageNextSecret,
-} from '../db/configRepository.js';
-import { validateApi42Credentials } from '../utils/validateApi42Credentials.js';
+import { isConfigured } from '../db/configRepository.js';
+import { applyApi42Configuration, getApi42ConfigState } from '../services/api42Config.service.js';
 
 interface ConfigureRequest {
-  setupToken: string;
   clientId: string;
   clientSecret: string;
-  nextSecret?: string;
-  nextSecretExpiresAt?: string; // ISO date : promotion auto une fois dépassée
+  // « Next Secret 42 » optionnel : le prochain client_secret affiché par l'intra.
+  // Pris en relais automatiquement dès que le secret courant est révoqué. Pas de
+  // date : la bascule se déclenche sur le refus (invalid_client), pas sur un délai.
+  clientSecret42Next?: string;
 }
 
 class SetupController {
@@ -28,88 +23,55 @@ class SetupController {
     });
   }
 
-  async getSetupToken(_request: FastifyRequest, reply: FastifyReply) {
-    const setupToken = await ensureSetupToken();
-
-    return reply.send({
-      setupToken,
-      message: 'Use this token to complete the setup. It will be invalidated after configuration.'
-    });
+  /**
+   * État des credentials 42 pour le formulaire du délégué : permet de préremplir le
+   * Client ID courant (sans quoi il faut le retaper de mémoire pour changer un secret)
+   * et d'afficher ce qui est déjà en place. Ne renvoie JAMAIS les secrets.
+   * Même garde que la reconfiguration : requireDelegate.
+   */
+  async getConfigAsAdmin(_request: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await getApi42ConfigState());
   }
 
-  async configure(request: FastifyRequest, reply: FastifyReply) {
+  /**
+   * Reconfiguration par un admin délégué. L'accès est garanti en amont par le
+   * preHandler requireDelegate (JWT 42 signé + login inscrit par l'owner) : plus
+   * de setupToken ni de verrou localhost — ces deux voies ont été supprimées, le
+   * bootstrap se fait sur /admin (token console + passkey). Permet de remettre les
+   * credentials 42 (secret révoqué, ajout d'un Next Secret) sans accès SSH.
+   */
+  async configureAsAdmin(request: FastifyRequest, reply: FastifyReply) {
     const body = request.body as ConfigureRequest;
 
-    if (!body.setupToken || !body.clientId || !body.clientSecret) {
+    if (!body.clientId || !body.clientSecret) {
       return reply.status(400).send({
         error: 'Missing required fields',
-        message: 'setupToken, clientId, and clientSecret are required'
+        message: 'clientId and clientSecret are required'
       });
     }
 
-    const validToken = await getSetupToken();
-    if (!validToken || body.setupToken !== validToken) {
-      return reply.status(403).send({
-        error: 'Invalid setup token',
-        message: 'The provided setup token is invalid or has expired'
+    // Trace d'audit : QUI reconfigure (jamais les secrets eux-mêmes).
+    console.log(`🔐 Reconfiguration à distance par l'admin « ${request.user.login} »`);
+
+    const result = await applyApi42Configuration({
+      clientId: body.clientId,
+      clientSecret: body.clientSecret,
+      clientSecret42Next: body.clientSecret42Next,
+    });
+
+    if (!result.ok) {
+      return reply.status(result.status).send({
+        error: result.status === 400 ? 'Invalid credentials' : 'Configuration failed',
+        message: result.error,
+        ...(result.validationFailed ? { validationFailed: true } : {}),
       });
     }
 
-    console.log('🔐 Validation des credentials API 42...');
-    const validation = await validateApi42Credentials(body.clientId, body.clientSecret);
-
-    if (!validation.valid) {
-      console.log('❌ Validation échouée:', validation.error);
-      return reply.status(400).send({
-        error: 'Invalid credentials',
-        message: validation.error || 'The provided credentials are invalid or cannot access 42 API',
-        validationFailed: true
-      });
-    }
-
-    // Si un Next Secret est fourni, sa date d'expiration est obligatoire.
-    if (body.nextSecret && !body.nextSecretExpiresAt) {
-      return reply.status(400).send({
-        error: 'Missing expiry date',
-        message: 'nextSecretExpiresAt est requis lorsque nextSecret est fourni'
-      });
-    }
-
-    let nextExpiresAt: Date | null = null;
-    if (body.nextSecret && body.nextSecretExpiresAt) {
-      nextExpiresAt = new Date(body.nextSecretExpiresAt);
-      if (isNaN(nextExpiresAt.getTime())) {
-        return reply.status(400).send({
-          error: 'Invalid expiry date',
-          message: 'nextSecretExpiresAt doit être une date valide'
-        });
-      }
-    }
-
-    console.log('✅ Credentials validés, sauvegarde...');
-
-    try {
-      await saveConfiguration(body.clientId, body.clientSecret);
-      console.log('✅ Configuration sauvegardée en base de données');
-
-      // Programme le futur secret (promu automatiquement à l'expiration).
-      if (body.nextSecret && nextExpiresAt) {
-        await stageNextSecret(body.nextSecret, nextExpiresAt);
-        console.log('✅ Next Secret JWT programmé (expiration :', nextExpiresAt.toISOString(), ')');
-      }
-
-      return reply.send({
-        success: true,
-        message: 'Configuration updated successfully. Changes applied immediately.',
-        configured: true
-      });
-    } catch (error) {
-      console.error('❌ Erreur sauvegarde:', error);
-      return reply.status(500).send({
-        error: 'Configuration failed',
-        message: 'An error occurred while updating the configuration'
-      });
-    }
+    return reply.send({
+      success: true,
+      message: 'Configuration updated successfully. Changes applied immediately.',
+      configured: true,
+    });
   }
 }
 

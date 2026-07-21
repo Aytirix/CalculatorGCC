@@ -1,53 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { setupService } from '../../services/setup.service';
+import { Navigate } from 'react-router-dom';
+import { setupService, type Api42ConfigState } from '../../services/setup.service';
+import { useAuth } from '../../contexts/useAuth';
 import { Button } from '../../components/ui/button';
 import { config } from '../../config/config';
-import SetupInfo from './SetupInfo';
 import './Setup.scss';
 
+/**
+ * Reconfiguration des credentials 42 par un ADMIN DÉLÉGUÉ (login 42 inscrit par
+ * l'owner dans le panneau admin). La voie de bootstrap historique — setupToken servi
+ * automatiquement derrière un verrou `Host: localhost` usurpable — a été supprimée :
+ * une instance vierge se configure via /admin (token console affiché au démarrage,
+ * puis passkey). Tout visiteur non délégué est donc renvoyé vers cette voie-là.
+ */
 const Setup: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [setupToken, setSetupToken] = useState('');
-  const [isReconfigure, setIsReconfigure] = useState(false);
+  const { user, isLoading: authLoading } = useAuth();
+  const isDelegate = !!user?.is_admin;
   const [formData, setFormData] = useState({
     clientId: '',
     clientSecret: '',
-    nextSecret: '',
-    nextSecretExpiresAt: '',
+    clientSecret42Next: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [isRemoteAccess, setIsRemoteAccess] = useState(false);
+  const [current, setCurrent] = useState<Api42ConfigState | null>(null);
 
   // Construit l'URL du callback avec le hostname configuré
   const callbackUrl = `${config.appUrl}/api/auth/callback`;
 
+  // Le délégué ne vient en général changer QUE le secret : on lui préremplit le Client
+  // ID en place plutôt que de le lui faire retaper de mémoire, et on affiche ce qui est
+  // déjà configuré. L'échec est silencieux : le formulaire reste utilisable à la main.
   useEffect(() => {
-    checkSetupStatus();
-  }, []);
-
-  const checkSetupStatus = async () => {
-    try {
-      const [token, status] = await Promise.all([
-        setupService.getSetupToken(),
-        setupService.getStatus(),
-      ]);
-      setSetupToken(token);
-      setIsReconfigure(status.configured);
-      setLoading(false);
-    } catch (err: any) {
-      if (err.response?.data?.remoteAccessBlocked) {
-        setIsRemoteAccess(true);
-        setLoading(false);
-        return;
-      }
-
-      setError('Impossible de charger la configuration. Veuillez redémarrer le serveur.');
-      setLoading(false);
-    }
-  };
+    if (authLoading || !isDelegate) return;
+    setupService.getAdminConfig()
+      .then((cfg) => {
+        setCurrent(cfg);
+        setFormData((f) => ({ ...f, clientId: f.clientId || cfg.client_id || '' }));
+      })
+      .catch(() => { /* préremplissage best-effort */ });
+  }, [authLoading, isDelegate]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -61,24 +55,11 @@ const Setup: React.FC = () => {
         return;
       }
 
-      // Si un Next Secret est fourni, sa date d'expiration est obligatoire.
-      if (formData.nextSecret && !formData.nextSecretExpiresAt) {
-        setError('Renseignez une date d\'expiration pour le Next Secret');
-        setSubmitting(false);
-        return;
-      }
-
-      const response = await setupService.configure({
-        setupToken,
+      const next42 = formData.clientSecret42Next.trim();
+      const response = await setupService.configureAsAdmin({
         clientId: formData.clientId,
         clientSecret: formData.clientSecret,
-        ...(formData.nextSecret
-          ? {
-              nextSecret: formData.nextSecret,
-              // Date (jour) → fin de journée locale (23:59:59) → ISO pour le backend
-              nextSecretExpiresAt: new Date(`${formData.nextSecretExpiresAt}T23:59:59`).toISOString(),
-            }
-          : {}),
+        ...(next42 ? { clientSecret42Next: next42 } : {}),
       });
 
       if (response.success) {
@@ -88,7 +69,13 @@ const Setup: React.FC = () => {
         }, 3000);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'La configuration a échoué. Veuillez réessayer.');
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        // JWT expiré / login retiré des délégués → il faut se reconnecter, pas « réessayer ».
+        setError('Session administrateur expirée ou droits insuffisants. Reconnectez-vous, puis réessayez.');
+      } else {
+        setError(err.response?.data?.message || err.response?.data?.error || 'La configuration a échoué. Veuillez réessayer.');
+      }
       setSubmitting(false);
     }
   };
@@ -100,12 +87,7 @@ const Setup: React.FC = () => {
     });
   };
 
-  // Si l'accès est distant (non-localhost), afficher la page d'information
-  if (isRemoteAccess) {
-    return <SetupInfo />;
-  }
-
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="setup-page">
         <motion.div
@@ -118,6 +100,12 @@ const Setup: React.FC = () => {
         </motion.div>
       </div>
     );
+  }
+
+  // Seul un délégué authentifié a quelque chose à faire ici : tout le reste (bootstrap
+  // initial, owner, visiteur) relève de l'authentification admin autonome.
+  if (!isDelegate) {
+    return <Navigate to="/admin/login" replace />;
   }
 
   if (success) {
@@ -144,12 +132,19 @@ const Setup: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1>🔧 {isReconfigure ? 'Reconfiguration' : 'Configuration Initiale'}</h1>
-        <p className="subtitle">
-          {isReconfigure
-            ? 'Mettez à jour vos identifiants API 42'
-            : 'Configurez vos identifiants API 42 pour démarrer'}
-        </p>
+        <h1>🔧 Reconfiguration</h1>
+        <p className="subtitle">Mettez à jour vos identifiants API 42</p>
+
+        {current && (
+          <div className="current-config">
+            <span>Client ID : <code>{current.client_id || '—'}</code></span>
+            <span>Secret courant : {current.current_secret_set ? '✓' : '✗'}</span>
+            <span>Next Secret : {current.next_secret_set ? '✓' : '— (à préparer)'}</span>
+            {current.credentials_invalid && (
+              <span className="warn">⚠️ Credentials invalides — mise à jour requise</span>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="error-message">
@@ -198,60 +193,43 @@ const Setup: React.FC = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="nextSecret">
-              Next Secret JWT <span className="optional">(optionnel — rotation programmée)</span>
+            <label htmlFor="clientSecret42Next">
+              Next Secret 42 <span className="optional">(optionnel — rotation automatique)</span>
             </label>
             <input
-              id="nextSecret"
-              name="nextSecret"
+              id="clientSecret42Next"
+              name="clientSecret42Next"
               type="password"
-              value={formData.nextSecret}
+              value={formData.clientSecret42Next}
               onChange={handleInputChange}
-              placeholder="Laisser vide pour ne pas programmer de rotation"
+              placeholder="Le « Next secret » affiché par l'intra 42"
               disabled={submitting}
             />
             <p className="field-hint">
-              Le secret actuel provient de la variable d'environnement <code>JWT_SECRET</code> (ou de la base si absente).
-              Renseignez un Next Secret et une date d'expiration : il remplacera automatiquement le secret actuel une fois la date dépassée.
+              Sur l'intra 42, votre application affiche un <strong>« Next secret »</strong> généré à l'avance.
+              Renseignez-le ici : dès que le secret courant cessera de fonctionner, il prendra automatiquement le relais — sans coupure, sans date à gérer.
             </p>
           </div>
 
-          {formData.nextSecret && (
-            <div className="form-group">
-              <label htmlFor="nextSecretExpiresAt">Date d'expiration du secret actuel *</label>
-              <input
-                id="nextSecretExpiresAt"
-                name="nextSecretExpiresAt"
-                type="date"
-                value={formData.nextSecretExpiresAt}
-                onChange={handleInputChange}
-                required
-                disabled={submitting}
-              />
-              <p className="field-hint">Le secret expire à la fin de la journée choisie (23:59).</p>
-            </div>
-          )}
-
           <div className="security-note">
             <span>🔒</span>
-            <p>Vos identifiants sont chiffrés en base de données. Ce formulaire n'est accessible qu'en localhost.</p>
+            <p>
+              Vos identifiants sont chiffrés en base de données. Reconfiguration réservée
+              aux administrateurs délégués authentifiés.
+            </p>
           </div>
 
           <motion.div
             whileHover={{ scale: submitting ? 1 : 1.05 }}
             whileTap={{ scale: submitting ? 1 : 0.95 }}
           >
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               size="lg"
               className="submit-button"
               disabled={submitting}
             >
-              {submitting
-                ? 'Configuration en cours...'
-                : isReconfigure
-                  ? 'Mettre à jour les identifiants'
-                  : 'Terminer la configuration'}
+              {submitting ? 'Configuration en cours...' : 'Mettre à jour les identifiants'}
             </Button>
           </motion.div>
         </form>

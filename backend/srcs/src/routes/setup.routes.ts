@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { setupController } from '../controllers/setup.controller.js';
-import { requireLocalhost } from '../middlewares/setup.middleware.js';
+import { requireDelegate } from '../middlewares/auth.middleware.js';
 
 export async function setupRoutes(server: FastifyInstance) {
   // Route pour vérifier l'état de configuration (accessible depuis n'importe où)
@@ -8,17 +8,21 @@ export async function setupRoutes(server: FastifyInstance) {
     return setupController.getStatus(request, reply);
   });
 
-  // Route pour obtenir le token de setup/reconfigure (localhost uniquement)
-  server.get('/setup/token', {
-    preHandler: [requireLocalhost]
+  // État des credentials 42 (jamais les secrets) pour préremplir le formulaire du
+  // délégué. Même garde que l'écriture ci-dessous.
+  server.get('/setup/admin/config', {
+    preHandler: [requireDelegate]
   }, async (request, reply) => {
-    return setupController.getSetupToken(request, reply);
+    return setupController.getConfigAsAdmin(request, reply);
   });
 
-  // Route pour configurer ou reconfigurer l'application (localhost uniquement)
-  server.post('/setup/configure', {
-    preHandler: [requireLocalhost]
+  // Reconfiguration réservée aux admins délégués (JWT 42 signé + login inscrit par
+  // l'owner). Seule voie d'écriture restante ici : le bootstrap d'une instance vierge
+  // passe désormais par /admin (token console + passkey), qui ne dépend ni du réseau
+  // ni d'un en-tête client.
+  server.post('/setup/admin/configure', {
+    preHandler: [requireDelegate]
   }, async (request, reply) => {
-    return setupController.configure(request, reply);
+    return setupController.configureAsAdmin(request, reply);
   });
 }

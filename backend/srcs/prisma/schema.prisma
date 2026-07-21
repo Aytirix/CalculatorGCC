@@ -10,10 +10,17 @@ datasource db {
 model Configuration {
   id                 Int       @id @default(1)
   jwtSecret          String?   @db.VarChar(256)
+  // Legacy : la rotation du JWT_SECRET a été retirée (secret géré via l'env, stable).
+  // Colonnes conservées inertes pour éviter un DROP destructif en prod ; plus aucun code ne les lit/écrit.
   jwtSecretNext      String?   @db.VarChar(256)
   jwtSecretExpiresAt DateTime?
   clientId42         String    @default("") @db.Text
   clientSecret42     String    @default("") @db.Text
+  clientSecret42Next String?   @db.Text
+  credentialsInvalidSince DateTime?
+  // Inerte depuis le retrait de la voie de bootstrap /setup localhost : le bootstrap
+  // owner passe par /admin (token console en mémoire + passkey). Purgée à NULL par la
+  // migration `retire_setup_token` ; plus aucun code ne la lit/écrit.
   setupToken         String?   @db.VarChar(128)
   isConfigured       Boolean   @default(false)
   updatedAt          DateTime  @updatedAt
@@ -91,4 +98,43 @@ model UserToken42 {
   updatedAt    DateTime @updatedAt
 
   @@map("user_token_42")
+}
+
+// ===== Authentification admin autonome (découplée d'OAuth 42) =====
+// Permet à l'owner de gérer l'application (secrets 42, méthodes d'auth, délégués)
+// même si l'OAuth 42 est mort. L'owner s'authentifie par passkey (WebAuthn) ; un
+// token console affiché dans les logs au boot sert de bootstrap/recovery. Aucune
+// donnée ici n'est un secret (clé PUBLIQUE WebAuthn, login délégué, journal) → pas
+// de chiffrement nécessaire.
+
+model AdminCredential {
+  id           Int       @id @default(autoincrement())
+  credentialId String    @unique @db.VarChar(512) // identifiant WebAuthn (base64url)
+  publicKey    String    @db.Text                 // clé publique COSE (base64url)
+  counter      Int       @default(0)              // compteur anti-clonage (0 pour les passkeys synchronisées)
+  transports   String?   @db.VarChar(255)         // transports WebAuthn (csv)
+  label        String?   @db.VarChar(128)         // libellé lisible choisi par l'owner
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@map("admin_credential")
+}
+
+model AdminDelegate {
+  id        Int      @id @default(autoincrement())
+  login42   String   @unique @db.VarChar(64) // login 42 autorisé à éditer les SEULS secrets 42
+  createdAt DateTime @default(now())
+
+  @@map("admin_delegate")
+}
+
+model AdminAuditEvent {
+  id     Int      @id @default(autoincrement())
+  at     DateTime @default(now())
+  actor  String   @db.VarChar(128) // 'console' | 'owner:<credId>' | login 42
+  action String   @db.VarChar(64)  // admin_login | secret_updated | delegate_added | ...
+  detail String?  @db.Text
+
+  @@index([at])
+  @@map("admin_audit_event")
 }

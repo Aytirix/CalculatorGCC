@@ -21,6 +21,9 @@ export interface User {
   email: string;
   image_url?: string;
   is_public?: boolean | null;
+  is_admin?: boolean;
+  credentials_invalid?: boolean;
+  next_secret_missing?: boolean;
   // Propriétés optionnelles pour compatibilité
   image?: {
     link?: string;
@@ -35,6 +38,9 @@ export interface MeResponse {
   image_url?: string;
   api_token?: string;
   is_public: boolean | null;
+  is_admin: boolean;
+  credentials_invalid: boolean;
+  next_secret_missing: boolean;
 }
 
 export const backendAuthService = {

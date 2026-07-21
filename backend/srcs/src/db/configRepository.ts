@@ -45,75 +45,12 @@ export async function initConfig(): Promise<void> {
 	});
 }
 
-type ConfigRow = NonNullable<Awaited<ReturnType<typeof prisma.configuration.findUnique>>>;
-
-/**
- * Promotion du « Next Secret » → « Secret » quand le secret courant a expiré.
- * Re-chiffre les credentials 42 avec la nouvelle clé (ancien secret → next),
- * puis vide le next et la date d'expiration.
- *
- * Ne s'exécute QUE si l'env JWT_SECRET n'est pas posé : sinon le secret actif
- * est celui de l'env (immuable côté app) et re-chiffrer sous le next casserait
- * le déchiffrement. Avec env posé, on log seulement que la rotation est en
- * attente.
- */
-async function promoteIfExpired(row: ConfigRow): Promise<ConfigRow> {
-	if (!row.jwtSecretNext || !row.jwtSecretExpiresAt) return row;
-	if (Date.now() < row.jwtSecretExpiresAt.getTime()) return row;
-
-	if (process.env.JWT_SECRET) {
-		console.warn(
-			'⚠️  Rotation JWT due (secret expiré) mais ignorée : JWT_SECRET (env) est prioritaire. ' +
-			'Retire la variable d\'env pour activer la rotation par la base.'
-		);
-		return row;
-	}
-
-	console.log('🔄 Secret JWT expiré → promotion du Next Secret...');
-
-	const nextSecret = row.jwtSecretNext;
-
-	// Instance configurée : re-chiffrer les creds avec la nouvelle clé.
-	if (row.isConfigured && row.jwtSecret) {
-		const oldKey = deriveKey(row.jwtSecret);
-		const newKey = deriveKey(nextSecret);
-		const clientId = decryptWithKey(row.clientId42, oldKey);
-		const clientSecret = decryptWithKey(row.clientSecret42, oldKey);
-		await prisma.configuration.update({
-			where: { id: 1 },
-			data: {
-				jwtSecret: nextSecret,
-				jwtSecretNext: null,
-				jwtSecretExpiresAt: null,
-				clientId42: encryptWithKey(clientId, newKey),
-				clientSecret42: encryptWithKey(clientSecret, newKey),
-			},
-		});
-	} else {
-		await prisma.configuration.update({
-			where: { id: 1 },
-			data: {
-				jwtSecret: nextSecret,
-				jwtSecretNext: null,
-				jwtSecretExpiresAt: null,
-			},
-		});
-	}
-
-	console.log('✅ Promotion effectuée : Next Secret → Secret (Next Secret vidé)');
-
-	return (await prisma.configuration.findUnique({ where: { id: 1 } }))!;
-}
-
 export async function loadOrGenerateJwtSecret(): Promise<void> {
-	let row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
 
-	// 1) Promotion auto si le secret courant a expiré et qu'un Next Secret est prêt.
-	if (row) row = await promoteIfExpired(row);
-
-	// 2) env prioritaire. On le mirroite dans la DB pour que jwtSecret reflète
-	//    toujours le secret actif : évite toute divergence env/DB et rend un futur
-	//    retrait de l'env sûr (les creds restent déchiffrables).
+	// env prioritaire : on le mirroite dans la DB pour que jwtSecret reflète
+	// toujours le secret actif (évite toute divergence env/DB et rend un futur
+	// retrait de l'env sûr — les creds restent déchiffrables).
 	if (process.env.JWT_SECRET) {
 		if (row && row.jwtSecret !== process.env.JWT_SECRET) {
 			await prisma.configuration.update({
@@ -124,13 +61,13 @@ export async function loadOrGenerateJwtSecret(): Promise<void> {
 		return;
 	}
 
-	// 3) Sinon, secret depuis la DB.
+	// Sinon, secret depuis la DB.
 	if (row?.jwtSecret) {
 		process.env.JWT_SECRET = row.jwtSecret;
 		return;
 	}
 
-	// 4) Sinon, génère un secret aléatoire (instance vierge).
+	// Sinon, génère un secret aléatoire (instance vierge).
 	const secret = crypto.randomBytes(64).toString('hex');
 	await prisma.configuration.update({
 		where: { id: 1 },
@@ -155,23 +92,6 @@ export async function isConfigured(): Promise<boolean> {
 	return row?.isConfigured ?? false;
 }
 
-export async function getSetupToken(): Promise<string | null> {
-	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
-	return row?.setupToken ?? null;
-}
-
-export async function ensureSetupToken(): Promise<string> {
-	const existing = await getSetupToken();
-	if (existing) return existing;
-
-	const token = crypto.randomBytes(32).toString('hex');
-	await prisma.configuration.update({
-		where: { id: 1 },
-		data: { setupToken: token },
-	});
-	return token;
-}
-
 export async function saveConfiguration(clientId: string, clientSecret: string): Promise<void> {
 	await prisma.configuration.update({
 		where: { id: 1 },
@@ -179,7 +99,8 @@ export async function saveConfiguration(clientId: string, clientSecret: string):
 			clientId42: encrypt(clientId),
 			clientSecret42: encrypt(clientSecret),
 			isConfigured: true,
-			setupToken: null,
+			// Credentials fraîchement (re)validés par 42 → on lève le drapeau d'alerte.
+			credentialsInvalidSince: null,
 		},
 	});
 	process.env.CLIENT_ID_42 = clientId;
@@ -189,18 +110,100 @@ export async function saveConfiguration(clientId: string, clientSecret: string):
 }
 
 /**
- * Programme un futur secret JWT : il sera promu automatiquement au boot une fois
- * la date d'expiration dépassée (voir promoteIfExpired). N'altère pas le secret
- * actif ni le chiffrement des creds — la rotation effective a lieu à la promotion.
+ * Enregistre le « Next Secret 42 » : le prochain client_secret OAuth affiché par
+ * l'intra 42, gardé chiffré sous la clé courante. Il sera essayé automatiquement
+ * en relais dès que le secret courant sera refusé (voir requestOAuth42Token).
+ * N'accepte qu'une valeur non vide — la purge d'un Next se fait par promotion
+ * (rotation) ou remplacement, jamais par un champ laissé vide (cf. applyConfiguration).
  */
-export async function stageNextSecret(nextSecret: string, expiresAt: Date): Promise<void> {
+export async function setNextClientSecret42(secret: string): Promise<void> {
+	await prisma.configuration.update({
+		where: { id: 1 },
+		data: { clientSecret42Next: encrypt(secret) },
+	});
+}
+
+/** Renvoie le « Next Secret 42 » en clair, ou null s'il n'y en a pas / indéchiffrable. */
+export async function getNextClientSecret42(): Promise<string | null> {
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	if (!row?.clientSecret42Next) return null;
+	try {
+		return decrypt(row.clientSecret42Next);
+	} catch {
+		// Indéchiffrable (JWT_SECRET différent de celui du chiffrement) : on l'ignore
+		// plutôt que de crasher — la bannière admin invitera à re-saisir les creds.
+		return null;
+	}
+}
+
+/**
+ * Promeut le « Next Secret 42 » en secret courant : la valeur chiffrée est déjà
+ * sous la clé courante, on la recopie donc telle quelle puis on vide le next et
+ * on lève le drapeau d'alerte. Met aussi à jour process.env pour l'usage runtime.
+ * Renvoie le nouveau secret en clair, ou null s'il n'y avait pas de next.
+ */
+export async function promoteClientSecret42Next(): Promise<string | null> {
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	if (!row?.clientSecret42Next) return null;
+
+	const newSecretPlain = decrypt(row.clientSecret42Next);
+	// On met à jour process.env AVANT de vider la colonne Next en base : ainsi une
+	// requête concurrente qui verrait déjà `clientSecret42Next = null` (DB commit)
+	// verra forcément aussi le nouveau secret courant en env → son re-test anti-race
+	// (requestOAuth42Token) réussit au lieu de condamner à tort. Ordre inverse =
+	// fenêtre où Next=null mais env encore périmé (faux positif de course).
+	process.env.CLIENT_SECRET_42 = newSecretPlain;
 	await prisma.configuration.update({
 		where: { id: 1 },
 		data: {
-			jwtSecretNext: nextSecret,
-			jwtSecretExpiresAt: expiresAt,
+			clientSecret42: row.clientSecret42Next, // déjà chiffré, même clé
+			clientSecret42Next: null,
+			credentialsInvalidSince: null,
 		},
 	});
+	return newSecretPlain;
+}
+
+/** Marque les credentials 42 comme invalides (aucun secret ne fonctionne). Idempotent. */
+export async function markCredentialsInvalid(): Promise<void> {
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	if (row?.credentialsInvalidSince) return; // déjà marqué : pas de réécriture
+	await prisma.configuration.update({
+		where: { id: 1 },
+		data: { credentialsInvalidSince: new Date() },
+	});
+}
+
+/**
+ * Lève le drapeau d'alerte SI il est posé — appelé sur tout appel OAuth réussi avec
+ * le secret courant. Évite qu'un `invalid_client` transitoire laisse la bannière
+ * admin allumée en permanence une fois le service rétabli. No-op (hors lecture) si
+ * le drapeau n'est pas posé, pour ne pas écrire en base à chaque login/refresh.
+ */
+export async function clearCredentialsInvalidIfSet(): Promise<void> {
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	if (!row?.credentialsInvalidSince) return;
+	await prisma.configuration.update({
+		where: { id: 1 },
+		data: { credentialsInvalidSince: null },
+	});
+}
+
+/**
+ * État de configuration destiné à l'admin, en une seule lecture :
+ *  - `credentialsInvalidSince` : non-null si plus aucun secret 42 ne fonctionne ;
+ *  - `nextSecretMissing` : true si aucun « Next Secret 42 » n'est en attente
+ *    (→ inviter l'admin à en préparer un pour la prochaine rotation).
+ */
+export async function getAdminConfigStatus(): Promise<{
+	credentialsInvalidSince: Date | null;
+	nextSecretMissing: boolean;
+}> {
+	const row = await prisma.configuration.findUnique({ where: { id: 1 } });
+	return {
+		credentialsInvalidSince: row?.credentialsInvalidSince ?? null,
+		nextSecretMissing: !row?.clientSecret42Next,
+	};
 }
 
 export async function loadConfigIntoEnv(): Promise<void> {

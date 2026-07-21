@@ -209,6 +209,43 @@
   }
 }
 
+// Bannière d'alerte admin : les credentials 42 ne fonctionnent plus.
+.credentials-banner {
+  background: linear-gradient(90deg, #dc2626, #b91c1c);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-lg;
+  padding: 8px $spacing-lg;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+  flex-wrap: wrap;
+
+  // Variante avertissement (non bloquant) : aucun Next Secret 42 préparé.
+  &--warning {
+    background: linear-gradient(90deg, #d97706, #b45309);
+  }
+
+  .credentials-banner-action {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    color: white;
+    border-radius: $radius-md;
+    padding: 3px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color $transition-fast;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+  }
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

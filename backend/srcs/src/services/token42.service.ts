@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { config } from '../config/config.js';
+import { requestOAuth42Token } from './oauth42.service.js';
 import { userToken42Repository, StoredToken42 } from '../db/userToken42Repository.js';
 
 // On rafraîchit un peu avant l'expiration réelle pour absorber la latence réseau
@@ -55,16 +54,10 @@ export const token42Service = {
 	/** Échange le refresh_token contre un nouvel access_token et persiste le tout. */
 	async refresh(userId42: number, stored: StoredToken42): Promise<string | null> {
 		try {
-			const resp = await axios.post(
-				config.oauth42.tokenUrl,
-				{
-					grant_type: 'refresh_token',
-					client_id: config.oauth42.clientId,
-					client_secret: config.oauth42.clientSecret,
-					refresh_token: stored.refreshToken,
-				},
-				{ timeout: config.api42.requestTimeoutMs }
-			);
+			const resp = await requestOAuth42Token({
+				grant_type: 'refresh_token',
+				refresh_token: stored.refreshToken,
+			});
 
 			const { access_token, refresh_token, expires_in } = resp.data;
 			if (!access_token) {
@@ -81,9 +74,14 @@ export const token42Service = {
 			return access_token;
 		} catch (error: any) {
 			const status = error?.response?.status;
-			console.error(`[Token42] Échec du refresh pour ${userId42} (status ${status ?? '?'}) — re-auth requise`);
-			// invalid_grant (refresh_token révoqué/expiré) : purge pour forcer une reconnexion propre.
-			if (status === 400 || status === 401) {
+			const oauthError = error?.response?.data?.error;
+			console.error(`[Token42] Échec du refresh pour ${userId42} (status ${status ?? '?'}, ${oauthError ?? 'n/a'})`);
+			// On ne purge le refresh_token QUE s'il est réellement mort (invalid_grant :
+			// révoqué/expiré). Un invalid_client (secret applicatif révoqué → géré par la
+			// rotation) ou une panne transitoire (5xx, réseau) NE doit PAS supprimer un
+			// refresh_token valide : sinon on force des reconnexions inutiles alors que
+			// seul le secret de l'app est en cause.
+			if (oauthError === 'invalid_grant') {
 				await userToken42Repository.remove(userId42);
 			}
 			return null;

@@ -1,4 +1,5 @@
 import '@fastify/jwt';
+import type { AdminSession } from '../services/adminAuth.service.js';
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -24,5 +25,12 @@ declare module '@fastify/jwt' {
       first_name?: string;
       last_name?: string;
     };
+  }
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Session admin owner (auth autonome), posée par requireOwner. */
+    adminSession?: AdminSession;
   }
 }

@@ -40,6 +40,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const userInfo = backendAuthService.getUser();
           if (userInfo) {
             userInfo.is_public = me.is_public;
+            userInfo.is_admin = me.is_admin;
+            userInfo.credentials_invalid = me.credentials_invalid;
+            userInfo.next_secret_missing = me.next_secret_missing;
             if (userInfo.image_url) {
               userInfo.image = { link: userInfo.image_url };
             }

@@ -89,6 +89,32 @@ const Header: React.FC = () => {
 
   return (
     <header className="app-header">
+      {user?.is_admin && user?.credentials_invalid && (
+        <div className="credentials-banner">
+          <span>
+            ⚠️ Les identifiants API&nbsp;42 ne fonctionnent plus — les utilisateurs ne peuvent plus se connecter. Mettez-les à jour.
+          </span>
+          <button
+            className="credentials-banner-action"
+            onClick={() => navigate('/setup')}
+          >
+            Mettre à jour →
+          </button>
+        </div>
+      )}
+      {user?.is_admin && !user?.credentials_invalid && user?.next_secret_missing && (
+        <div className="credentials-banner credentials-banner--warning">
+          <span>
+            💡 Aucun «&nbsp;Next Secret&nbsp;42&nbsp;» n'est configuré. Ajoutez-en un pour préparer la prochaine rotation sans coupure.
+          </span>
+          <button
+            className="credentials-banner-action"
+            onClick={() => navigate('/setup')}
+          >
+            Ajouter →
+          </button>
+        </div>
+      )}
       {isViewingOther && viewingUser && (
         <div className="viewing-banner">
           <span>
@@ -263,6 +289,16 @@ const Header: React.FC = () => {
                       <span style={{ fontSize: '1.2rem' }}>⚙️</span>
                       <span>Paramètres du compte</span>
                     </DropdownMenuItem>
+                    {/* Admin délégué : seul point d'entrée UI vers la reconfiguration des
+                        secrets 42 — sans ça, il fallait taper /setup à la main. Les délégués
+                        n'ont accès qu'à ça ; le panneau owner (passkeys, délégués) vit sur
+                        /admin et s'authentifie hors OAuth 42. */}
+                    {user.is_admin && (
+                      <DropdownMenuItem onClick={() => navigate('/setup')} className="settings-item">
+                        <span style={{ fontSize: '1.2rem' }}>🔧</span>
+                        <span>Identifiants API 42</span>
+                      </DropdownMenuItem>
+                    )}
                   </>
                 )}
                 <DropdownMenuSeparator />

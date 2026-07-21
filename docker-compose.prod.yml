@@ -40,6 +40,14 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: calculatorGCC_backend_prod
+    # Le backend ne doit JAMAIS être routable depuis Internet : il n'est joint que par
+    # nginx, via le réseau interne (alias `app-backend`). Il n'est présent sur le réseau
+    # `coolify` que pour joindre la DB de prod pendant un clone. Sans ce label, Coolify
+    # peut lui générer un router Traefik (comme il le fait pour phpmyadmin) et exposer
+    # l'API en direct — court-circuitant nginx, donc le X-Real-IP qui sert de clé de
+    # rate-limit (un client pourrait alors forger sa propre clé).
+    labels:
+      - "traefik.enable=false"
     depends_on:
       mariadb:
         condition: service_healthy
