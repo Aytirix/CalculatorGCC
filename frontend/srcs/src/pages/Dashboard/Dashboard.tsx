@@ -286,6 +286,68 @@ const Dashboard: React.FC = () => {
 		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 	}, []);
 
+	// Réconciliation automatique simulation ↔ réalité. Un projet qu'on avait SIMULÉ et
+	// qu'on a depuis VALIDÉ pour de vrai sur l'intra n'a plus rien à faire dans la
+	// simulation : son XP réel est déjà compté dans `currentXP`, donc le laisser en
+	// simulé le fait DOUBLE-compter dans le niveau projeté, et il gonfle le compteur
+	// « N projets simulés » (symptôme : compteur 8 alors que la liste n'affiche que 7,
+	// la liste filtrant déjà les projets validés). On le retire du state à la visite ;
+	// l'autosave persiste ce nettoyage — pas de purge globale de la base, chaque compte
+	// se nettoie tout seul quand son propriétaire ouvre le dashboard, et on ne retire
+	// que ce qui est de toute façon devenu faux.
+	//
+	// JAMAIS en consultation d'un autre profil (`isViewingOther`) : le state porte MES
+	// projets simulés, mais les projets validés affichés sont CEUX DE L'AUTRE — comparer
+	// les deux supprimerait mes projets à tort (et l'autosave écrit sur MON compte).
+	useEffect(() => {
+		if (isViewingOther || !userProgress || isInitialLoad.current) return;
+
+		const completed = userProgress.completedProjects;
+
+		// Un id simulé est « désormais validé » s'il correspond à un projet RNCP dont le
+		// slug/id est validé côté API. On passe par RNCP_DATA + le même `isProjectCompleted`
+		// que l'affichage (matching permissif : gère le préfixe « 42cursus- »), pour rester
+		// exactement cohérent avec la liste de cartes qui produit le « 7 ».
+		const isNowValidated = (simId: string): boolean => {
+			for (const rncp of RNCP_DATA) {
+				for (const cat of rncp.categories) {
+					const project = cat.projects.find(p => p.slug === simId || p.id === simId);
+					if (project) return isProjectCompleted(project.slug || project.id, completed);
+				}
+			}
+			// Projet custom (hors RNCP) : jamais validé via l'intra → on le garde.
+			return false;
+		};
+
+		const staleProjects = simulatedProjects.filter(isNowValidated);
+		const staleSubParents = Object.keys(simulatedSubProjects).filter(isNowValidated);
+		if (staleProjects.length === 0 && staleSubParents.length === 0) return;
+
+		const staleSet = new Set(staleProjects);
+		setSimulatedProjects(prev => prev.filter(id => !staleSet.has(id)));
+
+		// Retirer les métadonnées associées pour ne pas laisser d'orphelins (%, boost, note).
+		if (staleProjects.length > 0) {
+			setProjectPercentages(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
+			setCoalitionBoosts(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
+			setProjectNotes(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
+		}
+		if (staleSubParents.length > 0) {
+			const subStaleSet = new Set(staleSubParents);
+			setSimulatedSubProjects(prev => {
+				const n = { ...prev };
+				subStaleSet.forEach(id => delete n[id]);
+				return n;
+			});
+		}
+
+		console.log(`[Dashboard] Réconciliation simulation : ${staleProjects.length} projet(s) + ${staleSubParents.length} piscine(s) désormais validé(s), retiré(s) de la simulation.`);
+		// `tourStatusLoaded` est dans les deps à dessein : il passe à true juste APRÈS
+		// `isInitialLoad.current = false` (fin de chargement), ce qui garantit un
+		// déclenchement de cet effet une fois la garde levée — sans lui, si `userProgress`
+		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
+	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded]);
+
 	const stageFilter = (p: Project42) => {
 		const slug = p.project.slug?.toLowerCase() || '';
 		const name = p.project.name?.toLowerCase() || '';
