@@ -2,6 +2,7 @@ import axios from 'axios';
 import { config } from '../config/config.js';
 import { userData42Repository, UserData42Snapshot } from '../db/userData42Repository.js';
 import { token42Service } from './token42.service.js';
+import { appToken42Service } from './appToken42.service.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -16,6 +17,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 interface QueuedRequest {
 	url: string;
 	token: string;
+	timeoutMs: number;
 	resolve: (value: any) => void;
 	reject: (error: any) => void;
 	retries: number;
@@ -32,9 +34,14 @@ class API42RateLimiter {
 	private secondlyLimit = 2;
 	private requestTimestamps: number[] = []; // horodatage des requêtes réellement émises (fenêtre 1h)
 
-	enqueue<T>(url: string, token: string): Promise<T> {
+	/**
+	 * `timeoutMs` surcharge le timeout par défaut pour CETTE requête (ex. les
+	 * pages de `/cursus/:id/projects`, mesurées à ~10s/page sur l'API 42 —
+	 * bien au-dessus du timeout par défaut pensé pour des endpoints légers).
+	 */
+	enqueue<T>(url: string, token: string, timeoutMs = config.api42.requestTimeoutMs): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			this.queue.push({ url, token, resolve, reject, retries: 0 });
+			this.queue.push({ url, token, timeoutMs, resolve, reject, retries: 0 });
 			if (!this.processing) {
 				void this.processQueue();
 			}
@@ -118,7 +125,7 @@ class API42RateLimiter {
 			try {
 				const response = await axios.get(req.url, {
 					headers: { Authorization: `Bearer ${req.token}` },
-					timeout: config.api42.requestTimeoutMs, // évite qu'une requête pendue gèle la file
+					timeout: req.timeoutMs, // évite qu'une requête pendue gèle la file
 				});
 				this.observeHeaders(response.headers as Record<string, any>);
 				req.resolve(response.data);
@@ -144,12 +151,90 @@ class API42RateLimiter {
 
 const rateLimiter = new API42RateLimiter();
 
+// Cache mémoire du catalogue "cursus -> projets" (Holy Graph). Partagé entre
+// tous les utilisateurs : le contenu d'un cursus ne dépend de personne.
+const CURSUS_PROJECTS_TTL_MS = 24 * 60 * 60 * 1000;
+const CURSUS_PROJECTS_PAGE_TIMEOUT_MS = 30_000; // mesuré ~10s/page côté API 42, large marge
+const cursusProjectsCache = new Map<number, { data: any[]; at: number }>();
+const cursusProjectsInFlight = new Map<number, Promise<void>>();
+
+// ---------------------------------------------------------------------------
+// HOLY GRAPH — layout OFFICIEL de 42
+//
+// `/v2/project_data` est l'endpoint qui alimente projects.intra.42.fr/projects/graph.
+// Chaque entrée : { project_session_id, kind, coordinates: [x, y], by: [[session, x1,y1,x2,y2], …] }
+//  - `coordinates` = la position exacte du nœud sur le graphe officiel ;
+//  - `by`          = les liens, segments de ligne déjà calculés ;
+//  - `kind`        = project | big_project | rush | piscine | exam (le type de nœud).
+//
+// Deux propriétés vérifiées sur les données réelles, qui rendent tout ça simple :
+//  1. les coordonnées sont GLOBALES (identiques d'un campus à l'autre, à ~2px près) ;
+//  2. seuls les projets réellement présents sur le graphe officiel ont une entrée
+//     avec des coordonnées non nulles — la curation de 42 est donc déjà DANS la
+//     donnée. Plus besoin d'heuristiques pour deviner ce qui fait partie du cursus.
+// ---------------------------------------------------------------------------
+export interface HolyGraphNode {
+	projectId: number;
+	kind: string;
+	x: number;
+	y: number;
+}
+
+export interface HolyGraphEdge {
+	x1: number;
+	y1: number;
+	x2: number;
+	y2: number;
+}
+
+export interface OfficialGraphLayout {
+	/** Position officielle par id de projet. */
+	nodes: Map<number, HolyGraphNode>;
+	edges: HolyGraphEdge[];
+}
+
+const PROJECT_DATA_TTL_MS = 24 * 60 * 60 * 1000;
+let projectDataCache: { data: any[]; at: number } | null = null;
+let projectDataInFlight: Promise<void> | null = null;
+
+/**
+ * Supprime les seuls traits qui flottent VRAIMENT dans le vide, c'est-à-dire
+ * dont aucune des deux extrémités ne touche un projet affiché.
+ *
+ * Volontairement conservateur : un lien est souvent tracé en plusieurs
+ * segments avec un coude, et le point de pliage n'est pas un nœud. Une règle
+ * plus agressive (élaguer les extrémités non partagées) supprimait en cascade
+ * une trentaine de liens parfaitement légitimes qui se terminent sur un coude.
+ */
+function pruneDanglingEdges(edges: HolyGraphEdge[], nodes: HolyGraphNode[]): HolyGraphEdge[] {
+	if (edges.length === 0) return edges;
+
+	const NODE_REACH = 62; // le trait s'arrête au bord du nœud (rayon 50), pas au centre
+	const touchesNode = (x: number, y: number) =>
+		nodes.some((n) => Math.hypot(n.x - x, n.y - y) <= NODE_REACH);
+
+	return edges.filter((e) => touchesNode(e.x1, e.y1) || touchesNode(e.x2, e.y2));
+}
+
+// Campus de l'utilisateur : détermine QUELS projets sont affichés (on ne montre
+// que ceux réellement proposés sur son campus). Mis en cache 24h par user.
+const USER_CAMPUS_TTL_MS = 24 * 60 * 60 * 1000;
+const userCampusCache = new Map<number, { campusId: number | null; at: number }>();
+
+/**
+ * Projets exclus du graphe : contrats d'alternance, stages et expériences
+ * professionnelles. Ce ne sont pas des projets à réaliser mais des marqueurs
+ * administratifs (durée de contrat, upload de convention…).
+ */
+const EXCLUDED_NAME_RE =
+	/^(FR - Alternance|FR Apprentissage|Apprentissage |Work Experience|Part_Time|Startup Experience|Internship|Hive Internship|Hive Startup|Contract Upload|Duration)/i;
+
 // ============================================================================
 // API 42 SERVICE — chaque requête passe par le rate limiter
 // ============================================================================
 export class API42Service {
-	static async request<T>(url: string, token: string): Promise<T> {
-		return rateLimiter.enqueue<T>(url, token);
+	static async request<T>(url: string, token: string, timeoutMs?: number): Promise<T> {
+		return rateLimiter.enqueue<T>(url, token, timeoutMs);
 	}
 
 	/** Tous les projets d'un utilisateur (paginé). */
@@ -178,6 +263,219 @@ export class API42Service {
 	/** Cursus d'un utilisateur. */
 	static async getUserCursus(userId: number, token: string): Promise<any[]> {
 		return this.request<any[]>(`${config.oauth42.apiUrl}/users/${userId}/cursus_users`, token);
+	}
+
+	/**
+	 * Catalogue COMPLET des projets d'un cursus, déjà en cache et FRAIS, ou
+	 * `null` sinon. Ne déclenche jamais d'appel réseau — à utiliser dans le
+	 * chemin de requête HTTP normal, qui ne doit jamais bloquer plusieurs
+	 * dizaines de secondes derrière l'API 42.
+	 */
+	static getCursusProjectsCached(cursusId: number): any[] | null {
+		const cached = cursusProjectsCache.get(cursusId);
+		if (cached && Date.now() - cached.at < CURSUS_PROJECTS_TTL_MS) return cached.data;
+		return null;
+	}
+
+	/**
+	 * Démarre (si besoin) le remplissage du cache pour un cursus, en tâche de
+	 * fond — jamais attendu par le chemin de requête HTTP. `/cursus/:id/projects`
+	 * est mesuré à ~10s PAR PAGE côté API 42 (ex. ~487 projets = 5 pages =>
+	 * ~50-60s pour le tronc commun) : bien trop lent pour bloquer une requête
+	 * utilisateur. Un seul fetch en vol par cursus (les appels concurrents
+	 * partagent la même promesse) ; le résultat alimente le cache 24h partagé
+	 * par tous les utilisateurs.
+	 */
+	static ensureCursusProjectsFetching(cursusId: number): void {
+		if (this.getCursusProjectsCached(cursusId) !== null) return;
+		if (cursusProjectsInFlight.has(cursusId)) return;
+
+		const promise = (async () => {
+			const token = await appToken42Service.get();
+			let page = 1;
+			const pageSize = 100;
+			const all: any[] = [];
+			while (true) {
+				const url = `${config.oauth42.apiUrl}/cursus/${cursusId}/projects?page[number]=${page}&page[size]=${pageSize}`;
+				const projects = await this.request<any[]>(url, token, CURSUS_PROJECTS_PAGE_TIMEOUT_MS);
+				if (!projects || projects.length === 0) break;
+				all.push(...projects);
+				if (projects.length < pageSize) break;
+				page++;
+			}
+
+			// Aucun filtrage ici : c'est `/v2/project_data` (le layout officiel)
+			// qui fait office de curation — un projet absent du graphe officiel
+			// n'a tout simplement pas de coordonnées, et disparaît de lui-même.
+			cursusProjectsCache.set(cursusId, { data: all, at: Date.now() });
+		})()
+			.catch((error) => {
+				console.error(`[API42] Échec du fetch du catalogue cursus ${cursusId}:`, error?.message || error);
+			})
+			.finally(() => {
+				cursusProjectsInFlight.delete(cursusId);
+			});
+
+		cursusProjectsInFlight.set(cursusId, promise);
+	}
+
+	/** Layout officiel déjà en cache et frais, ou `null`. Aucun appel réseau. */
+	static getProjectDataCached(): any[] | null {
+		if (projectDataCache && Date.now() - projectDataCache.at < PROJECT_DATA_TTL_MS) {
+			return projectDataCache.data;
+		}
+		return null;
+	}
+
+	/**
+	 * Démarre (si besoin) la récupération du layout officiel du Holy Graph, en
+	 * tâche de fond. ~6000 entrées = ~61 pages, soit ~35s via le rate limiter :
+	 * jamais attendu par une requête HTTP. Mis en cache 24h et partagé par tous
+	 * les utilisateurs (ces coordonnées sont les mêmes pour tout le monde).
+	 */
+	static ensureProjectDataFetching(): void {
+		if (this.getProjectDataCached() !== null) return;
+		if (projectDataInFlight) return;
+
+		projectDataInFlight = (async () => {
+			const token = await appToken42Service.get();
+			let page = 1;
+			const pageSize = 100;
+			const all: any[] = [];
+			while (true) {
+				const url = `${config.oauth42.apiUrl}/project_data?page[number]=${page}&page[size]=${pageSize}`;
+				const data = await this.request<any[]>(url, token, CURSUS_PROJECTS_PAGE_TIMEOUT_MS);
+				if (!data || data.length === 0) break;
+				all.push(...data);
+				if (data.length < pageSize) break;
+				page++;
+			}
+			projectDataCache = { data: all, at: Date.now() };
+			console.log(`[API42] Layout officiel du Holy Graph récupéré : ${all.length} entrées`);
+		})()
+			.catch((error) => {
+				console.error('[API42] Échec du fetch du layout officiel (project_data):', error?.message || error);
+			})
+			.finally(() => {
+				projectDataInFlight = null;
+			});
+	}
+
+	/**
+	 * Assemble le layout officiel pour un cursus : positions et liens tels que
+	 * 42 les dessine. Renvoie `null` tant que l'un des deux jeux de données
+	 * (catalogue du cursus, project_data) n'est pas encore en cache.
+	 */
+	static getOfficialGraph(cursusId: number, campusId: number | null): OfficialGraphLayout | null {
+		const projects = this.getCursusProjectsCached(cursusId);
+		const projectData = this.getProjectDataCached();
+		if (!projects || !projectData) return null;
+
+		// session -> projet, et projets réellement proposés sur le campus de
+		// l'utilisateur. Sans ce filtre, on affiche l'union mondiale de tous les
+		// catalogues : des projets locaux d'autres campus viennent alors se
+		// superposer aux nôtres (mesuré : 33 chevauchements contre 9 en filtrant).
+		const projectBySession = new Map<number, number>();
+		const offeredHere = new Set<number>();
+		for (const p of projects) {
+			// L'exclusion (alternances, stages) doit se faire ICI et pas seulement à
+			// l'affichage : sinon le nœud disparaît mais ses liens restent, et on se
+			// retrouve avec des traits qui flottent dans le vide.
+			if (this.isExcludedFromGraph(p.name)) continue;
+			for (const s of p.project_sessions ?? []) {
+				if (s?.id == null || s.cursus_id !== cursusId) continue;
+				projectBySession.set(s.id, p.id);
+				if (campusId == null || s.campus_id === campusId) offeredHere.add(p.id);
+			}
+		}
+
+		// Chaque campus peut décaler sa propre version du graphe : un même projet
+		// a donc plusieurs positions (167 sur 232 dans le 42cursus). Prendre la
+		// première venue mélange les layouts et déplace des projets ; on retient
+		// la position MAJORITAIRE, qui est la disposition de référence.
+		const placements = new Map<number, { kind: string; x: number; y: number; by: any[] }[]>();
+		for (const entry of projectData) {
+			const projectId = projectBySession.get(entry?.project_session_id);
+			if (projectId == null || !offeredHere.has(projectId)) continue;
+
+			const [x, y] = entry.coordinates ?? [];
+			// [0,0] = projet non placé sur le graphe officiel (donc pas affiché).
+			if (typeof x !== 'number' || typeof y !== 'number' || (x === 0 && y === 0)) continue;
+
+			const list = placements.get(projectId) ?? [];
+			list.push({ kind: entry.kind ?? 'project', x, y, by: entry.by ?? [] });
+			placements.set(projectId, list);
+		}
+
+		const nodes = new Map<number, HolyGraphNode>();
+		const edges: HolyGraphEdge[] = [];
+		const seenEdges = new Set<string>();
+
+		for (const [projectId, list] of placements) {
+			const counts = new Map<string, number>();
+			for (const c of list) {
+				const key = `${Math.round(c.x / 25)}:${Math.round(c.y / 25)}`;
+				counts.set(key, (counts.get(key) ?? 0) + 1);
+			}
+			let bestKey: string | null = null;
+			let bestCount = -1;
+			for (const [key, count] of counts) {
+				if (count > bestCount) {
+					bestCount = count;
+					bestKey = key;
+				}
+			}
+			const chosen = list.find((c) => `${Math.round(c.x / 25)}:${Math.round(c.y / 25)}` === bestKey);
+			if (!chosen) continue;
+
+			nodes.set(projectId, { projectId, kind: chosen.kind, x: chosen.x, y: chosen.y });
+
+			// `by` porte directement les segments tracés par 42.
+			for (const link of chosen.by) {
+				if (!Array.isArray(link) || link.length < 5) continue;
+				const [, x1, y1, x2, y2] = link;
+				if ([x1, y1, x2, y2].some((v) => typeof v !== 'number')) continue;
+				// Clé insensible au sens : le même trait décrit une fois A->B et une
+				// fois B->A sinon, et il se retrouve dessiné en double.
+				const a = `${x1},${y1}`;
+				const b = `${x2},${y2}`;
+				const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+				if (seenEdges.has(key)) continue;
+				seenEdges.add(key);
+				edges.push({ x1, y1, x2, y2 });
+			}
+		}
+
+		return { nodes, edges: pruneDanglingEdges(edges, [...nodes.values()]) };
+	}
+
+	/**
+	 * Campus de l'utilisateur (mis en cache 24h). Sert à n'afficher que les
+	 * projets réellement proposés là où il étudie. `null` si on n'arrive pas à
+	 * le déterminer : dans ce cas on n'applique aucun filtre campus.
+	 */
+	static async getUserCampusId(userId: number): Promise<number | null> {
+		const cached = userCampusCache.get(userId);
+		if (cached && Date.now() - cached.at < USER_CAMPUS_TTL_MS) return cached.campusId;
+
+		try {
+			const token = await appToken42Service.get();
+			const user = await this.request<any>(`${config.oauth42.apiUrl}/users/${userId}`, token);
+			// `campus_users` porte le campus principal quand l'utilisateur en a plusieurs.
+			const primary = (user?.campus_users ?? []).find((c: any) => c?.is_primary);
+			const campusId: number | null =
+				primary?.campus_id ?? user?.campus?.[0]?.id ?? null;
+			userCampusCache.set(userId, { campusId, at: Date.now() });
+			return campusId;
+		} catch (error: any) {
+			console.error(`[API42] Campus introuvable pour ${userId}:`, error?.message || error);
+			return null;
+		}
+	}
+
+	/** Un projet purement administratif (contrat d'alternance, stage) ? */
+	static isExcludedFromGraph(name: string): boolean {
+		return EXCLUDED_NAME_RE.test(name.trim());
 	}
 
 	/** Événements d'un utilisateur (filtrés pour le RNCP). */

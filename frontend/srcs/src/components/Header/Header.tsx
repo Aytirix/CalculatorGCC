@@ -237,6 +237,13 @@ const Header: React.FC = () => {
             </Button>
             <Button
               variant="ghost"
+              onClick={() => navigate('/holy-graph')}
+              className="nav-button"
+            >
+              Holy Graph
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => navigate('/api-usage')}
               className="nav-button"
             >

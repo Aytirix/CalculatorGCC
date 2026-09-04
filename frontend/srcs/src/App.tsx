@@ -14,6 +14,7 @@ import Dashboard from '@/pages/Dashboard/Dashboard';
 import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import Calendar from '@/pages/Calendar/Calendar';
 import ApiUsage from '@/pages/ApiUsage/ApiUsage';
+import HolyGraph from '@/pages/HolyGraph/HolyGraph';
 import Setup from '@/pages/Setup/Setup';
 import AdminLogin from '@/pages/Admin/AdminLogin';
 import AdminPanel from '@/pages/Admin/AdminPanel';
@@ -88,6 +89,14 @@ const AppRoutes: React.FC = () => {
 				element={
 					<ProtectedRoute>
 						<Calendar key={viewKey} />
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/holy-graph"
+				element={
+					<ProtectedRoute>
+						<HolyGraph key={viewKey} />
 					</ProtectedRoute>
 				}
 			/>

@@ -108,6 +108,48 @@ export interface RefreshStatusResult {
 }
 
 /**
+ * Un nœud du Holy Graph officiel : `x`/`y` et `kind` viennent directement de
+ * `/v2/project_data` (l'endpoint qui dessine projects.intra.42.fr/projects/graph),
+ * le statut vient du snapshot personnel de l'utilisateur.
+ */
+export interface HolyGraphProject {
+  id: number;
+  name: string;
+  slug: string;
+  difficulty: number;
+  exam: boolean;
+  /** project | big_project | rush | piscine | exam — le type de nœud tel que 42 le classe. */
+  kind: string;
+  x: number;
+  y: number;
+  status: string;
+  validated: boolean;
+  finalMark: number | null;
+}
+
+/** Un lien du graphe officiel : segment déjà calculé par 42. */
+export interface HolyGraphEdge {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface HolyGraphCursus {
+  id: number;
+  name: string;
+  level: number;
+  /** true tant que le layout officiel est en cours de récupération côté serveur. */
+  loading: boolean;
+  projects: HolyGraphProject[];
+  edges: HolyGraphEdge[];
+}
+
+export interface HolyGraphResponse {
+  cursus: HolyGraphCursus[];
+}
+
+/**
  * Service pour récupérer les données de l'API 42 via le backend
  */
 export class BackendAPI42Service {
@@ -263,5 +305,13 @@ export class BackendAPI42Service {
    */
   static async getProjectIntraUsers(slug: string): Promise<{ login: string; id: number }[]> {
     return this.request<{ login: string; id: number }[]>(`/api42/project-users/${encodeURIComponent(slug)}`);
+  }
+
+  /**
+   * Holy Graph : catalogue complet des projets de chaque cursus suivi par
+   * l'utilisateur (tronc commun + cursus secondaires), avec son statut perso.
+   */
+  static async getHolyGraph(): Promise<HolyGraphResponse> {
+    return this.request<HolyGraphResponse>('/api42/holy-graph');
   }
 }

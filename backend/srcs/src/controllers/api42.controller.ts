@@ -336,4 +336,108 @@ export class API42Controller {
   static async getUsage(_request: FastifyRequest, reply: FastifyReply, _fastify: FastifyInstance) {
     return reply.send(API42Service.getUsageStats());
   }
+
+  /**
+   * GET /api42/holy-graph
+   * Le Holy Graph OFFICIEL de 42 : positions et liens tels que dessinés sur
+   * projects.intra.42.fr/projects/graph (endpoint `/v2/project_data`), avec le
+   * statut personnel de l'utilisateur plaqué dessus.
+   *
+   * Le statut vient du snapshot déjà stocké en base (aucun appel 42 pour les
+   * données perso, comme /api42/user-data). Le layout, lui, est identique pour
+   * tout le monde : récupéré via le token applicatif (scope `projects`) et mis
+   * en cache 24h, partagé par tous les utilisateurs.
+   */
+  static async getHolyGraph(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
+
+      const snap = await userData42Repository.get(userId);
+      if (!snap) {
+        return reply.send({ cursus: [] });
+      }
+
+      const { allCursus, allProjects } = snap.data;
+
+      // Statut personnel par project id (projects_users -> project.id).
+      const statusByProjectId = new Map<number, { status: string; validated: boolean; finalMark: number | null }>();
+      for (const pu of allProjects) {
+        const pid = pu?.project?.id;
+        if (pid == null) continue;
+        statusByProjectId.set(pid, {
+          status: pu.status ?? 'unknown',
+          validated: pu.validated === true,
+          finalMark: typeof pu.final_mark === 'number' ? pu.final_mark : null,
+        });
+      }
+
+      // Les piscines (kind 'piscine' ou 'external', ex. "C Piscine",
+      // "C-Piscine-Reloaded") ne font pas partie du Holy Graph : seuls les
+      // cursus réels (kind 'main', ex. 42cursus) sont affichés.
+      const cursusList = (allCursus ?? []).filter((c: any) => {
+        const id = c?.cursus?.id ?? c?.cursus_id;
+        if (id == null) return false;
+        const kind = c?.cursus?.kind;
+        return kind == null || kind === 'main';
+      });
+
+      // Les deux jeux de données (catalogue du cursus ~10s/page, et le layout
+      // officiel ~61 pages) sont lents côté API 42 : jamais attendus ici. S'ils
+      // ne sont pas en cache, on lance leur remplissage en tâche de fond et on
+      // répond tout de suite avec `loading: true` — le front repolle jusqu'à ce
+      // que ce soit prêt (même pattern que le refresh utilisateur).
+      const campusId = await API42Service.getUserCampusId(userId);
+
+      const cursus = cursusList.map((cu: any) => {
+        const cursusId = cu.cursus?.id ?? cu.cursus_id;
+        const cursusName = cu.cursus?.name ?? `Cursus ${cursusId}`;
+        const graph = API42Service.getOfficialGraph(cursusId, campusId);
+
+        if (graph === null) {
+          API42Service.ensureCursusProjectsFetching(cursusId);
+          API42Service.ensureProjectDataFetching();
+          return { id: cursusId, name: cursusName, level: cu.level ?? 0, loading: true, projects: [], edges: [] };
+        }
+
+        const catalog = API42Service.getCursusProjectsCached(cursusId) ?? [];
+        const catalogById = new Map<number, any>(catalog.map((p: any) => [p.id, p]));
+
+        // Seuls les projets présents sur le graphe officiel sont affichés :
+        // c'est la curation de 42 elle-même, pas une heuristique de notre part.
+        const projects = [...graph.nodes.values()].flatMap((node) => {
+          const p = catalogById.get(node.projectId);
+          if (!p) return [];
+          const mine = statusByProjectId.get(node.projectId);
+          return [{
+            id: p.id,
+            name: (p.name as string).trim(),
+            slug: p.slug,
+            difficulty: p.difficulty ?? 0,
+            exam: p.exam === true,
+            kind: node.kind,
+            x: node.x,
+            y: node.y,
+            status: mine?.status ?? 'not_started',
+            validated: mine?.validated ?? false,
+            finalMark: mine?.finalMark ?? null,
+          }];
+        });
+
+        return {
+          id: cursusId,
+          name: cursusName,
+          level: cu.level ?? 0,
+          loading: false,
+          projects,
+          edges: graph.edges,
+        };
+      });
+
+      fastify.log.info(`[API42 Controller] Holy graph: ${cursus.length} cursus pour ${userId}`);
+      return reply.send({ cursus });
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
 }
