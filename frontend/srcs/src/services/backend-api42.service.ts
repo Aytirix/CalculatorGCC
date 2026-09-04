@@ -125,6 +125,8 @@ export interface HolyGraphProject {
   status: string;
   validated: boolean;
   finalMark: number | null;
+  /** Compétences 42 du projet — les « layers » du graphe officiel. */
+  layers: string[];
 }
 
 /** Un lien du graphe officiel : segment déjà calculé par 42. */
@@ -143,6 +145,8 @@ export interface HolyGraphCursus {
   loading: boolean;
   projects: HolyGraphProject[];
   edges: HolyGraphEdge[];
+  /** Layers disponibles pour le filtre (vide tant qu'ils ne sont pas récupérés). */
+  layers: string[];
 }
 
 export interface HolyGraphResponse {

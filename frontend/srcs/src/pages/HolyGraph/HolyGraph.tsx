@@ -57,6 +57,9 @@ const NODE_RADIUS = 50;
 const NODE_BORDER = 7;
 const NODE_BORDER_HOVER = 13;
 
+/** Jaune : projet mis en avant depuis la recherche. */
+const HIGHLIGHT_COLOR = '#facc15';
+
 /** Sur l'intra, seuls les examens et les piscines sont dessinés en rectangle. */
 const RECT_KINDS = new Set(['exam', 'piscine']);
 const RECT_WIDTH = NODE_RADIUS * 2.5;
@@ -240,12 +243,21 @@ const HolyGraph: React.FC = () => {
   const [activeCursusId, setActiveCursusId] = useState<number | null>(null);
   const [hovered, setHovered] = useState<HolyGraphProject | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  const [activeLayer, setActiveLayer] = useState<string>('');
+  const [search, setSearch] = useState('');
+  // La liste de résultats ne s'affiche que quand le champ a le focus ; elle
+  // réapparaît si on y revient, et disparaît si on clique ailleurs.
+  const [searchFocused, setSearchFocused] = useState(false);
+  // Projet mis en avant depuis la recherche : reste en jaune jusqu'à ce qu'on
+  // retouche au graphe (déplacement, zoom ou clic).
+  const [pinnedId, setPinnedId] = useState<number | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   // scale/offset transforment les coordonnées OFFICIELLES de 42 en pixels écran.
   const viewRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
   const draggingRef = useRef<{ x: number; y: number } | null>(null);
+  const lastSizeRef = useRef<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -327,7 +339,9 @@ const HolyGraph: React.FC = () => {
     if (rings) {
       ctx.strokeStyle = '#2dd4bf';
       ctx.globalAlpha = 0.45;
-      ctx.lineWidth = 2 / scale;
+      // Épaisseurs en unités du graphe (comme les bordures des nœuds) : sinon
+      // les traits paraissent énormes une fois dézoomé et fins une fois zoomé.
+      ctx.lineWidth = 4;
       for (const r of rings.radii) {
         ctx.beginPath();
         ctx.arc(rings.cx, rings.cy, r, 0, Math.PI * 2);
@@ -336,11 +350,25 @@ const HolyGraph: React.FC = () => {
       ctx.globalAlpha = 1;
     }
 
-    // Liens officiels : les segments tels que 42 les trace.
+    // Liens officiels : les segments tels que 42 les trace. Sous filtre, ceux
+    // qui ne mènent à aucun projet du layer s'effacent pour laisser ressortir
+    // les autres (les cercles du tronc commun, eux, ne bougent pas).
+    const layerAnchors =
+      activeLayer === ''
+        ? null
+        : activeCursus.projects.filter((p) => p.layers.includes(activeLayer));
+    const leadsToLayer = (e: HolyGraphEdge) =>
+      layerAnchors == null ||
+      layerAnchors.some(
+        (p) =>
+          Math.hypot(p.x - e.x1, p.y - e.y1) <= NODE_RADIUS + 12 ||
+          Math.hypot(p.x - e.x2, p.y - e.y2) <= NODE_RADIUS + 12
+      );
+
     ctx.strokeStyle = '#8fa3b0';
-    ctx.lineWidth = 5 / scale;
-    ctx.globalAlpha = 0.75;
+    ctx.lineWidth = 9;
     for (const e of activeCursus.edges) {
+      ctx.globalAlpha = leadsToLayer(e) ? 0.75 : 0.08;
       ctx.beginPath();
       ctx.moveTo(e.x1, e.y1);
       ctx.lineTo(e.x2, e.y2);
@@ -360,6 +388,13 @@ const HolyGraph: React.FC = () => {
     for (const p of ordered) {
       const style = STATUS_STYLES[statusOf(p)];
       const isHovered = hovered?.id === p.id;
+      const isPinned = pinnedId === p.id;
+      // Un layer sélectionné met en avant les projets concernés et estompe
+      // le reste, tant que le filtre est actif.
+      const layerMatch = activeLayer !== '' && p.layers.includes(activeLayer);
+      const dimmed = activeLayer !== '' && !layerMatch;
+
+      ctx.globalAlpha = dimmed ? 0.18 : 1;
 
       ctx.beginPath();
       if (isRect(p)) {
@@ -369,8 +404,16 @@ const HolyGraph: React.FC = () => {
       }
       ctx.fillStyle = style.fill;
       ctx.fill();
-      ctx.lineWidth = isHovered ? NODE_BORDER_HOVER : NODE_BORDER;
-      ctx.strokeStyle = isHovered ? textColor : style.stroke;
+
+      // Sous filtre, les projets concernés gardent leur apparence normale :
+      // ce sont les autres qui s'effacent. Inutile d'épaissir ou de recolorer.
+      if (isPinned) {
+        ctx.lineWidth = NODE_BORDER_HOVER;
+        ctx.strokeStyle = HIGHLIGHT_COLOR;
+      } else {
+        ctx.lineWidth = isHovered ? NODE_BORDER_HOVER : NODE_BORDER;
+        ctx.strokeStyle = isHovered ? textColor : style.stroke;
+      }
       ctx.stroke();
 
       if (!labelsVisible) continue;
@@ -389,9 +432,10 @@ const HolyGraph: React.FC = () => {
       ctx.fillText(p.name, p.x, p.y);
     }
 
+    ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
     ctx.restore();
-  }, [activeCursus, hovered]);
+  }, [activeCursus, hovered, activeLayer, pinnedId]);
 
   /**
    * Cadre le graphe officiel dans le canvas. Recalculé aussi au resize : sans
@@ -441,7 +485,15 @@ const HolyGraph: React.FC = () => {
   useEffect(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
-    const observer = new ResizeObserver(() => fitToView());
+    const observer = new ResizeObserver(() => {
+      // `observe()` déclenche un premier appel immédiat, et l'observateur est
+      // réinstallé à chaque changement d'état : sans cette garde, un simple
+      // clic dans la recherche recadrerait tout et annulerait le zoom demandé.
+      const size = `${wrapper.clientWidth}x${wrapper.clientHeight}`;
+      if (size === lastSizeRef.current) return;
+      lastSizeRef.current = size;
+      fitToView();
+    });
     observer.observe(wrapper);
     return () => observer.disconnect();
   }, [fitToView]);
@@ -457,8 +509,37 @@ const HolyGraph: React.FC = () => {
     };
   };
 
+  /** Résultats de recherche, par ordre alphabétique. */
+  const searchResults = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (needle === '' || !activeCursus) return [];
+    return activeCursus.projects
+      .filter((p) => p.name.toLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }, [search, activeCursus]);
+
+  /** Centre la vue sur un projet et le met en jaune. */
+  const focusProject = (project: HolyGraphProject) => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const width = wrapper.clientWidth;
+    const height = wrapper.clientHeight;
+    const scale = 1.1;
+    viewRef.current = {
+      scale,
+      offsetX: width / 2 - project.x * scale,
+      offsetY: height / 2 - project.y * scale,
+    };
+    setPinnedId(project.id);
+    // Le champ se vide après la sélection : la liste se referme d'elle-même.
+    setSearch('');
+    setSearchFocused(false);
+    draw();
+  };
+
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    setPinnedId(null);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -474,6 +555,7 @@ const HolyGraph: React.FC = () => {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    setPinnedId(null);
     draggingRef.current = { x: e.clientX - viewRef.current.offsetX, y: e.clientY - viewRef.current.offsetY };
   };
 
@@ -536,19 +618,61 @@ const HolyGraph: React.FC = () => {
               }}
             />
 
-            {data && data.length > 1 && (
-              <div className="holy-graph-tabs">
-                {data.map((c) => (
-                  <button
-                    key={c.id}
-                    className={c.id === activeCursusId ? 'active' : ''}
-                    onClick={() => setActiveCursusId(c.id)}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+            <div className="holy-graph-controls">
+              {data && data.length > 1 && (
+                <div className="holy-graph-tabs">
+                  {data.map((c) => (
+                    <button
+                      key={c.id}
+                      className={c.id === activeCursusId ? 'active' : ''}
+                      onClick={() => setActiveCursusId(c.id)}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {activeCursus.layers.length > 0 && (
+                <select
+                  className="holy-graph-layer"
+                  value={activeLayer}
+                  onChange={(e) => setActiveLayer(e.target.value)}
+                >
+                  <option value="">Tous les layers</option>
+                  {activeCursus.layers.map((layer) => (
+                    <option key={layer} value={layer}>{layer}</option>
+                  ))}
+                </select>
+              )}
+
+              <div className="holy-graph-search">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  // Léger différé : sans ça, le blur ferme la liste avant que
+                  // le clic sur un résultat ne soit pris en compte.
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+                  placeholder="Rechercher un projet…"
+                />
+                {searchFocused && searchResults.length > 0 && (
+                  <ul className="holy-graph-search-results">
+                    {searchResults.map((p) => (
+                      <li key={p.id}>
+                        {/* onMouseDown plutôt que onClick : il se déclenche avant
+                            le blur du champ, donc un seul clic suffit. */}
+                        <button onMouseDown={() => focusProject(p)}>{p.name}</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {searchFocused && search.trim() !== '' && searchResults.length === 0 && (
+                  <div className="holy-graph-search-empty">Aucun projet</div>
+                )}
               </div>
-            )}
+            </div>
 
             <div className="holy-graph-legend">
               {Object.entries(STATUS_STYLES).map(([key, style]) => (

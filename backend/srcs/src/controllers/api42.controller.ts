@@ -397,11 +397,17 @@ export class API42Controller {
         if (graph === null) {
           API42Service.ensureCursusProjectsFetching(cursusId);
           API42Service.ensureProjectDataFetching();
-          return { id: cursusId, name: cursusName, level: cu.level ?? 0, loading: true, projects: [], edges: [] };
+          return { id: cursusId, name: cursusName, level: cu.level ?? 0, loading: true, projects: [], edges: [], layers: [] };
         }
 
         const catalog = API42Service.getCursusProjectsCached(cursusId) ?? [];
         const catalogById = new Map<number, any>(catalog.map((p: any) => [p.id, p]));
+
+        // Les « layers » (compétences 42) enrichissent le graphe sans le
+        // bloquer : s'ils ne sont pas encore là, le graphe s'affiche quand même
+        // et le sélecteur apparaîtra au prochain passage.
+        API42Service.ensureProjectSkillsFetching(cursusId, campusId);
+        const skills = API42Service.getProjectSkillsCached(cursusId, campusId);
 
         // Seuls les projets présents sur le graphe officiel sont affichés :
         // c'est la curation de 42 elle-même, pas une heuristique de notre part.
@@ -421,8 +427,16 @@ export class API42Controller {
             status: mine?.status ?? 'not_started',
             validated: mine?.validated ?? false,
             finalMark: mine?.finalMark ?? null,
+            layers: (skills?.byProject[p.id] ?? [])
+              .map((skillId) => skills?.skillNames[skillId])
+              .filter((name): name is string => !!name),
           }];
         });
+
+        // Liste des layers réellement représentés, pour alimenter le sélecteur.
+        const layers = [...new Set(projects.flatMap((p) => p.layers))].sort((a, b) =>
+          a.localeCompare(b, 'fr')
+        );
 
         return {
           id: cursusId,
@@ -431,6 +445,7 @@ export class API42Controller {
           loading: false,
           projects,
           edges: graph.edges,
+          layers,
         };
       });
 

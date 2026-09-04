@@ -14,6 +14,9 @@ export const API42_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const CACHE_KEY_PROJECT_DATA = 'project_data';
 export const cacheKeyCursusProjects = (cursusId: number) => `cursus_projects:${cursusId}`;
+/** Compétences (= « layers » du graphe officiel) par projet, pour un cursus et un campus. */
+export const cacheKeyProjectSkills = (cursusId: number, campusId: number | null) =>
+	`project_skills:${cursusId}:${campusId ?? 'all'}`;
 
 export const api42CacheRepository = {
 	/** Contenu du cache s'il existe ET qu'il est encore frais, sinon `null`. */

@@ -6,6 +6,7 @@ import {
 	api42CacheRepository,
 	CACHE_KEY_PROJECT_DATA,
 	cacheKeyCursusProjects,
+	cacheKeyProjectSkills,
 } from '../db/api42CacheRepository.js';
 import { token42Service } from './token42.service.js';
 import { appToken42Service } from './appToken42.service.js';
@@ -254,6 +255,20 @@ export interface OfficialGraphLayout {
 
 let projectDataCache: { data: SlimProjectData[]; at: number } | null = null;
 let projectDataInFlight: Promise<void> | null = null;
+
+/**
+ * Compétences 42 associées aux projets : ce sont les « layers » proposés sur le
+ * graphe officiel (Algorithms & AI, DB & Data, Graphics, Security…).
+ */
+export interface ProjectSkills {
+	/** id de compétence -> nom lisible */
+	skillNames: Record<number, string>;
+	/** id de projet -> ids de compétences */
+	byProject: Record<number, number[]>;
+}
+
+const projectSkillsCache = new Map<string, { data: ProjectSkills; at: number }>();
+const projectSkillsInFlight = new Map<string, Promise<void>>();
 
 /**
  * Supprime les seuls traits qui flottent VRAIMENT dans le vide, c'est-à-dire
@@ -539,6 +554,100 @@ export class API42Service {
 	static clearReferenceCaches(): void {
 		cursusProjectsCache.clear();
 		projectDataCache = null;
+		projectSkillsCache.clear();
+	}
+
+	/**
+	 * Compétences par projet — ce sont les « layers » du graphe officiel
+	 * (Algorithms & AI, DB & Data, Graphics, Security…). Déjà en cache mémoire
+	 * ou `null`. Aucun appel réseau.
+	 */
+	static getProjectSkillsCached(cursusId: number, campusId: number | null): ProjectSkills | null {
+		return projectSkillsCache.get(cacheKeyProjectSkills(cursusId, campusId))?.data ?? null;
+	}
+
+	/**
+	 * Récupère les compétences en tâche de fond. Volontairement NON bloquant
+	 * pour l'affichage : le graphe s'affiche sans attendre, et le sélecteur de
+	 * layer apparaît dès que la donnée est là.
+	 *
+	 * `/v2/project_sessions_skills` compte ~43 000 lignes au global : on ne
+	 * demande donc que les sessions du cursus et du campus concernés, par
+	 * paquets de 50 identifiants (≈7 requêtes, une fois par mois).
+	 */
+	static ensureProjectSkillsFetching(cursusId: number, campusId: number | null): void {
+		const cacheKey = cacheKeyProjectSkills(cursusId, campusId);
+		if (this.getProjectSkillsCached(cursusId, campusId) !== null) return;
+		if (projectSkillsInFlight.has(cacheKey)) return;
+
+		// Sans le catalogue on ne sait pas quelles sessions interroger : on
+		// réessaiera au prochain passage, une fois le catalogue en cache.
+		const catalog = this.getCursusProjectsCached(cursusId);
+		if (!catalog) return;
+
+		const promise = (async () => {
+			const persisted = await api42CacheRepository.getFresh<ProjectSkills>(cacheKey);
+			if (persisted) {
+				projectSkillsCache.set(cacheKey, { data: persisted, at: Date.now() });
+				return;
+			}
+
+			const token = await appToken42Service.get();
+
+			// 1) Le référentiel des compétences du cursus (id -> nom).
+			const skills = await this.request<any[]>(
+				`${config.oauth42.apiUrl}/cursus/${cursusId}/skills?page[size]=100`,
+				token
+			);
+			const skillNames: Record<number, string> = {};
+			for (const s of skills ?? []) {
+				if (s?.id != null && s?.name) skillNames[s.id] = s.name;
+			}
+
+			// 2) Les compétences de chaque session affichée.
+			const sessionToProject = new Map<number, number>();
+			for (const p of catalog) {
+				if (this.isExcludedFromGraph(p.name)) continue;
+				for (const s of p.sessions) {
+					if (s.cursusId !== cursusId) continue;
+					if (campusId != null && s.campusId !== campusId) continue;
+					sessionToProject.set(s.id, p.id);
+				}
+			}
+
+			const sessionIds = [...sessionToProject.keys()];
+			const byProject: Record<number, number[]> = {};
+			const CHUNK = 50;
+			for (let i = 0; i < sessionIds.length; i += CHUNK) {
+				const chunk = sessionIds.slice(i, i + CHUNK);
+				const rows = await this.request<any[]>(
+					`${config.oauth42.apiUrl}/project_sessions_skills?filter[project_session_id]=${chunk.join(',')}&page[size]=100`,
+					token
+				);
+				for (const row of rows ?? []) {
+					const projectId = sessionToProject.get(row?.project_session_id);
+					if (projectId == null || row?.skill_id == null) continue;
+					const list = byProject[projectId] ?? [];
+					if (!list.includes(row.skill_id)) list.push(row.skill_id);
+					byProject[projectId] = list;
+				}
+			}
+
+			const data: ProjectSkills = { skillNames, byProject };
+			projectSkillsCache.set(cacheKey, { data, at: Date.now() });
+			await api42CacheRepository.set(cacheKey, data);
+			console.log(
+				`[API42] Compétences (layers) récupérées pour le cursus ${cursusId} : ${Object.keys(byProject).length} projets`
+			);
+		})()
+			.catch((error) => {
+				console.error('[API42] Échec du fetch des compétences (layers) :', error?.message || error);
+			})
+			.finally(() => {
+				projectSkillsInFlight.delete(cacheKey);
+			});
+
+		projectSkillsInFlight.set(cacheKey, promise);
 	}
 
 	/**
