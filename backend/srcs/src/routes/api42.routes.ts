@@ -69,6 +69,20 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getHolyGraph(request, reply, fastify);
 	});
 
+	// Taille d'équipe de chaque projet du cursus (solo / groupe)
+	fastify.get('/api42/project-teams', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getProjectTeams(request, reply, fastify);
+	});
+
+	// Personnes inscrites sur un projet côté intra 42 (cache 24 h)
+	fastify.get('/api42/project-registrations/:projectId', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getProjectRegistrations(request, reply, fastify);
+	});
+
 	// Détail d'un projet du Holy Graph (description, durée, groupe, prérequis)
 	fastify.get('/api42/project-details/:projectId', {
 		preHandler: authenticate,
@@ -76,10 +90,4 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getProjectDetails(request, reply, fastify);
 	});
 
-	// Récupérer les utilisateurs inscrits sur un projet depuis l'intra 42
-	fastify.get('/api42/project-users/:slug', {
-		preHandler: authenticate,
-	}, async (request: FastifyRequest, reply: FastifyReply) => {
-		return API42Controller.getProjectRegisteredUsers(request, reply, fastify);
-	});
 }

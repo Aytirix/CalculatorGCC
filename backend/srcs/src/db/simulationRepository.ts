@@ -9,6 +9,15 @@ export interface SimulatedProjectData {
 	note?: string;
 }
 
+/** Une personne ayant simulé un projet, telle qu'affichée dans la recherche de teammates. */
+export interface SimulatedProjectUser {
+	login: string;
+	userId42: number;
+	imageUrl: string | null;
+	simulatedAt: string;
+	hasTeam: boolean;
+}
+
 export interface SimulationData {
 	simulatedProjects: SimulatedProjectData[];
 	simulatedSubProjects: Record<string, string[]>;
@@ -137,12 +146,34 @@ export const simulationRepository = {
 	/**
 	 * Retourne les utilisateurs qui ont simulé un projet donné
 	 */
-	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number; imageUrl: string | null }[]> {
+	async getProjectUsers(projectId: string): Promise<SimulatedProjectUser[]> {
 		const rows = await prisma.simulatedProject.findMany({
 			where: { projectId },
 			include: { userSimulation: { select: { login: true, userId42: true, imageUrl: true } } },
+			orderBy: { createdAt: 'desc' },
 		});
-		return rows.map((r) => ({ login: r.userSimulation.login, userId42: r.userSimulation.userId42, imageUrl: r.userSimulation.imageUrl }));
+		return rows.map((r) => ({
+			login: r.userSimulation.login,
+			userId42: r.userSimulation.userId42,
+			imageUrl: r.userSimulation.imageUrl,
+			// Date de simulation : permet de trier et de repérer les projets
+			// « simulés il y a un an » que la personne ne fera sans doute jamais.
+			simulatedAt: r.createdAt.toISOString(),
+			hasTeam: r.hasTeam,
+		}));
+	},
+
+	/**
+	 * Coche / décoche « j'ai déjà ma team » sur un projet simulé.
+	 * Renvoie `false` si l'utilisateur n'a pas ce projet en simulation : le
+	 * drapeau n'a de sens que pour quelqu'un qui apparaît dans la liste.
+	 */
+	async setProjectTeamFlag(userId42: number, projectId: string, hasTeam: boolean): Promise<boolean> {
+		const result = await prisma.simulatedProject.updateMany({
+			where: { userId42, projectId },
+			data: { hasTeam },
+		});
+		return result.count > 0;
 	},
 
 	/**
@@ -212,18 +243,50 @@ export const simulationRepository = {
 			WHERE userId42 = ${userId42}
 		`;
 
-		// Supprimer les anciens projets simulés et insérer les nouveaux
-		await prisma.simulatedProject.deleteMany({ where: { userId42 } });
+		// Mise à jour DIFFÉRENTIELLE des projets simulés.
+		//
+		// Tout supprimer puis tout recréer (ce qu'on faisait avant) remettait à
+		// zéro `createdAt` et `hasTeam` à chaque sauvegarde automatique — or la
+		// recherche de teammates affiche justement depuis quand la personne a
+		// simulé le projet et si elle a déjà une équipe. Seules les lignes
+		// réellement retirées disparaissent.
+		const existing = await prisma.simulatedProject.findMany({
+			where: { userId42 },
+			select: { projectId: true, percentage: true, coalitionBoost: true, note: true },
+		});
+		const existingById = new Map(existing.map((row) => [row.projectId, row]));
+		const wanted = new Set(data.simulatedProjects.map((p) => p.projectId));
 
-		if (data.simulatedProjects.length > 0) {
+		const removed = existing.filter((row) => !wanted.has(row.projectId)).map((row) => row.projectId);
+		if (removed.length > 0) {
+			await prisma.simulatedProject.deleteMany({
+				where: { userId42, projectId: { in: removed } },
+			});
+		}
+
+		const added = data.simulatedProjects.filter((p) => !existingById.has(p.projectId));
+		if (added.length > 0) {
 			await prisma.simulatedProject.createMany({
-				data: data.simulatedProjects.map((p) => ({
+				data: added.map((p) => ({
 					userId42,
 					projectId: p.projectId,
 					percentage: p.percentage,
 					coalitionBoost: p.coalitionBoost,
 					note: p.note ?? null,
 				})),
+			});
+		}
+
+		for (const p of data.simulatedProjects) {
+			const row = existingById.get(p.projectId);
+			if (!row) continue;
+			const note = p.note ?? null;
+			if (row.percentage === p.percentage && row.coalitionBoost === p.coalitionBoost && row.note === note) {
+				continue;
+			}
+			await prisma.simulatedProject.update({
+				where: { userId42_projectId: { userId42, projectId: p.projectId } },
+				data: { percentage: p.percentage, coalitionBoost: p.coalitionBoost, note },
 			});
 		}
 

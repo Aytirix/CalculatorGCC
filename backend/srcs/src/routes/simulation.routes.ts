@@ -31,6 +31,13 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.getProjectUsers(request, reply);
 	});
 
+	// « J'ai déjà ma team » sur un projet simulé
+	fastify.put('/simulation/project-team/:projectId', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.setProjectTeam(request, reply);
+	});
+
 	// Sauvegarder la simulation de l'utilisateur
 	fastify.put('/simulation', {
 		preHandler: authenticate,

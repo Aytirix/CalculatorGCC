@@ -62,6 +62,9 @@ model SimulatedProject {
   percentage      Int      @default(100)
   coalitionBoost  Boolean  @default(false)
   note            String?  @db.Text
+  // « J'ai déjà ma team » : l'utilisateur reste dans la liste des personnes qui
+  // ont simulé le projet, mais signale qu'il ne cherche plus de coéquipier.
+  hasTeam         Boolean  @default(false)
   updatedAt       DateTime @updatedAt
   createdAt       DateTime @default(now())
 

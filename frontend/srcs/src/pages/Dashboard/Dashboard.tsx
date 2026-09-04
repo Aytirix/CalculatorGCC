@@ -11,8 +11,8 @@ import { xpService } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
-import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
-import { simulationService } from '@/services/simulation.service';
+import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
@@ -92,12 +92,17 @@ const Dashboard: React.FC = () => {
 	const [syncing, setSyncing] = useState(false);
 	const [apiStages, setApiStages] = useState<Project42[]>([]);
 	const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
+	// En consultation d'un autre profil, on part de rien : le localStorage ne
+	// contient QUE mes données, et les siennes arrivent du backend juste après.
 	const [apiExpPercentages, setApiExpPercentages] = useState<Record<number, number>>(() => {
+		if (isReadOnlyMode()) return {};
 		const saved = localStorage.getItem('api_exp_percentages');
 		return saved ? JSON.parse(saved) : {};
 	});
 	const [editingExperience, setEditingExperience] = useState<ProfessionalExperience | null>(null);
-	const [manualExperiences, setManualExperiences] = useState(() => professionalExperienceStorage.getAll());
+	const [manualExperiences, setManualExperiences] = useState<ProfessionalExperience[]>(() =>
+		isReadOnlyMode() ? [] : professionalExperienceStorage.getAll()
+	);
 	const [manualExpVersion, setManualExpVersion] = useState(0);
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
 
@@ -108,6 +113,12 @@ const Dashboard: React.FC = () => {
 	// Session 42 réellement expirée (refresh_token mort) : filet de sécurité pour
 	// couper la boucle de synchro et proposer une reconnexion, au lieu de retenter à l'infini.
 	const [authExpired, setAuthExpired] = useState(false);
+
+	// Miroir des expériences affichées (les miennes, ou celles du profil consulté).
+	// `loadUserData` est capturé par un effet à dépendances vides : sans ce ref, il
+	// lirait éternellement la valeur du premier rendu.
+	const manualExpRef = useRef(manualExperiences);
+	manualExpRef.current = manualExperiences;
 
 	// Flag pour éviter de sauvegarder pendant le chargement initial
 	const isInitialLoad = useRef(true);
@@ -138,27 +149,44 @@ const Dashboard: React.FC = () => {
 				setSimulatedSubProjects(data.simulatedSubProjects ?? {});
 				setCustomProjects(savedCustomProjects);
 
-				if (data.apiExpPercentages && Object.keys(data.apiExpPercentages).length > 0) {
-					const numericKeys: Record<number, number> = {};
-					for (const [k, v] of Object.entries(data.apiExpPercentages)) {
-						numericKeys[Number(k)] = v;
-					}
-					setApiExpPercentages(numericKeys);
+				// Consultation d'un autre profil : ce sont SES expériences et SES
+				// pourcentages qu'on affiche, même quand il n'en a aucun — sinon les
+				// miens (localStorage, global au navigateur) restent à l'écran et
+				// faussent son niveau projeté. Et on n'écrit jamais dans le
+				// localStorage : ses données n'ont rien à faire dans mon stockage.
+				const viewingOther = isReadOnlyMode();
+
+				const remotePercentages: Record<number, number> = {};
+				for (const [k, v] of Object.entries(data.apiExpPercentages ?? {})) {
+					remotePercentages[Number(k)] = v;
 				}
-				if (Array.isArray(data.manualExperiences) && data.manualExperiences.length > 0) {
-					professionalExperienceStorage.saveAll(data.manualExperiences as ProfessionalExperience[]);
+				if (viewingOther || Object.keys(remotePercentages).length > 0) {
+					setApiExpPercentages(remotePercentages);
+				}
+
+				const remoteExperiences = Array.isArray(data.manualExperiences)
+					? (data.manualExperiences as ProfessionalExperience[])
+					: [];
+				if (viewingOther) {
+					setManualExperiences(remoteExperiences);
+				} else if (remoteExperiences.length > 0) {
+					professionalExperienceStorage.saveAll(remoteExperiences);
 					setManualExperiences(professionalExperienceStorage.getAll());
 				}
 				syncTourSeen(data.hasSeenTour === true);
 				console.log('[Dashboard] Simulation chargée depuis le backend');
-				// Sync localStorage aussi
-				localStorage.setItem('simulated_projects', JSON.stringify(projectIds));
-				localStorage.setItem('simulated_sub_projects', JSON.stringify(data.simulatedSubProjects ?? {}));
-				localStorage.setItem('project_percentages', JSON.stringify(sanitizedPercentages));
-				localStorage.setItem('custom_projects', JSON.stringify(data.customProjects ?? []));
-				localStorage.setItem('project_notes', JSON.stringify(notes));
-				localStorage.setItem('coalition_boosts', JSON.stringify(boosts));
-				localStorage.setItem('api_exp_percentages', JSON.stringify(data.apiExpPercentages ?? {}));
+				// Sync localStorage aussi — JAMAIS avec les données d'un autre profil :
+				// le localStorage est mon cache de repli, y écrire la simulation d'un
+				// ami écraserait la mienne dès la première panne du backend.
+				if (!viewingOther) {
+					localStorage.setItem('simulated_projects', JSON.stringify(projectIds));
+					localStorage.setItem('simulated_sub_projects', JSON.stringify(data.simulatedSubProjects ?? {}));
+					localStorage.setItem('project_percentages', JSON.stringify(sanitizedPercentages));
+					localStorage.setItem('custom_projects', JSON.stringify(data.customProjects ?? []));
+					localStorage.setItem('project_notes', JSON.stringify(notes));
+					localStorage.setItem('coalition_boosts', JSON.stringify(boosts));
+					localStorage.setItem('api_exp_percentages', JSON.stringify(data.apiExpPercentages ?? {}));
+				}
 			} catch (err) {
 				console.warn('[Dashboard] Backend indisponible, chargement depuis localStorage', err);
 				// Fallback localStorage
@@ -206,50 +234,60 @@ const Dashboard: React.FC = () => {
 		loadSimulation();
 	}, [syncTourSeen]);
 
+	// Sauvegardes localStorage : toutes court-circuitées en consultation d'un
+	// autre profil. Le state porte alors SES données ; les écrire dans mon
+	// stockage local remplacerait silencieusement ma propre simulation.
+	const canPersistLocally = !isViewingOther;
+
 	// Sauvegarder les projets simulés dans localStorage
 	useEffect(() => {
+		if (!canPersistLocally) return;
 		if (simulatedProjects.length > 0) {
 			localStorage.setItem('simulated_projects', JSON.stringify(simulatedProjects));
 		} else {
 			localStorage.removeItem('simulated_projects');
 		}
-	}, [simulatedProjects]);
+	}, [simulatedProjects, canPersistLocally]);
 
 	// Sauvegarder les sous-projets simulés dans localStorage
 	useEffect(() => {
+		if (!canPersistLocally) return;
 		if (Object.keys(simulatedSubProjects).length > 0) {
 			localStorage.setItem('simulated_sub_projects', JSON.stringify(simulatedSubProjects));
 		} else {
 			localStorage.removeItem('simulated_sub_projects');
 		}
-	}, [simulatedSubProjects]);
+	}, [simulatedSubProjects, canPersistLocally]);
 
 	// Sauvegarder les pourcentages dans localStorage
 	useEffect(() => {
+		if (!canPersistLocally) return;
 		if (Object.keys(projectPercentages).length > 0) {
 			localStorage.setItem('project_percentages', JSON.stringify(projectPercentages));
 		} else {
 			localStorage.removeItem('project_percentages');
 		}
-	}, [projectPercentages]);
+	}, [projectPercentages, canPersistLocally]);
 
 	// Sauvegarder les projets personnalisés dans localStorage
 	useEffect(() => {
+		if (!canPersistLocally) return;
 		if (customProjects.length > 0) {
 			localStorage.setItem('custom_projects', JSON.stringify(customProjects));
 		} else {
 			localStorage.removeItem('custom_projects');
 		}
-	}, [customProjects]);
+	}, [customProjects, canPersistLocally]);
 
 	// Sauvegarder les notes dans localStorage
 	useEffect(() => {
+		if (!canPersistLocally) return;
 		if (Object.keys(projectNotes).length > 0) {
 			localStorage.setItem('project_notes', JSON.stringify(projectNotes));
 		} else {
 			localStorage.removeItem('project_notes');
 		}
-	}, [projectNotes]);
+	}, [projectNotes, canPersistLocally]);
 
 	// Sauvegarder la simulation vers le backend (debounced 2s)
 	const saveToBackend = useCallback(() => {
@@ -421,8 +459,10 @@ const Dashboard: React.FC = () => {
 		setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
 		setApiStages(userData.allProjects.filter(stageFilter));
 
-		const professionalExpXP = professionalExperienceStorage.getRealXP();
-		const professionalExpCount = professionalExperienceStorage.getRealCount() + countApiProfExp(userData.allProjects);
+		// Les expériences saisies à la main sont ajoutées plus bas (`projectedProfExp`),
+		// à partir du state : elles dépendent du profil affiché, pas du localStorage.
+		const professionalExpXP = professionalExperienceMath.realXP(manualExpRef.current);
+		const professionalExpCount = countApiProfExp(userData.allProjects);
 		const progress: UserProgress = {
 			currentLevel: userData.level,
 			currentXP: xpService.getXPFromLevel(userData.level),
@@ -498,7 +538,7 @@ const Dashboard: React.FC = () => {
 		const handleStorageChange = () => {
 			// Recalculer le niveau avec les nouvelles expériences
 			if (userProgress) {
-				const professionalExpXP = professionalExperienceStorage.getTotalXP();
+				const professionalExpXP = professionalExperienceMath.totalXP(manualExpRef.current);
 				const totalXP = userProgress.currentXP + professionalExpXP;
 				const newLevel = xpService.getLevelFromXP(totalXP);
 				setProjectedLevel(newLevel);
@@ -628,7 +668,7 @@ const Dashboard: React.FC = () => {
 		});
 
 		// Ajouter l'XP des expériences professionnelles manuelles
-		const professionalExperiencesXP = professionalExperienceStorage.getTotalXP();
+		const professionalExperiencesXP = professionalExperienceMath.totalXP(manualExperiences);
 		totalXP += professionalExperiencesXP;
 
 		// Ajouter l'XP des stages/alternances API en cours (avec % éditable)
@@ -667,7 +707,7 @@ const Dashboard: React.FC = () => {
 
 		const newLevel = xpService.getLevelFromXP(totalXP);
 		setProjectedLevel(newLevel);
-	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, customProjects]);
+	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, manualExperiences, customProjects]);
 
 	const handleToggleSimulation = (projectId: string) => {
 		setSimulatedProjects(prev => {
@@ -948,7 +988,11 @@ const Dashboard: React.FC = () => {
 			return count + 1;
 		}, 0);
 
-	const projectedProfExp = (userProgress?.professionalExperience ?? 0) + simulatedManualProfExpCount + apiEnCoursProfExpCount;
+	const projectedProfExp =
+		(userProgress?.professionalExperience ?? 0) +
+		professionalExperienceMath.realCount(manualExperiences) +
+		simulatedManualProfExpCount +
+		apiEnCoursProfExpCount;
 
 	// Mémoriser les validations RNCP et les recalculer quand les dépendances changent
 	const rncpValidations = useMemo((): RNCPValidation[] => {
@@ -1214,7 +1258,7 @@ const Dashboard: React.FC = () => {
 									<span className="label">Niveau actuel</span>
 									<span className="value">{userProgress.currentLevel.toFixed(2)}</span>
 								</div>
-								{(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceStorage.getTotalXP() > 0 || apiExpXP > 0) && (
+								{(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceMath.totalXP(manualExperiences) > 0 || apiExpXP > 0) && (
 									<>
 										<span className="arrow">→</span>
 										<div className="level-projected">
@@ -1230,9 +1274,9 @@ const Dashboard: React.FC = () => {
 										{simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
 									</p>
 								)}
-								{professionalExperienceStorage.getTotalXP() > 0 && (
+	{professionalExperienceMath.totalXP(manualExperiences) > 0 && (
 									<p>
-										{professionalExperienceStorage.getAll().length} expérience{professionalExperienceStorage.getAll().length > 1 ? 's' : ''} professionnelle{professionalExperienceStorage.getAll().length > 1 ? 's' : ''}
+										{manualExperiences.length} expérience{manualExperiences.length > 1 ? 's' : ''} professionnelle{manualExperiences.length > 1 ? 's' : ''}
 									</p>
 								)}
 							</div>
@@ -1316,14 +1360,19 @@ const Dashboard: React.FC = () => {
 				>
 					<div className="prof-exp-header">
 						<h2 className="prof-exp-title">Expériences professionnelles</h2>
-						<div className="prof-exp-add-buttons">
-							<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('stage')} title="Ajouter un stage">
-								+ Stage
-							</button>
-							<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('alternance')} title="Ajouter une alternance">
-								+ Alternance
-							</button>
-						</div>
+						{/* On ne peut ajouter une expérience que sur SON profil : ailleurs,
+						    elle partirait dans mon localStorage tout en s'affichant comme
+						    celle de l'autre. */}
+						{!isViewingOther && (
+							<div className="prof-exp-add-buttons">
+								<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('stage')} title="Ajouter un stage">
+									+ Stage
+								</button>
+								<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('alternance')} title="Ajouter une alternance">
+									+ Alternance
+								</button>
+							</div>
+						)}
 					</div>
 
 					<ProfExpList
@@ -1333,6 +1382,7 @@ const Dashboard: React.FC = () => {
 						getParentKey={getParentKey}
 						apiExpPercentages={apiExpPercentages}
 						onApiExpPercentageChange={(id, pct) => {
+							if (isViewingOther) return;
 							const updated = { ...apiExpPercentages, [id]: pct };
 							setApiExpPercentages(updated);
 							localStorage.setItem('api_exp_percentages', JSON.stringify(updated));
@@ -1346,6 +1396,7 @@ const Dashboard: React.FC = () => {
 							setEditingExperience(exp);
 							setShowProfExpForm(exp.type);
 						}}
+						readOnly={isViewingOther}
 					/>
 				</motion.div>
 

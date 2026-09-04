@@ -197,6 +197,39 @@ export interface HolyGraphProjectDetailsResponse {
   details: HolyGraphProjectDetails | null;
 }
 
+/** Taille d'équipe d'un projet, telle que 42 la définit pour le campus. */
+export interface ProjectTeamInfo {
+  id: number;
+  name: string;
+  slug: string;
+  solo: boolean;
+  groupMin: number | null;
+  groupMax: number | null;
+}
+
+export interface ProjectTeamsResponse {
+  loading: boolean;
+  available: boolean;
+  projects: ProjectTeamInfo[];
+}
+
+/** Une personne inscrite sur un projet côté intra 42. */
+export interface ProjectRegistration {
+  userId42: number;
+  login: string;
+  imageUrl: string | null;
+  status: string;
+  registeredAt: string | null;
+}
+
+export interface ProjectRegistrationsResponse {
+  available: boolean;
+  reason?: 'UNKNOWN_CAMPUS';
+  users: ProjectRegistration[];
+  /** Date de la donnée en cache (24 h de fraîcheur maximum). */
+  fetchedAt: string | null;
+}
+
 /**
  * Service pour récupérer les données de l'API 42 via le backend
  */
@@ -349,13 +382,6 @@ export class BackendAPI42Service {
   }
 
   /**
-   * Récupère les utilisateurs inscrits sur un projet depuis l'intra 42
-   */
-  static async getProjectIntraUsers(slug: string): Promise<{ login: string; id: number }[]> {
-    return this.request<{ login: string; id: number }[]>(`/api42/project-users/${encodeURIComponent(slug)}`);
-  }
-
-  /**
    * Holy Graph : catalogue complet des projets de chaque cursus suivi par
    * l'utilisateur (tronc commun + cursus secondaires), avec son statut perso.
    */
@@ -368,6 +394,21 @@ export class BackendAPI42Service {
    * Aucune requête vers l'API 42 côté serveur : tout vient du cache mensuel des
    * sessions du campus et de l'instantané personnel.
    */
+  /** Taille d'équipe de chaque projet du cursus (solo / groupe). */
+  static async getProjectTeams(cursusId = 21): Promise<ProjectTeamsResponse> {
+    return this.request<ProjectTeamsResponse>(`/api42/project-teams?cursus_id=${cursusId}`);
+  }
+
+  /** Personnes actuellement inscrites sur un projet côté intra 42 (cache 24 h). */
+  static async getProjectRegistrations(
+    projectId: number,
+    cursusId = 21
+  ): Promise<ProjectRegistrationsResponse> {
+    return this.request<ProjectRegistrationsResponse>(
+      `/api42/project-registrations/${projectId}?cursus_id=${cursusId}`
+    );
+  }
+
   static async getProjectDetails(
     projectId: number,
     cursusId: number

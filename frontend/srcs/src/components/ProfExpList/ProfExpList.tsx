@@ -11,6 +11,8 @@ interface ProfExpListProps {
 	onEditManual: (exp: ProfessionalExperience) => void;
 	apiExpPercentages: Record<number, number>;
 	onApiExpPercentageChange: (id: number, percentage: number) => void;
+	/** Profil d'un autre utilisateur : lecture seule, aucune action d'édition. */
+	readOnly?: boolean;
 }
 
 function getApiEntryXP(p: Project42, percentage: number): number {
@@ -55,6 +57,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 	onEditManual,
 	apiExpPercentages,
 	onApiExpPercentageChange,
+	readOnly = false,
 }) => (
 	<div className="prof-exp-list">
 		{entries.length === 0 && manualExperiences.length === 0 && (
@@ -83,7 +86,7 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 							</span>
 						))}
 					</div>
-					{!p.validated && (isAlt || isStage) && (
+					{!p.validated && (isAlt || isStage) && !readOnly && (
 						<div className="prof-exp-item__pct-edit">
 							<div className="prof-exp-item__pct-wrapper">
 								<input
@@ -98,6 +101,12 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 								/>
 								<span className="prof-exp-item__pct-symbol">%</span>
 							</div>
+							<span className="prof-exp-item__status validated">{xp.toLocaleString()} XP</span>
+						</div>
+					)}
+					{!p.validated && (isAlt || isStage) && readOnly && (
+						<div className="prof-exp-item__pct-edit">
+							<span className="prof-exp-item__status validated">{pct}%</span>
 							<span className="prof-exp-item__status validated">{xp.toLocaleString()} XP</span>
 						</div>
 					)}
@@ -122,8 +131,12 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 					)}
 				</div>
 				<span className="prof-exp-item__status validated">{exp.validationPercentage}%</span>
-				<button className="prof-exp-item__edit" onClick={() => onEditManual(exp)} title="Modifier">✎</button>
-				<button className="prof-exp-item__delete" onClick={() => onDeleteManual(exp.id)} title="Supprimer">×</button>
+				{!readOnly && (
+					<>
+						<button className="prof-exp-item__edit" onClick={() => onEditManual(exp)} title="Modifier">✎</button>
+						<button className="prof-exp-item__delete" onClick={() => onDeleteManual(exp.id)} title="Supprimer">×</button>
+					</>
+				)}
 			</div>
 		))}
 	</div>

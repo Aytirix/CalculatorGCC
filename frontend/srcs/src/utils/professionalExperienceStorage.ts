@@ -2,6 +2,42 @@ import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/Prof
 
 const STORAGE_KEY = 'professional_experiences';
 
+/**
+ * Calculs sur une LISTE d'expériences, indépendants du stockage.
+ *
+ * Le localStorage ne contient que MES expériences : quand on consulte le profil
+ * d'un autre, ce sont les siennes qu'il faut additionner, pas celles du
+ * navigateur. Toutes les vues passent donc par ces fonctions, en leur donnant
+ * explicitement la liste à considérer.
+ */
+export const professionalExperienceMath = {
+  totalXP(experiences: ProfessionalExperience[]): number {
+    return experiences.reduce((sum, exp) => sum + exp.xpEarned, 0);
+  },
+
+  realXP(experiences: ProfessionalExperience[]): number {
+    return experiences.filter(exp => !exp.isSimulation).reduce((sum, exp) => sum + exp.xpEarned, 0);
+  },
+
+  simulatedXP(experiences: ProfessionalExperience[]): number {
+    return experiences.filter(exp => exp.isSimulation).reduce((sum, exp) => sum + exp.xpEarned, 0);
+  },
+
+  /** Mois d'expérience réelle (une alternance est comptée en années). */
+  realMonths(experiences: ProfessionalExperience[]): number {
+    return experiences
+      .filter(exp => !exp.isSimulation)
+      .reduce((sum, exp) => sum + (exp.type === 'stage' ? exp.duration : exp.duration * 12), 0);
+  },
+
+  /** Nombre d'expériences réelles — une alternance de 2 ans en vaut 2. */
+  realCount(experiences: ProfessionalExperience[]): number {
+    return experiences
+      .filter(exp => !exp.isSimulation)
+      .reduce((count, exp) => count + (exp.type === 'alternance' && exp.duration === 2 ? 2 : 1), 0);
+  },
+};
+
 export const professionalExperienceStorage = {
   /**
    * Récupère toutes les expériences du localStorage
@@ -97,28 +133,21 @@ export const professionalExperienceStorage = {
    * Calcule le total d'XP de toutes les expériences
    */
   getTotalXP(): number {
-    const experiences = this.getAll();
-    return experiences.reduce((sum, exp) => sum + exp.xpEarned, 0);
+    return professionalExperienceMath.totalXP(this.getAll());
   },
 
   /**
    * Calcule le total d'XP réel (non simulé)
    */
   getRealXP(): number {
-    const experiences = this.getAll();
-    return experiences
-      .filter(exp => !exp.isSimulation)
-      .reduce((sum, exp) => sum + exp.xpEarned, 0);
+    return professionalExperienceMath.realXP(this.getAll());
   },
 
   /**
    * Calcule le total d'XP simulé
    */
   getSimulatedXP(): number {
-    const experiences = this.getAll();
-    return experiences
-      .filter(exp => exp.isSimulation)
-      .reduce((sum, exp) => sum + exp.xpEarned, 0);
+    return professionalExperienceMath.simulatedXP(this.getAll());
   },
 
   /**
@@ -127,16 +156,7 @@ export const professionalExperienceStorage = {
    * Alternance: 1 an = 12 mois
    */
   getRealMonths(): number {
-    const experiences = this.getAll();
-    return experiences
-      .filter(exp => !exp.isSimulation)
-      .reduce((sum, exp) => {
-        if (exp.type === 'stage') {
-          return sum + exp.duration; // duration est en mois
-        } else {
-          return sum + (exp.duration * 12); // duration est en années, converti en mois
-        }
-      }, 0);
+    return professionalExperienceMath.realMonths(this.getAll());
   },
 
   /**
@@ -144,15 +164,7 @@ export const professionalExperienceStorage = {
    * Pour l'alternance de 2 ans, compte comme 2 expériences professionnelles
    */
   getRealCount(): number {
-    const experiences = this.getAll();
-    return experiences
-      .filter(exp => !exp.isSimulation)
-      .reduce((count, exp) => {
-        if (exp.type === 'alternance' && exp.duration === 2) {
-          return count + 2; // Alternance de 2 ans compte comme 2 expériences
-        }
-        return count + 1; // Autres expériences comptent comme 1
-      }, 0);
+    return professionalExperienceMath.realCount(this.getAll());
   },
 
   /**

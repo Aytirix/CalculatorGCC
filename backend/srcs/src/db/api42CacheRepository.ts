@@ -11,6 +11,11 @@ import { prisma } from './connection.js';
  * avant terme via le refresh global.
  */
 export const API42_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * Les inscriptions sur un projet bougent, elles, tous les jours : c'est la seule
+ * donnée de référence qui mérite une durée de vie courte.
+ */
+export const API42_REGISTRATIONS_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const CACHE_KEY_PROJECT_DATA = 'project_data';
 export const cacheKeyCursusProjects = (cursusId: number) => `cursus_projects:${cursusId}`;
@@ -20,14 +25,27 @@ export const cacheKeyProjectSkills = (cursusId: number, campusId: number | null)
 /** Détail des sessions de projet (durée, taille de groupe, règles d'inscription…). */
 export const cacheKeyProjectSessions = (cursusId: number, campusId: number) =>
 	`project_sessions:${cursusId}:${campusId}`;
+/** Inscrits en cours sur un projet, pour un cursus et un campus (TTL 24 h). */
+export const cacheKeyProjectRegistrations = (projectId: number, cursusId: number, campusId: number) =>
+	`project_regs:${projectId}:${cursusId}:${campusId}`;
 
 export const api42CacheRepository = {
-	/** Contenu du cache s'il existe ET qu'il est encore frais, sinon `null`. */
-	async getFresh<T>(key: string): Promise<T | null> {
+	/**
+	 * Contenu du cache s'il existe ET qu'il est encore frais, sinon `null`.
+	 * `ttlMs` permet de raccourcir la durée de vie pour les données volatiles
+	 * (inscriptions sur un projet) sans changer celle des données de référence.
+	 */
+	async getFresh<T>(key: string, ttlMs: number = API42_CACHE_TTL_MS): Promise<T | null> {
 		const row = await prisma.api42Cache.findUnique({ where: { key } });
 		if (!row) return null;
-		if (Date.now() - row.fetchedAt.getTime() >= API42_CACHE_TTL_MS) return null;
+		if (Date.now() - row.fetchedAt.getTime() >= ttlMs) return null;
 		return row.payload as T;
+	},
+
+	/** Date de dernier remplissage d'une entrée (affichage « données du … »). */
+	async fetchedAt(key: string): Promise<Date | null> {
+		const row = await prisma.api42Cache.findUnique({ where: { key }, select: { fetchedAt: true } });
+		return row?.fetchedAt ?? null;
 	},
 
 	async set(key: string, payload: unknown): Promise<void> {

@@ -6,8 +6,10 @@ import {
 	api42CacheRepository,
 	CACHE_KEY_PROJECT_DATA,
 	cacheKeyCursusProjects,
+	cacheKeyProjectRegistrations,
 	cacheKeyProjectSessions,
 	cacheKeyProjectSkills,
+	API42_REGISTRATIONS_TTL_MS,
 } from '../db/api42CacheRepository.js';
 import { token42Service } from './token42.service.js';
 import { appToken42Service } from './appToken42.service.js';
@@ -365,6 +367,32 @@ const RULE_PARAM = {
 	neitherOngoingOrValidated: 32,
 	questAndQuestValidated: 47,
 } as const;
+
+/**
+ * Statuts « toujours en cours » d'une inscription. Quelqu'un qui a terminé le
+ * projet n'est plus un coéquipier potentiel : on ne le remonte pas.
+ */
+const ONGOING_STATUSES = ['searching_a_group', 'creating_group', 'in_progress'] as const;
+
+/** Une personne inscrite sur un projet côté intra 42. */
+export interface ProjectRegistration {
+	userId42: number;
+	login: string;
+	imageUrl: string | null;
+	status: string;
+	/** Date d'inscription sur le projet (ISO), telle que 42 la donne. */
+	registeredAt: string | null;
+}
+
+/** Taille d'équipe d'un projet, pour savoir s'il se fait en groupe. */
+export interface ProjectTeamInfo {
+	id: number;
+	name: string;
+	slug: string;
+	solo: boolean;
+	groupMin: number | null;
+	groupMax: number | null;
+}
 
 /** Détail affichable d'un projet du Holy Graph. */
 export interface GraphProjectDetails {
@@ -972,23 +1000,98 @@ export class API42Service {
 	}
 
 	/** Utilisateurs inscrits sur un projet (par slug). */
-	static async getProjectRegisteredUsers(slug: string, token: string): Promise<{ login: string; id: number }[]> {
-		const projects = await this.request<any[]>(
-			`${config.oauth42.apiUrl}/projects?filter[slug]=${encodeURIComponent(slug)}&page[size]=1`,
-			token
+	/**
+	 * Personnes ACTUELLEMENT inscrites sur un projet, sur le campus et le cursus
+	 * donnés. C'est la deuxième colonne de la recherche de teammates : des gens
+	 * réellement engagés sur le projet côté intra, pas seulement chez nous.
+	 *
+	 * Une seule requête par projet : le filtre `campus` + `cursus` + `status`
+	 * ramène l'ensemble d'un coup (mesuré : 16 inscrits sur webserv à Nice,
+	 * contre 10 633 sans filtre). Résultat mis en cache 24 h et partagé par tous
+	 * les utilisateurs du campus.
+	 *
+	 * Attention aux noms de filtres : l'API attend `campus` et `cursus`, PAS
+	 * `campus_id` / `cursus_id` — ces derniers font répondre 400.
+	 */
+	static async getProjectRegistrations(
+		projectId: number,
+		cursusId: number,
+		campusId: number
+	): Promise<{ users: ProjectRegistration[]; fetchedAt: string }> {
+		const cacheKey = cacheKeyProjectRegistrations(projectId, cursusId, campusId);
+		const cached = await api42CacheRepository.getFresh<ProjectRegistration[]>(
+			cacheKey,
+			API42_REGISTRATIONS_TTL_MS
 		);
+		if (cached) {
+			const at = await api42CacheRepository.fetchedAt(cacheKey);
+			return { users: cached, fetchedAt: (at ?? new Date()).toISOString() };
+		}
 
-		if (!projects || projects.length === 0) return [];
-		const projectId = projects[0].id;
+		const token = await appToken42Service.get();
+		const url =
+			`${config.oauth42.apiUrl}/projects/${projectId}/projects_users` +
+			`?filter[campus]=${campusId}&filter[cursus]=${cursusId}` +
+			`&filter[status]=${ONGOING_STATUSES.join(',')}&page[size]=100`;
+		const rows = await this.request<any[]>(url, token);
 
-		const projectUsers = await this.request<any[]>(
-			`${config.oauth42.apiUrl}/projects/${projectId}/projects_users?filter[cursus_id]=21&page[size]=100`,
-			token
-		);
+		// On ne garde QUE ce qui est affiché : la réponse brute contient l'email,
+		// le téléphone et la localisation de chaque personne, qui n'ont rien à
+		// faire dans notre cache ni côté navigateur.
+		const users: ProjectRegistration[] = (rows ?? [])
+			.filter((pu: any) => pu?.user?.login)
+			.map((pu: any) => ({
+				userId42: pu.user.id,
+				login: pu.user.login,
+				imageUrl: pu.user.image?.versions?.small ?? pu.user.image?.link ?? null,
+				status: pu.status ?? 'unknown',
+				registeredAt: pu.created_at ?? null,
+			}));
 
-		return (projectUsers || [])
-			.filter((pu: any) => pu.user?.login)
-			.map((pu: any) => ({ login: pu.user.login, id: pu.user.id }));
+		await api42CacheRepository.set(cacheKey, users);
+		return { users, fetchedAt: new Date().toISOString() };
+	}
+
+	/**
+	 * Taille d'équipe de chaque projet du cursus, telle que 42 la définit.
+	 * `null` tant que le détail des sessions n'est pas en cache.
+	 *
+	 * Sert à n'afficher le bouton « teammates » que sur les projets réellement
+	 * faisables en groupe.
+	 */
+	static getProjectTeamInfo(cursusId: number, campusId: number): ProjectTeamInfo[] | null {
+		const sessions = this.getProjectSessionsCached(cursusId, campusId);
+		const catalog = this.getCursusProjectsCached(cursusId);
+		if (!sessions || !catalog) return null;
+
+		const byId = new Map(catalog.map((p) => [p.id, p]));
+		// Un projet peut avoir plusieurs sessions sur le campus : la plus récente
+		// (id le plus grand) est celle proposée aujourd'hui.
+		const latest = new Map<number, SlimProjectSession>();
+		for (const s of sessions) {
+			const previous = latest.get(s.projectId);
+			if (!previous || s.id > previous.id) latest.set(s.projectId, s);
+		}
+
+		const out: ProjectTeamInfo[] = [];
+		for (const [projectId, session] of latest) {
+			const project = byId.get(projectId);
+			if (!project) continue;
+			const rule = session.rules.find((r) => r.name === 'GroupSizeBetweenNAndM');
+			const toInt = (value: string | undefined) => {
+				const n = Number.parseInt(value ?? '', 10);
+				return Number.isFinite(n) ? n : null;
+			};
+			out.push({
+				id: project.id,
+				name: project.name.trim(),
+				slug: project.slug,
+				solo: session.solo,
+				groupMin: toInt(rule?.params[RULE_PARAM.groupMin]),
+				groupMax: toInt(rule?.params[RULE_PARAM.groupMax]) ?? session.maxPeople,
+			});
+		}
+		return out;
 	}
 
 	/**

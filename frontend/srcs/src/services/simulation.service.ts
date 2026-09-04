@@ -59,6 +59,17 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 	return response.json();
 }
 
+/** Une personne ayant simulé un projet (recherche de teammates). */
+export interface SimulatedProjectUser {
+	login: string;
+	userId42: number;
+	imageUrl: string | null;
+	/** Date à laquelle elle a ajouté le projet à sa simulation (ISO). */
+	simulatedAt: string;
+	/** Elle a déjà trouvé son équipe : elle ne cherche plus. */
+	hasTeam: boolean;
+}
+
 export interface UserSearchResult {
 	userId42: number;
 	login: string;
@@ -137,8 +148,24 @@ export const simulationService = {
 	/**
 	 * Récupère les utilisateurs qui ont simulé un projet donné
 	 */
-	async getProjectUsers(projectId: string): Promise<{ login: string; userId42: number; imageUrl: string | null }[]> {
-		return request<{ login: string; userId42: number; imageUrl: string | null }[]>(`/simulation/project-users/${encodeURIComponent(projectId)}`);
+	async getProjectUsers(projectId: string): Promise<SimulatedProjectUser[]> {
+		return request<SimulatedProjectUser[]>(`/simulation/project-users/${encodeURIComponent(projectId)}`);
+	},
+
+	/**
+	 * Coche / décoche « j'ai déjà ma team » sur un projet simulé.
+	 * Renvoie false si le projet n'est pas dans MA simulation (409 côté serveur).
+	 */
+	async setProjectTeam(projectId: string, hasTeam: boolean): Promise<boolean> {
+		try {
+			await request<{ projectId: string; hasTeam: boolean }>(
+				`/simulation/project-team/${encodeURIComponent(projectId)}`,
+				{ method: 'PUT', body: JSON.stringify({ hasTeam }) }
+			);
+			return true;
+		} catch {
+			return false;
+		}
 	},
 
 	/**

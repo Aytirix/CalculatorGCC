@@ -6,6 +6,7 @@ import { clampProjectPercentage } from '@/utils/projectPercentage';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
 import TeammateModal from '../TeammateModal/TeammateModal';
+import { useProjectTeams } from '@/contexts/useProjectTeams';
 import './CategorySection.scss';
 
 interface CategorySectionProps {
@@ -53,6 +54,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
 	const [teammateProject, setTeammateProject] = useState<SimulatorProject | null>(null);
+	const { getTeamInfo } = useProjectTeams();
 
 	const progressPercentage = category.requiredXP > 0
 		? Math.min((validation.currentXP / category.requiredXP) * 100, 100)
@@ -152,16 +154,28 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 									? findProjectPercentage(project, completedProjectsPercentages, 100)
 									: clampProjectPercentage(projectPercentages[project.id] ?? 100, project);
 
+								// Le bouton « teammates » n'a de sens que sur un projet qui se
+								// fait réellement en groupe : 42 le dit via la taille d'équipe
+								// de la session du campus.
+								const teamInfo = getTeamInfo(project);
+								const isGroupProject = teamInfo != null && !teamInfo.solo;
+
 								return (
 									<div key={project.id} className="project-card-wrapper">
-										<button
-											className="teammate-btn"
-											data-tour="teammate-btn"
-											onClick={() => setTeammateProject(project)}
-											title="Trouver des teammates"
-										>
-											👥
-										</button>
+										{isGroupProject && (
+											<button
+												className="teammate-btn"
+												data-tour="teammate-btn"
+												onClick={() => setTeammateProject(project)}
+												title={
+													teamInfo.groupMin != null && teamInfo.groupMax != null
+														? `Trouver des teammates (groupe de ${teamInfo.groupMin} à ${teamInfo.groupMax})`
+														: 'Trouver des teammates'
+												}
+											>
+												👥
+											</button>
+										)}
 										<ProjectCard
 											project={project}
 											isCompleted={isCompleted}
@@ -190,6 +204,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 					onClose={() => setTeammateProject(null)}
 					projectId={teammateProject.id}
 					projectName={teammateProject.name}
+					teamInfo={getTeamInfo(teammateProject)}
+					isSimulated={simulatedProjects.includes(teammateProject.id)}
 					/>
 			)}
 		</motion.div>

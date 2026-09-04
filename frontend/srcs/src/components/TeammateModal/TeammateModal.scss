@@ -92,6 +92,7 @@
 		padding: 1rem 1.25rem;
 		overflow-y: auto;
 		max-height: 50vh;
+		min-width: 0;
 	}
 
 	&__section-title {
@@ -135,8 +136,8 @@
 	}
 
 	&__avatar {
-		width: 100px;
-		height: 100px;
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
@@ -154,7 +155,7 @@
 	}
 
 	&__login {
-		font-size: 1.25rem;
+		font-size: 0.95rem;
 		color: var(--text-primary);
 		font-family: monospace;
 	}
@@ -169,5 +170,115 @@
 
 	&__error {
 		color: var(--color-danger, #ef4444);
+	}
+}
+// Variante deux colonnes : « qui a simulé chez nous » d'un côté, « qui est
+// inscrit sur l'intra » de l'autre.
+.teammate-modal--wide {
+	max-width: 900px;
+}
+
+.teammate-modal {
+	&__team-size {
+		color: var(--text-muted);
+	}
+
+	&__toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem 1.5rem;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	&__toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.8rem;
+		color: var(--text-primary);
+		cursor: pointer;
+
+		input {
+			cursor: pointer;
+			accent-color: var(--color-primary);
+		}
+
+		&--disabled {
+			color: var(--text-muted);
+			cursor: not-allowed;
+
+			input {
+				cursor: not-allowed;
+			}
+		}
+	}
+
+	&__sort {
+		margin-left: auto;
+		padding: 0.3rem 0.5rem;
+		border-radius: 6px;
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		font-size: 0.8rem;
+	}
+
+	&__columns {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		overflow: hidden;
+		min-height: 0;
+
+		> * + * {
+			border-left: 1px solid var(--border-color);
+		}
+	}
+
+	&__hint {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+		margin: -0.5rem 0 0.6rem;
+	}
+
+	&__item-main {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		flex: 1;
+	}
+
+	&__meta {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+	}
+
+	&__badge {
+		flex-shrink: 0;
+		font-size: 0.65rem;
+		padding: 0.12rem 0.4rem;
+		border-radius: 999px;
+		border: 1px solid var(--border-color);
+		color: var(--text-muted);
+		white-space: nowrap;
+
+		&--status {
+			color: var(--color-primary);
+			border-color: var(--color-primary);
+		}
+	}
+}
+
+@media (max-width: 720px) {
+	.teammate-modal__columns {
+		grid-template-columns: 1fr;
+		overflow-y: auto;
+
+		> * + * {
+			border-left: 0;
+			border-top: 1px solid var(--border-color);
+		}
 	}
 }

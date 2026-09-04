@@ -35,6 +35,33 @@ export const SimulationController = {
 	},
 
 	/**
+	 * PUT /simulation/project-team/:projectId - « J'ai déjà ma team » sur ce projet
+	 *
+	 * Toujours pour l'utilisateur CONNECTÉ : on ne coche jamais ce drapeau sur le
+	 * profil de quelqu'un d'autre, même en consultation.
+	 */
+	async setProjectTeam(request: FastifyRequest, reply: FastifyReply) {
+		const { projectId } = request.params as { projectId: string };
+		const { hasTeam } = request.body as { hasTeam?: unknown };
+		if (typeof hasTeam !== 'boolean') {
+			return reply.code(400).send({ error: 'hasTeam doit être un booléen' });
+		}
+
+		const updated = await simulationRepository.setProjectTeamFlag(
+			request.user.user_id_42,
+			projectId,
+			hasTeam
+		);
+		if (!updated) {
+			return reply.code(409).send({
+				error: 'NOT_SIMULATED',
+				message: "Ce projet n'est pas dans ta simulation",
+			});
+		}
+		return reply.send({ projectId, hasTeam });
+	},
+
+	/**
 	 * GET /simulation/search?q=xxx - Recherche d'utilisateurs
 	 */
 	async searchUsers(request: FastifyRequest, reply: FastifyReply) {

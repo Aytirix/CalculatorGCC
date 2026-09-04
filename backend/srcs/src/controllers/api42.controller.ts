@@ -310,25 +310,6 @@ export class API42Controller {
   }
 
   /**
-   * GET /api42/project-users/:slug
-   * Récupère les utilisateurs inscrits sur un projet depuis l'intra 42
-   */
-  static async getProjectRegisteredUsers(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
-    try {
-      const api_token = await callerAccessToken(request);
-      const { slug } = request.params as { slug: string };
-
-      const users = await API42Service.getProjectRegisteredUsers(slug, api_token);
-
-      fastify.log.info(`[API42 Controller] Fetched ${users.length} registered users for project ${slug}`);
-
-      return users;
-    } catch (error: any) {
-      return handleAPI42Error(error, reply, fastify);
-    }
-  }
-
-  /**
    * GET /api42/usage
    * Usage courant de l'API 42 (rate limiter + file de refresh). Lecture en mémoire,
    * AUCUN appel à l'API 42. Sert la page "Conso API" (visible par tous).
@@ -457,6 +438,75 @@ export class API42Controller {
   }
 
   /**
+   * GET /api42/project-teams?cursus_id=21
+   * Taille d'équipe de chaque projet du cursus (solo / groupe de N à M), pour
+   * n'afficher la recherche de teammates que là où elle a un sens.
+   *
+   * Aucun appel 42 : tout vient du cache mensuel des sessions du campus.
+   */
+  static async getProjectTeams(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
+
+      const query = request.query as { cursus_id?: string };
+      const cursusId = parseInt(query.cursus_id ?? '21', 10);
+      if (!Number.isFinite(cursusId)) {
+        return reply.code(400).send({ error: 'cursus_id invalide' });
+      }
+
+      const campusId = await API42Service.getUserCampusId(userId);
+      if (campusId == null) {
+        return reply.send({ loading: false, available: false, projects: [] });
+      }
+
+      // Le catalogue du cursus est nécessaire pour relier une session à son
+      // projet : il n'est pas forcément déjà en mémoire, cette page pouvant être
+      // ouverte sans jamais passer par le Holy Graph.
+      API42Service.ensureCursusProjectsFetching(cursusId);
+      API42Service.ensureProjectSessionsFetching(cursusId, campusId);
+      const projects = API42Service.getProjectTeamInfo(cursusId, campusId);
+      return reply.send({
+        loading: projects === null,
+        available: true,
+        projects: projects ?? [],
+      });
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
+
+  /**
+   * GET /api42/project-registrations/:projectId?cursus_id=21
+   * Personnes actuellement inscrites sur le projet côté intra 42, sur le campus
+   * de l'utilisateur. Une requête 42 par projet, mise en cache 24 h.
+   */
+  static async getProjectRegistrations(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
+
+      const params = request.params as { projectId: string };
+      const query = request.query as { cursus_id?: string };
+      const projectId = parseInt(params.projectId, 10);
+      const cursusId = parseInt(query.cursus_id ?? '21', 10);
+      if (!Number.isFinite(projectId) || !Number.isFinite(cursusId)) {
+        return reply.code(400).send({ error: 'projectId et cursus_id requis' });
+      }
+
+      const campusId = await API42Service.getUserCampusId(userId);
+      if (campusId == null) {
+        return reply.send({ available: false, reason: 'UNKNOWN_CAMPUS', users: [], fetchedAt: null });
+      }
+
+      const { users, fetchedAt } = await API42Service.getProjectRegistrations(projectId, cursusId, campusId);
+      return reply.send({ available: true, users, fetchedAt });
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
+
+  /**
    * GET /api42/project-details/:projectId?cursus_id=21
    * Détail d'un projet du Holy Graph : description, durée estimée, solo ou
    * groupe, XP, et prérequis d'inscription avec, pour chacun, le fait qu'on le
@@ -486,6 +536,7 @@ export class API42Controller {
         return reply.send({ loading: false, available: false, reason: 'UNKNOWN_CAMPUS', details: null });
       }
 
+      API42Service.ensureCursusProjectsFetching(cursusId);
       API42Service.ensureProjectSessionsFetching(cursusId, campusId);
       const details = API42Service.getProjectDetails(cursusId, campusId, projectId);
       if (!details) {
