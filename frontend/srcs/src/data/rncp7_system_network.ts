@@ -19,7 +19,7 @@ export const RNCP7_SYSTEM_NETWORK: RNCP = {
         { id: 'gbmu', name: 'gbmu', xp: 31500, slug: 'gbmu' },
         { id: 'kfs-1', name: 'kfs-1', xp: 15750, slug: 'kfs-1' },
         { id: 'kfs-2', name: 'kfs-2', xp: 15750, slug: 'kfs-2' },
-        { id: 'kfs-3', name: 'kfs-3', xp: 3570, slug: 'kfs-3' },
+        { id: 'kfs-3', name: 'kfs-3', xp: 35700, slug: 'kfs-3' },
         { id: 'kfs-4', name: 'kfs-4', xp: 25200, slug: 'kfs-4' },
         { id: 'kfs-5', name: 'kfs-5', xp: 35700, slug: 'kfs-5' },
         { id: 'kfs-6', name: 'kfs-6', xp: 25200, slug: 'kfs-6' },
