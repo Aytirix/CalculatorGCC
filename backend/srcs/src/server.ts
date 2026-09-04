@@ -12,6 +12,7 @@ import { calendarRoutes } from './routes/calendar.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
 import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
+import { rncpService } from './services/rncp.service.js';
 import { initConsoleToken } from './services/adminAuth.service.js';
 
 const fastify = Fastify({
@@ -200,6 +201,12 @@ async function start() {
 			port: config.port,
 			host: '0.0.0.0'
 		});
+
+		// Préchauffage du catalogue du cursus, en tâche de fond : le référentiel
+		// RNCP et le Holy Graph en dépendent. Depuis le cache en base c'est
+		// instantané ; sinon ça évite au premier visiteur d'attendre la
+		// pagination de l'API 42 devant un écran de chargement.
+		if (await isConfigured()) rncpService.ensureCatalog();
 
 		console.log(`
 ╔════════════════════════════════════════╗
