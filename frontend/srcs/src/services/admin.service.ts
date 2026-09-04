@@ -51,6 +51,18 @@ export interface PasskeyInfo {
   created_at: string;
   last_used_at: string | null;
 }
+/** État du refresh global des données 42 partagées (owner uniquement). */
+export interface GlobalRefreshState {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  startedBy: string | null;
+  usersTotal: number;
+  usersDone: number;
+  lastError: string | null;
+  cacheEntries: { key: string; fetchedAt: string }[];
+}
+
 export interface DelegateInfo {
   login: string;
   created_at: string;
@@ -134,5 +146,20 @@ export const adminService = {
   },
   async removeDelegate(login: string): Promise<void> {
     await api.delete(`/admin/delegates/${encodeURIComponent(login)}`, { headers: authHeader() });
+  },
+
+  // ----- Refresh global des données 42 -----
+  async getGlobalRefresh(): Promise<GlobalRefreshState> {
+    return (await api.get<GlobalRefreshState>('/admin/global-refresh', { headers: authHeader() })).data;
+  },
+  /** Renvoie `false` si un refresh est déjà en cours (bouton à laisser désactivé). */
+  async startGlobalRefresh(): Promise<{ started: boolean; state: GlobalRefreshState }> {
+    try {
+      const res = await api.post<{ state: GlobalRefreshState }>('/admin/global-refresh', {}, { headers: authHeader() });
+      return { started: true, state: res.data.state };
+    } catch (e: any) {
+      if (e?.response?.status === 409) return { started: false, state: e.response.data.state };
+      throw e;
+    }
   },
 };

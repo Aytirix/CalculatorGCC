@@ -35,6 +35,10 @@ model UserSimulation {
   firstName             String?  @db.VarChar(64)
   lastName              String?  @db.VarChar(64)
   imageUrl              String?  @db.VarChar(512)
+  // Campus principal, relevé à la connexion (la réponse /v2/me du callback OAuth
+  // le contient déjà) : évite un appel dédié à l'API 42 juste pour le connaître.
+  // Sert à n'afficher sur le Holy Graph que les projets proposés sur ce campus.
+  campusId              Int?
   isPublic              Boolean?
   hasSeenTour           Boolean  @default(false)
   lastSeenChangelog     String?  @db.VarChar(32) // version du dernier changelog acquitté (null = jamais)
@@ -98,6 +102,35 @@ model UserToken42 {
   updatedAt    DateTime @updatedAt
 
   @@map("user_token_42")
+}
+
+// Cache PARTAGÉ des données de référence 42 (catalogue d'un cursus, layout
+// officiel du Holy Graph). Ces données sont les mêmes pour tout le monde et ne
+// bougent quasiment jamais : on les garde un mois et on les persiste en base
+// pour qu'un redémarrage du backend ne relance pas des dizaines de requêtes
+// vers l'API 42. Seul un refresh global déclenché par l'admin les renouvelle
+// avant expiration.
+model Api42Cache {
+  key       String   @id @db.VarChar(64) // 'project_data' | 'cursus_projects:21'
+  payload   Json
+  fetchedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("api42_cache")
+}
+
+// État du refresh global déclenché par l'admin : sert à interdire un second
+// lancement pendant qu'un est en cours, et à afficher la dernière exécution.
+model GlobalRefresh {
+  id             Int       @id @default(1)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  startedBy      String?   @db.VarChar(128)
+  usersTotal     Int       @default(0)
+  usersDone      Int       @default(0)
+  lastError      String?   @db.Text
+
+  @@map("global_refresh")
 }
 
 // ===== Authentification admin autonome (découplée d'OAuth 42) =====

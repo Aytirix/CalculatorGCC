@@ -91,6 +91,19 @@ export class AuthController {
         });
       }
 
+      // Le campus est DÉJÀ dans la réponse /me : on le mémorise ici plutôt que
+      // d'aller le redemander à l'API 42 plus tard (le Holy Graph s'en sert pour
+      // n'afficher que les projets réellement proposés sur ce campus).
+      const primaryCampus = (userData.campus_users ?? []).find((c: any) => c?.is_primary);
+      const campusId: number | null = primaryCampus?.campus_id ?? userData.campus?.[0]?.id ?? null;
+      if (campusId != null) {
+        await prisma.userSimulation.upsert({
+          where: { userId42: userData.id },
+          create: { userId42: userData.id, login: userData.login, campusId },
+          update: { campusId },
+        });
+      }
+
       // Générer un JWT contenant le token de l'API 42 et les infos utilisateur
       const payload = {
         api_token: access_token,

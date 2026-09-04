@@ -1,6 +1,12 @@
 import axios from 'axios';
 import { config } from '../config/config.js';
+import { prisma } from '../db/connection.js';
 import { userData42Repository, UserData42Snapshot } from '../db/userData42Repository.js';
+import {
+	api42CacheRepository,
+	CACHE_KEY_PROJECT_DATA,
+	cacheKeyCursusProjects,
+} from '../db/api42CacheRepository.js';
 import { token42Service } from './token42.service.js';
 import { appToken42Service } from './appToken42.service.js';
 
@@ -151,12 +157,65 @@ class API42RateLimiter {
 
 const rateLimiter = new API42RateLimiter();
 
-// Cache mémoire du catalogue "cursus -> projets" (Holy Graph). Partagé entre
-// tous les utilisateurs : le contenu d'un cursus ne dépend de personne.
-const CURSUS_PROJECTS_TTL_MS = 24 * 60 * 60 * 1000;
+// Cache du catalogue "cursus -> projets" (Holy Graph). Partagé entre tous les
+// utilisateurs (le contenu d'un cursus ne dépend de personne) et persisté en
+// base : un redémarrage du backend ne doit pas relancer des dizaines d'appels
+// à l'API 42. La mémoire ne sert que de couche rapide devant la base.
 const CURSUS_PROJECTS_PAGE_TIMEOUT_MS = 30_000; // mesuré ~10s/page côté API 42, large marge
-const cursusProjectsCache = new Map<number, { data: any[]; at: number }>();
+const cursusProjectsCache = new Map<number, { data: SlimProject[]; at: number }>();
 const cursusProjectsInFlight = new Map<number, Promise<void>>();
+
+/**
+ * Version allégée d'un projet du catalogue : le brut renvoyé par l'API 42 pèse
+ * ~18 Mo pour un cursus (chaque projet embarque toutes ses sessions, barèmes
+ * et campus). On ne conserve que ce dont le Holy Graph a besoin.
+ */
+export interface SlimProject {
+	id: number;
+	name: string;
+	slug: string;
+	difficulty: number;
+	exam: boolean;
+	sessions: { id: number; cursusId: number; campusId: number | null }[];
+}
+
+function slimCursusProjects(raw: any[]): SlimProject[] {
+	return raw.map((p) => ({
+		id: p.id,
+		name: p.name,
+		slug: p.slug,
+		difficulty: p.difficulty ?? 0,
+		exam: p.exam === true,
+		sessions: (p.project_sessions ?? [])
+			.filter((s: any) => s?.id != null)
+			.map((s: any) => ({ id: s.id, cursusId: s.cursus_id, campusId: s.campus_id ?? null })),
+	}));
+}
+
+/** Idem pour le layout : on ne garde que les champs réellement dessinés. */
+interface SlimProjectData {
+	sessionId: number;
+	kind: string;
+	x: number;
+	y: number;
+	by: number[][];
+}
+
+function slimProjectData(raw: any[]): SlimProjectData[] {
+	const out: SlimProjectData[] = [];
+	for (const e of raw) {
+		const [x, y] = e?.coordinates ?? [];
+		if (typeof x !== 'number' || typeof y !== 'number' || (x === 0 && y === 0)) continue;
+		out.push({
+			sessionId: e.project_session_id,
+			kind: e.kind ?? 'project',
+			x,
+			y,
+			by: (e.by ?? []).filter((l: any) => Array.isArray(l) && l.length >= 5),
+		});
+	}
+	return out;
+}
 
 // ---------------------------------------------------------------------------
 // HOLY GRAPH — layout OFFICIEL de 42
@@ -193,8 +252,7 @@ export interface OfficialGraphLayout {
 	edges: HolyGraphEdge[];
 }
 
-const PROJECT_DATA_TTL_MS = 24 * 60 * 60 * 1000;
-let projectDataCache: { data: any[]; at: number } | null = null;
+let projectDataCache: { data: SlimProjectData[]; at: number } | null = null;
 let projectDataInFlight: Promise<void> | null = null;
 
 /**
@@ -216,10 +274,6 @@ function pruneDanglingEdges(edges: HolyGraphEdge[], nodes: HolyGraphNode[]): Hol
 	return edges.filter((e) => touchesNode(e.x1, e.y1) || touchesNode(e.x2, e.y2));
 }
 
-// Campus de l'utilisateur : détermine QUELS projets sont affichés (on ne montre
-// que ceux réellement proposés sur son campus). Mis en cache 24h par user.
-const USER_CAMPUS_TTL_MS = 24 * 60 * 60 * 1000;
-const userCampusCache = new Map<number, { campusId: number | null; at: number }>();
 
 /**
  * Projets exclus du graphe : contrats d'alternance, stages et expériences
@@ -271,10 +325,8 @@ export class API42Service {
 	 * chemin de requête HTTP normal, qui ne doit jamais bloquer plusieurs
 	 * dizaines de secondes derrière l'API 42.
 	 */
-	static getCursusProjectsCached(cursusId: number): any[] | null {
-		const cached = cursusProjectsCache.get(cursusId);
-		if (cached && Date.now() - cached.at < CURSUS_PROJECTS_TTL_MS) return cached.data;
-		return null;
+	static getCursusProjectsCached(cursusId: number): SlimProject[] | null {
+		return cursusProjectsCache.get(cursusId)?.data ?? null;
 	}
 
 	/**
@@ -291,6 +343,15 @@ export class API42Service {
 		if (cursusProjectsInFlight.has(cursusId)) return;
 
 		const promise = (async () => {
+			// La base d'abord : après un redémarrage, le cache mémoire est vide
+			// mais les données sont toujours valables — inutile de retaper l'API 42.
+			const cacheKey = cacheKeyCursusProjects(cursusId);
+			const persisted = await api42CacheRepository.getFresh<SlimProject[]>(cacheKey);
+			if (persisted) {
+				cursusProjectsCache.set(cursusId, { data: persisted, at: Date.now() });
+				return;
+			}
+
 			const token = await appToken42Service.get();
 			let page = 1;
 			const pageSize = 100;
@@ -307,7 +368,10 @@ export class API42Service {
 			// Aucun filtrage ici : c'est `/v2/project_data` (le layout officiel)
 			// qui fait office de curation — un projet absent du graphe officiel
 			// n'a tout simplement pas de coordonnées, et disparaît de lui-même.
-			cursusProjectsCache.set(cursusId, { data: all, at: Date.now() });
+			const slim = slimCursusProjects(all);
+			cursusProjectsCache.set(cursusId, { data: slim, at: Date.now() });
+			await api42CacheRepository.set(cacheKey, slim);
+			console.log(`[API42] Catalogue cursus ${cursusId} récupéré : ${slim.length} projets`);
 		})()
 			.catch((error) => {
 				console.error(`[API42] Échec du fetch du catalogue cursus ${cursusId}:`, error?.message || error);
@@ -319,12 +383,9 @@ export class API42Service {
 		cursusProjectsInFlight.set(cursusId, promise);
 	}
 
-	/** Layout officiel déjà en cache et frais, ou `null`. Aucun appel réseau. */
-	static getProjectDataCached(): any[] | null {
-		if (projectDataCache && Date.now() - projectDataCache.at < PROJECT_DATA_TTL_MS) {
-			return projectDataCache.data;
-		}
-		return null;
+	/** Layout officiel déjà en cache mémoire, ou `null`. Aucun appel réseau. */
+	static getProjectDataCached(): SlimProjectData[] | null {
+		return projectDataCache?.data ?? null;
 	}
 
 	/**
@@ -338,6 +399,15 @@ export class API42Service {
 		if (projectDataInFlight) return;
 
 		projectDataInFlight = (async () => {
+			// La base d'abord (cf. catalogue) : 61 pages d'API évitées à chaque
+			// redémarrage du backend.
+			const persisted = await api42CacheRepository.getFresh<SlimProjectData[]>(CACHE_KEY_PROJECT_DATA);
+			if (persisted) {
+				projectDataCache = { data: persisted, at: Date.now() };
+				console.log(`[API42] Layout officiel repris du cache en base : ${persisted.length} entrées`);
+				return;
+			}
+
 			const token = await appToken42Service.get();
 			let page = 1;
 			const pageSize = 100;
@@ -350,8 +420,10 @@ export class API42Service {
 				if (data.length < pageSize) break;
 				page++;
 			}
-			projectDataCache = { data: all, at: Date.now() };
-			console.log(`[API42] Layout officiel du Holy Graph récupéré : ${all.length} entrées`);
+			const slim = slimProjectData(all);
+			projectDataCache = { data: slim, at: Date.now() };
+			await api42CacheRepository.set(CACHE_KEY_PROJECT_DATA, slim);
+			console.log(`[API42] Layout officiel du Holy Graph récupéré : ${slim.length} nœuds placés`);
 		})()
 			.catch((error) => {
 				console.error('[API42] Échec du fetch du layout officiel (project_data):', error?.message || error);
@@ -382,10 +454,10 @@ export class API42Service {
 			// l'affichage : sinon le nœud disparaît mais ses liens restent, et on se
 			// retrouve avec des traits qui flottent dans le vide.
 			if (this.isExcludedFromGraph(p.name)) continue;
-			for (const s of p.project_sessions ?? []) {
-				if (s?.id == null || s.cursus_id !== cursusId) continue;
+			for (const s of p.sessions) {
+				if (s.cursusId !== cursusId) continue;
 				projectBySession.set(s.id, p.id);
-				if (campusId == null || s.campus_id === campusId) offeredHere.add(p.id);
+				if (campusId == null || s.campusId === campusId) offeredHere.add(p.id);
 			}
 		}
 
@@ -393,17 +465,12 @@ export class API42Service {
 		// a donc plusieurs positions (167 sur 232 dans le 42cursus). Prendre la
 		// première venue mélange les layouts et déplace des projets ; on retient
 		// la position MAJORITAIRE, qui est la disposition de référence.
-		const placements = new Map<number, { kind: string; x: number; y: number; by: any[] }[]>();
+		const placements = new Map<number, SlimProjectData[]>();
 		for (const entry of projectData) {
-			const projectId = projectBySession.get(entry?.project_session_id);
+			const projectId = projectBySession.get(entry.sessionId);
 			if (projectId == null || !offeredHere.has(projectId)) continue;
-
-			const [x, y] = entry.coordinates ?? [];
-			// [0,0] = projet non placé sur le graphe officiel (donc pas affiché).
-			if (typeof x !== 'number' || typeof y !== 'number' || (x === 0 && y === 0)) continue;
-
 			const list = placements.get(projectId) ?? [];
-			list.push({ kind: entry.kind ?? 'project', x, y, by: entry.by ?? [] });
+			list.push(entry);
 			placements.set(projectId, list);
 		}
 
@@ -450,32 +517,61 @@ export class API42Service {
 	}
 
 	/**
-	 * Campus de l'utilisateur (mis en cache 24h). Sert à n'afficher que les
-	 * projets réellement proposés là où il étudie. `null` si on n'arrive pas à
-	 * le déterminer : dans ce cas on n'applique aucun filtre campus.
+	 * Campus de l'utilisateur, relevé à sa connexion et stocké en base : aucune
+	 * requête vers l'API 42 ici (la réponse `/me` du callback OAuth le contient
+	 * déjà). `null` tant qu'il ne s'est pas reconnecté depuis l'ajout du champ —
+	 * dans ce cas aucun filtre campus n'est appliqué.
 	 */
 	static async getUserCampusId(userId: number): Promise<number | null> {
-		const cached = userCampusCache.get(userId);
-		if (cached && Date.now() - cached.at < USER_CAMPUS_TTL_MS) return cached.campusId;
-
-		try {
-			const token = await appToken42Service.get();
-			const user = await this.request<any>(`${config.oauth42.apiUrl}/users/${userId}`, token);
-			// `campus_users` porte le campus principal quand l'utilisateur en a plusieurs.
-			const primary = (user?.campus_users ?? []).find((c: any) => c?.is_primary);
-			const campusId: number | null =
-				primary?.campus_id ?? user?.campus?.[0]?.id ?? null;
-			userCampusCache.set(userId, { campusId, at: Date.now() });
-			return campusId;
-		} catch (error: any) {
-			console.error(`[API42] Campus introuvable pour ${userId}:`, error?.message || error);
-			return null;
-		}
+		const row = await prisma.userSimulation.findUnique({
+			where: { userId42: userId },
+			select: { campusId: true },
+		});
+		return row?.campusId ?? null;
 	}
 
 	/** Un projet purement administratif (contrat d'alternance, stage) ? */
 	static isExcludedFromGraph(name: string): boolean {
 		return EXCLUDED_NAME_RE.test(name.trim());
+	}
+
+	/** Vide les caches de référence en mémoire (refresh global de l'admin). */
+	static clearReferenceCaches(): void {
+		cursusProjectsCache.clear();
+		projectDataCache = null;
+	}
+
+	/**
+	 * Renseigne le campus des utilisateurs qui n'en ont pas encore.
+	 *
+	 * Le campus est normalement relevé à la connexion, sans coût. Ce rattrapage
+	 * ne sert qu'aux comptes qui ne se sont pas reconnectés depuis l'ajout du
+	 * champ : une requête par utilisateur concerné, une seule fois, et via le
+	 * rate limiter. Renvoie le nombre de campus renseignés.
+	 */
+	static async backfillMissingCampuses(): Promise<number> {
+		const users = await prisma.userSimulation.findMany({
+			where: { campusId: null },
+			select: { userId42: true },
+		});
+		if (users.length === 0) return 0;
+
+		const token = await appToken42Service.get();
+		let filled = 0;
+		for (const { userId42 } of users) {
+			try {
+				const user = await this.request<any>(`${config.oauth42.apiUrl}/users/${userId42}`, token);
+				const primary = (user?.campus_users ?? []).find((c: any) => c?.is_primary);
+				const campusId: number | null = primary?.campus_id ?? user?.campus?.[0]?.id ?? null;
+				if (campusId == null) continue;
+				await prisma.userSimulation.update({ where: { userId42 }, data: { campusId } });
+				filled++;
+			} catch (error: any) {
+				console.error(`[API42] Campus non récupéré pour ${userId42}:`, error?.message || error);
+			}
+		}
+		console.log(`[API42] Campus renseigné pour ${filled}/${users.length} utilisateur(s)`);
+		return filled;
 	}
 
 	/** Événements d'un utilisateur (filtrés pour le RNCP). */

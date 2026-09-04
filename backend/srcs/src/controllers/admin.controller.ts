@@ -6,6 +6,7 @@ import {
   revokeOtherOwnerSessions,
 } from '../services/adminAuth.service.js';
 import { getAdminSessionToken } from '../middlewares/auth.middleware.js';
+import { globalRefreshService } from '../services/globalRefresh.service.js';
 import {
   countCredentials,
   logAdminEvent,
@@ -227,5 +228,32 @@ export const adminController = {
   async getAudit(_request: FastifyRequest, reply: FastifyReply) {
     const events = await listAuditEvents(50);
     return reply.send({ events });
+  },
+
+  // ===== Refresh global des données 42 (owner requis) =====
+
+  async getGlobalRefresh(_request: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await globalRefreshService.getState());
+  },
+
+  /**
+   * Renouvelle le cache de référence partagé puis remet en file l'instantané de
+   * tous les utilisateurs. Refusé si un refresh est déjà en cours : les
+   * requêtes partent au compte-gouttes et l'opération peut durer longtemps.
+   */
+  async startGlobalRefresh(request: FastifyRequest, reply: FastifyReply) {
+    const actor = actorOf(request);
+    const started = await globalRefreshService.start(actor);
+    if (!started) {
+      return reply.code(409).send({
+        ok: false,
+        code: 'ALREADY_RUNNING',
+        message: 'Un refresh global est déjà en cours.',
+        state: await globalRefreshService.getState(),
+      });
+    }
+
+    await logAdminEvent(actor, 'global_refresh_started');
+    return reply.send({ ok: true, state: await globalRefreshService.getState() });
   },
 };

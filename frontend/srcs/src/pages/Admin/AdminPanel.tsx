@@ -7,6 +7,7 @@ import {
   type AdminConfig,
   type PasskeyInfo,
   type DelegateInfo,
+  type GlobalRefreshState,
 } from '@/services/admin.service';
 import './Admin.scss';
 
@@ -15,6 +16,7 @@ const AdminPanel: React.FC = () => {
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
   const [delegates, setDelegates] = useState<DelegateInfo[]>([]);
+  const [refresh, setRefresh] = useState<GlobalRefreshState | null>(null);
   const [secretForm, setSecretForm] = useState({ client_id: '', client_secret: '', client_secret_next: '' });
   const [newDelegate, setNewDelegate] = useState('');
   const [newPasskeyLabel, setNewPasskeyLabel] = useState('');
@@ -34,14 +36,16 @@ const AdminPanel: React.FC = () => {
 
   const reload = useCallback(async () => {
     try {
-      const [cfg, pk, dl] = await Promise.all([
+      const [cfg, pk, dl, gr] = await Promise.all([
         adminService.getConfig(),
         adminService.listPasskeys(),
         adminService.listDelegates(),
+        adminService.getGlobalRefresh(),
       ]);
       setConfig(cfg);
       setPasskeys(pk);
       setDelegates(dl);
+      setRefresh(gr);
       setSecretForm((f) => ({ ...f, client_id: cfg.client_id || f.client_id }));
     } catch (e) {
       if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Chargement impossible.' });
@@ -57,6 +61,38 @@ const AdminPanel: React.FC = () => {
     }
     reload();
   }, [navigate, reload]);
+
+  // Tant qu'un refresh global tourne, on suit sa progression (le bouton doit
+  // rester désactivé jusqu'à la fin, y compris après un rechargement de page).
+  useEffect(() => {
+    if (!refresh?.running) return;
+    const timer = setInterval(async () => {
+      try {
+        setRefresh(await adminService.getGlobalRefresh());
+      } catch {
+        /* on réessaiera au tick suivant */
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [refresh?.running]);
+
+  const startGlobalRefresh = async () => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      const { started, state } = await adminService.startGlobalRefresh();
+      setRefresh(state);
+      setMsg(
+        started
+          ? { kind: 'ok', text: 'Refresh global lancé. Les requêtes partent progressivement.' }
+          : { kind: 'err', text: 'Un refresh global est déjà en cours.' }
+      );
+    } catch (e) {
+      if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Impossible de lancer le refresh global.' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const saveSecrets = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,6 +319,62 @@ const AdminPanel: React.FC = () => {
             />
             <Button onClick={addDelegate} className="admin-btn" disabled={busy || !newDelegate.trim()}>+ Ajouter</Button>
           </div>
+        </section>
+
+        {/* ===== Refresh global des données 42 ===== */}
+        <section className="admin-section">
+          <h2>Données 42 partagées</h2>
+          <p className="muted">
+            Renouvelle le catalogue des projets et le layout du Holy Graph, puis remet à jour
+            l'instantané 42 de tous les utilisateurs. Les requêtes partent au compte-gouttes
+            pour respecter les limites de l'API 42 : l'opération peut durer longtemps.
+          </p>
+
+          <ul className="admin-list">
+            <li>
+              <span>Dernier lancement</span>
+              <span className="muted">
+                {refresh?.startedAt
+                  ? `${new Date(refresh.startedAt).toLocaleString('fr-FR')}${refresh.startedBy ? ` — par ${refresh.startedBy}` : ''}`
+                  : 'jamais'}
+              </span>
+            </li>
+            {refresh?.finishedAt && !refresh.running && (
+              <li>
+                <span>Terminé le</span>
+                <span className="muted">{new Date(refresh.finishedAt).toLocaleString('fr-FR')}</span>
+              </li>
+            )}
+            {refresh?.running && (
+              <li>
+                <span>En cours</span>
+                <span className="muted">{refresh.usersDone} / {refresh.usersTotal} utilisateurs</span>
+              </li>
+            )}
+            {refresh?.cacheEntries.map((entry) => (
+              <li key={entry.key}>
+                <span><code>{entry.key}</code></span>
+                <span className="muted">mis en cache le {new Date(entry.fetchedAt).toLocaleString('fr-FR')}</span>
+              </li>
+            ))}
+            {refresh && refresh.cacheEntries.length === 0 && (
+              <li className="muted">Aucune donnée de référence en cache pour le moment.</li>
+            )}
+            {refresh?.lastError && (
+              <li>
+                <span>Dernière erreur</span>
+                <span className="muted">{refresh.lastError}</span>
+              </li>
+            )}
+          </ul>
+
+          <Button
+            onClick={startGlobalRefresh}
+            className="admin-btn"
+            disabled={busy || !refresh || refresh.running}
+          >
+            {refresh?.running ? 'Refresh en cours…' : 'Lancer un refresh global'}
+          </Button>
         </section>
       </motion.div>
     </div>

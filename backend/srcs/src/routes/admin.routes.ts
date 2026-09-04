@@ -99,4 +99,21 @@ export async function adminRoutes(server: FastifyInstance) {
   }, async (request, reply) => {
     return adminController.getAudit(request, reply);
   });
+
+  // ===== Refresh global des données 42 (owner uniquement) =====
+  // État : en cours ? dernière exécution ? fraîcheur du cache partagé ?
+  server.get('/admin/global-refresh', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.getGlobalRefresh(request, reply);
+  });
+
+  // Déclenchement. Rate-limit volontairement bas : l'opération est lourde et
+  // ne doit pas pouvoir être relancée en rafale.
+  server.post('/admin/global-refresh', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 3, timeWindow: 60_000 } },
+  }, async (request, reply) => {
+    return adminController.startGlobalRefresh(request, reply);
+  });
 }
