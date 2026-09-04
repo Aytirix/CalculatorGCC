@@ -80,10 +80,18 @@ export const VALID_SUB_PROJECT_IDS = new Set([
 ]);
 
 /**
- * Vérifie si un project ID est valide (projet principal ou custom)
+ * Projet simulé depuis le Holy Graph qui n'existe pas dans nos données RNCP
+ * (tronc commun, examens, projets de cursus secondaires) : `42-<id du projet 42>`.
+ * Son XP est celui remonté par l'API 42, stocké à côté dans `customProjects`.
+ */
+const GRAPH_PROJECT_ID_RE = /^42-\d+$/;
+
+/**
+ * Vérifie si un project ID est valide (projet principal, custom, ou projet 42
+ * simulé depuis le Holy Graph)
  */
 export const isValidProjectId = (id: string): boolean => {
-	return VALID_PROJECT_IDS.has(id) || id.startsWith('custom-');
+	return VALID_PROJECT_IDS.has(id) || id.startsWith('custom-') || GRAPH_PROJECT_ID_RE.test(id);
 };
 
 /**

@@ -455,4 +455,89 @@ export class API42Controller {
       return handleAPI42Error(error, reply, fastify);
     }
   }
+
+  /**
+   * GET /api42/project-details/:projectId?cursus_id=21
+   * Détail d'un projet du Holy Graph : description, durée estimée, solo ou
+   * groupe, XP, et prérequis d'inscription avec, pour chacun, le fait qu'on le
+   * remplisse ou non (calculé sur l'instantané déjà en base, aucun appel 42).
+   *
+   * Les sessions du campus sont récupérées en tâche de fond et mises en cache
+   * un mois : `loading: true` tant qu'elles n'y sont pas, le front repolle.
+   */
+  static async getProjectDetails(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      const userId = await getEffectiveUserId(request, reply);
+      if (userId === null) return;
+
+      const params = request.params as { projectId: string };
+      const query = request.query as { cursus_id?: string };
+      const projectId = parseInt(params.projectId, 10);
+      const cursusId = parseInt(query.cursus_id ?? '', 10);
+      if (!Number.isFinite(projectId) || !Number.isFinite(cursusId)) {
+        return reply.code(400).send({ error: 'projectId et cursus_id requis' });
+      }
+
+      const campusId = await API42Service.getUserCampusId(userId);
+      if (campusId == null) {
+        // Le détail vient de `/v2/project_sessions`, qui exige un filtre campus
+        // sous peine de ramener les sessions du monde entier. Le campus est
+        // relevé à la connexion : une reconnexion suffit à le renseigner.
+        return reply.send({ loading: false, available: false, reason: 'UNKNOWN_CAMPUS', details: null });
+      }
+
+      API42Service.ensureProjectSessionsFetching(cursusId, campusId);
+      const details = API42Service.getProjectDetails(cursusId, campusId, projectId);
+      if (!details) {
+        const ready = API42Service.getProjectSessionsCached(cursusId, campusId) !== null;
+        // Sessions présentes mais projet absent : il n'est pas proposé sur ce
+        // campus, inutile de faire repoller le front indéfiniment.
+        return reply.send({
+          loading: !ready,
+          available: ready ? false : true,
+          reason: ready ? 'NOT_OFFERED' : undefined,
+          details: null,
+        });
+      }
+
+      // Prérequis : on marque ceux que l'utilisateur remplit déjà, à partir de
+      // son instantané (aucune requête vers 42).
+      const snap = await userData42Repository.get(userId);
+      const validatedSlugs = new Set<string>();
+      for (const pu of snap?.data.allProjects ?? []) {
+        if (pu?.validated !== true) continue;
+        const slug = pu?.project?.slug;
+        if (typeof slug !== 'string') continue;
+        validatedSlugs.add(slug);
+        validatedSlugs.add(slug.replace(/^42cursus-/, ''));
+      }
+      const isDone = (slug: string) =>
+        validatedSlugs.has(slug) || validatedSlugs.has(slug.replace(/^42cursus-/, ''));
+
+      const level =
+        (snap?.data.allCursus ?? []).find((c: any) => (c?.cursus?.id ?? c?.cursus_id) === cursusId)?.level ?? 0;
+
+      const anyOf = details.anyOfProjects;
+      return reply.send({
+        loading: false,
+        available: true,
+        details: {
+          ...details,
+          requiredProjects: details.requiredProjects.map((p) => ({ ...p, met: isDone(p.slug) })),
+          anyOfProjects: anyOf
+            ? {
+                count: anyOf.count,
+                done: anyOf.projects.filter((p) => isDone(p.slug)).length,
+                projects: anyOf.projects.map((p) => ({ ...p, met: isDone(p.slug) })),
+              }
+            : null,
+          exclusiveProjects: details.exclusiveProjects.map((p) => ({ ...p, met: isDone(p.slug) })),
+          level,
+          minLevelMet: details.minLevel == null ? null : level >= details.minLevel,
+        },
+      });
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
 }

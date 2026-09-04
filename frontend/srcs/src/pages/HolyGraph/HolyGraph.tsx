@@ -5,39 +5,15 @@ import {
   type HolyGraphCursus,
   type HolyGraphEdge,
   type HolyGraphProject,
+  type HolyGraphProjectDetailsResponse,
 } from '@/services/backend-api42.service';
+import { isReadOnlyMode, simulationService, type SimulationData } from '@/services/simulation.service';
+import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
+import { findRncpProject, graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
+import type { SimulatorProject } from '@/types/rncp.types';
+import ProjectPanel from './ProjectPanel';
+import { STATUS_LABELS, STATUS_STYLES, statusOf } from './projectStatus';
 import './HolyGraph.scss';
-
-interface StatusStyle {
-  fill: string;
-  stroke: string;
-}
-
-const NODE_DARK_FILL = '#0d1b23';
-
-const STATUS_STYLES: Record<string, StatusStyle> = {
-  validated: { fill: '#2dd4bf', stroke: '#2dd4bf' },
-  in_progress: { fill: '#38bdf8', stroke: '#38bdf8' },
-  waiting_for_correction: { fill: '#fbbf24', stroke: '#fbbf24' },
-  finished: { fill: '#f87171', stroke: '#f87171' },
-  available: { fill: NODE_DARK_FILL, stroke: '#e2e8f0' },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  validated: 'Validé',
-  in_progress: 'En cours',
-  waiting_for_correction: 'En attente de correction',
-  finished: 'Rendu (non validé)',
-  available: 'Disponible',
-};
-
-function statusOf(p: HolyGraphProject): string {
-  if (p.validated) return 'validated';
-  if (p.status === 'in_progress' || p.status === 'creating_group' || p.status === 'searching_a_group') return 'in_progress';
-  if (p.status === 'waiting_for_correction') return 'waiting_for_correction';
-  if (p.status === 'finished' && !p.validated) return 'finished';
-  return 'available';
-}
 
 /**
  * Rayon d'un nœud, dans les unités du graphe officiel de 42.
@@ -55,10 +31,18 @@ const NODE_RADIUS = 50;
  * paraissait énorme sur des nœuds minuscules une fois dézoomé.
  */
 const NODE_BORDER = 7;
-const NODE_BORDER_HOVER = 13;
+/** Survol : à peine plus épais, juste de quoi signaler le nœud visé. */
+const NODE_BORDER_HOVER = 9;
+/** Projet sélectionné, épinglé par la recherche ou simulé : marquage franc. */
+const NODE_BORDER_EMPHASIS = 11;
 
 /** Jaune : projet mis en avant depuis la recherche. */
 const HIGHLIGHT_COLOR = '#facc15';
+/** Violet : projet ajouté à la simulation depuis ce graphe. */
+const SIMULATED_COLOR = '#a78bfa';
+
+/** Pourcentage de validation minimum d'un projet simulé (identique au Dashboard). */
+const MIN_PERCENTAGE = 50;
 
 /** Sur l'intra, seuls les examens et les piscines sont dessinés en rectangle. */
 const RECT_KINDS = new Set(['exam', 'piscine']);
@@ -242,7 +226,12 @@ const HolyGraph: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeCursusId, setActiveCursusId] = useState<number | null>(null);
   const [hovered, setHovered] = useState<HolyGraphProject | null>(null);
-  const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  // Projet ouvert dans le panneau de détail (clic sur un nœud).
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [details, setDetails] = useState<HolyGraphProjectDetailsResponse | null>(null);
+  // Simulation de l'utilisateur, partagée avec le Dashboard : chargée telle
+  // quelle et resauvegardée entière, pour ne rien écraser au passage.
+  const [simData, setSimData] = useState<SimulationData | null>(null);
   const [activeLayer, setActiveLayer] = useState<string>('');
   const [search, setSearch] = useState('');
   // La liste de résultats ne s'affiche que quand le champ a le focus ; elle
@@ -252,8 +241,13 @@ const HolyGraph: React.FC = () => {
   // retouche au graphe (déplacement, zoom ou clic).
   const [pinnedId, setPinnedId] = useState<number | null>(null);
 
+  const readOnly = isReadOnlyMode();
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Position du bouton enfoncé : sert à distinguer un clic d'un déplacement.
+  const pressRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   // scale/offset transforment les coordonnées OFFICIELLES de 42 en pixels écran.
   const viewRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
   const draggingRef = useRef<{ x: number; y: number } | null>(null);
@@ -289,6 +283,42 @@ const HolyGraph: React.FC = () => {
     };
   }, []);
 
+  // Simulation existante (celle du Dashboard) : sans elle on ne saurait pas
+  // quels projets sont déjà simulés, ni avec quel pourcentage.
+  useEffect(() => {
+    if (readOnly) return;
+    let cancelled = false;
+    simulationService
+      .load()
+      .then((loaded) => {
+        if (!cancelled) setSimData(loaded);
+      })
+      .catch((err) => console.warn('[HolyGraph] Simulation non chargée :', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [readOnly]);
+
+  // Le timer de sauvegarde ne doit pas survivre à la page (save perdu / fuite).
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  }, []);
+
+  /**
+   * Applique une modification de la simulation puis la sauvegarde (différée).
+   * On renvoie TOUJOURS l'objet complet : le backend remplace l'ensemble, donc
+   * repartir de ce qu'on a chargé évite d'effacer ce que le Dashboard y met.
+   */
+  const persistSimulation = useCallback((next: SimulationData) => {
+    setSimData(next);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      simulationService
+        .save(next)
+        .catch((err) => console.warn('[HolyGraph] Sauvegarde de la simulation échouée :', err));
+    }, 800);
+  }, []);
+
   const activeCursusRaw = useMemo(
     () => data?.find((c) => c.id === activeCursusId) ?? null,
     [data, activeCursusId]
@@ -302,6 +332,62 @@ const HolyGraph: React.FC = () => {
     const spread = spreadOuterOverlaps(activeCursusRaw.projects, activeCursusRaw.edges, rings);
     return { ...activeCursusRaw, rings, projects: spread.projects, edges: spread.edges };
   }, [activeCursusRaw]);
+
+  const selectedProject = useMemo(
+    () => activeCursus?.projects.find((p) => p.id === selectedId) ?? null,
+    [activeCursus, selectedId]
+  );
+
+  /**
+   * Identifiant sous lequel un projet du graphe est simulé, et le projet RNCP
+   * correspondant quand il en existe un (son XP et son plafond de pourcentage
+   * font alors foi).
+   */
+  const simulationTargetOf = useCallback((project: HolyGraphProject) => {
+    const rncp = findRncpProject(project);
+    return { id: rncp?.id ?? graphSimulationId(project.id), rncp };
+  }, []);
+
+  /** Projets du graphe actuellement dans la simulation (pastille violette). */
+  const simulatedProjectIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (!simData || !activeCursus) return ids;
+    const simulated = new Set(simData.simulatedProjects.map((p) => p.projectId));
+    for (const project of activeCursus.projects) {
+      if (simulated.has(simulationTargetOf(project).id)) ids.add(project.id);
+    }
+    return ids;
+  }, [simData, activeCursus, simulationTargetOf]);
+
+  // Détail du projet ouvert. Le serveur répond `loading` tant que le catalogue
+  // des sessions du campus n'est pas en cache : on repolle comme pour le graphe.
+  useEffect(() => {
+    if (selectedId == null || activeCursusId == null) {
+      setDetails(null);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const cursusId = activeCursusId;
+
+    const poll = async () => {
+      try {
+        const res = await BackendAPI42Service.getProjectDetails(selectedId, cursusId);
+        if (cancelled) return;
+        setDetails(res);
+        if (res.loading) timer = setTimeout(poll, 3000);
+      } catch {
+        if (!cancelled) setDetails({ loading: false, available: false, details: null });
+      }
+    };
+
+    setDetails(null);
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [selectedId, activeCursusId]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -389,6 +475,8 @@ const HolyGraph: React.FC = () => {
       const style = STATUS_STYLES[statusOf(p)];
       const isHovered = hovered?.id === p.id;
       const isPinned = pinnedId === p.id;
+      const isSelected = selectedId === p.id;
+      const isSimulated = simulatedProjectIds.has(p.id);
       // Un layer sélectionné met en avant les projets concernés et estompe
       // le reste, tant que le filtre est actif.
       const layerMatch = activeLayer !== '' && p.layers.includes(activeLayer);
@@ -408,8 +496,16 @@ const HolyGraph: React.FC = () => {
       // Sous filtre, les projets concernés gardent leur apparence normale :
       // ce sont les autres qui s'effacent. Inutile d'épaissir ou de recolorer.
       if (isPinned) {
-        ctx.lineWidth = NODE_BORDER_HOVER;
+        ctx.lineWidth = NODE_BORDER_EMPHASIS;
         ctx.strokeStyle = HIGHLIGHT_COLOR;
+      } else if (isSelected) {
+        ctx.lineWidth = NODE_BORDER_EMPHASIS;
+        ctx.strokeStyle = textColor;
+      } else if (isSimulated) {
+        // Projet ajouté à la simulation : reconnaissable d'un coup d'œil sans
+        // avoir à rouvrir chaque nœud.
+        ctx.lineWidth = NODE_BORDER_EMPHASIS;
+        ctx.strokeStyle = SIMULATED_COLOR;
       } else {
         ctx.lineWidth = isHovered ? NODE_BORDER_HOVER : NODE_BORDER;
         ctx.strokeStyle = isHovered ? textColor : style.stroke;
@@ -435,7 +531,7 @@ const HolyGraph: React.FC = () => {
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
     ctx.restore();
-  }, [activeCursus, hovered, activeLayer, pinnedId]);
+  }, [activeCursus, hovered, activeLayer, pinnedId, selectedId, simulatedProjectIds]);
 
   /**
    * Cadre le graphe officiel dans le canvas. Recalculé aussi au resize : sans
@@ -518,6 +614,66 @@ const HolyGraph: React.FC = () => {
       .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   }, [search, activeCursus]);
 
+  // --- Simulation d'un projet depuis le graphe --------------------------------
+
+  /** Entrée de simulation du projet ouvert, si elle existe. */
+  const selectedSimulation = useMemo(() => {
+    if (!selectedProject || !simData) return null;
+    const { id } = simulationTargetOf(selectedProject);
+    return simData.simulatedProjects.find((p) => p.projectId === id) ?? null;
+  }, [selectedProject, simData, simulationTargetOf]);
+
+  /**
+   * Ajoute ou retire le projet ouvert de la simulation.
+   *
+   * Quand le projet existe dans nos données RNCP, on réutilise son identifiant :
+   * c'est alors exactement la simulation du Dashboard. Sinon (tronc commun,
+   * examens…), on l'enregistre sous `42-<id>` en déposant son nom et son XP dans
+   * `customProjects`, seul endroit où le Dashboard pourra les relire.
+   */
+  const toggleSimulation = () => {
+    if (!selectedProject || !simData || readOnly) return;
+    const { id, rncp } = simulationTargetOf(selectedProject);
+    const already = simData.simulatedProjects.some((p) => p.projectId === id);
+    const customProjects = (simData.customProjects as SimulatorProject[]) ?? [];
+
+    if (already) {
+      persistSimulation({
+        ...simData,
+        simulatedProjects: simData.simulatedProjects.filter((p) => p.projectId !== id),
+        // On ne nettoie que NOS entrées : un vrai projet personnalisé créé
+        // depuis le Dashboard ne doit pas disparaître d'ici.
+        customProjects: customProjects.filter((p) => !(isGraphSimulationId(p.id) && p.id === id)),
+      });
+      return;
+    }
+
+    const xp = details?.details?.xp || selectedProject.difficulty;
+    persistSimulation({
+      ...simData,
+      simulatedProjects: [
+        ...simData.simulatedProjects,
+        { projectId: id, percentage: 100, coalitionBoost: false },
+      ],
+      customProjects:
+        rncp || customProjects.some((p) => p.id === id)
+          ? customProjects
+          : [...customProjects, { id, name: selectedProject.name, slug: selectedProject.slug, xp }],
+    });
+  };
+
+  const changeSimulationPercentage = (value: number) => {
+    if (!selectedProject || !simData || readOnly) return;
+    const { id, rncp } = simulationTargetOf(selectedProject);
+    const clamped = clampPercentage(value, getProjectMaxPercentage(rncp ?? undefined), MIN_PERCENTAGE);
+    persistSimulation({
+      ...simData,
+      simulatedProjects: simData.simulatedProjects.map((p) =>
+        p.projectId === id ? { ...p, percentage: clamped } : p
+      ),
+    });
+  };
+
   /** Centre la vue sur un projet et le met en jaune. */
   const focusProject = (project: HolyGraphProject) => {
     const wrapper = wrapperRef.current;
@@ -554,31 +710,54 @@ const HolyGraph: React.FC = () => {
     draw();
   };
 
+  /** Projet sous le curseur, ou `null`. Les nœuds dessinés au-dessus priment. */
+  const projectAt = (clientX: number, clientY: number): HolyGraphProject | null => {
+    if (!activeCursus) return null;
+    const world = toWorld(clientX, clientY);
+    return (
+      [...activeCursus.projects]
+        .sort((a, b) => drawPriority(b) - drawPriority(a))
+        .find((p) => {
+          const { hw, hh } = halfSize(p);
+          return Math.abs(p.x - world.x) <= hw && Math.abs(p.y - world.y) <= hh;
+        }) ?? null
+    );
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setPinnedId(null);
+    pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
     draggingRef.current = { x: e.clientX - viewRef.current.offsetX, y: e.clientY - viewRef.current.offsetY };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    setMouse({ x: e.clientX, y: e.clientY });
+  /**
+   * Ouvre le panneau du projet cliqué, ou le referme si le clic est tombé dans
+   * le vide. Un déplacement du graphe n'est PAS un clic : sans cette distinction,
+   * chaque glissement rouvrirait ou fermerait le panneau.
+   */
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const press = pressRef.current;
+    draggingRef.current = null;
+    pressRef.current = null;
+    if (!press || press.moved) return;
+    const clicked = projectAt(e.clientX, e.clientY);
+    setSelectedId(clicked?.id ?? null);
+  };
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingRef.current) {
+      const press = pressRef.current;
+      if (press && (Math.abs(e.clientX - press.x) > 4 || Math.abs(e.clientY - press.y) > 4)) {
+        press.moved = true;
+      }
       viewRef.current.offsetX = e.clientX - draggingRef.current.x;
       viewRef.current.offsetY = e.clientY - draggingRef.current.y;
       draw();
       return;
     }
 
-    if (!activeCursus) return;
-    const world = toWorld(e.clientX, e.clientY);
-    // Les nœuds dessinés au-dessus (projets disponibles) sont testés en premier.
-    const found = [...activeCursus.projects]
-      .sort((a, b) => drawPriority(b) - drawPriority(a))
-      .find((p) => {
-        const { hw, hh } = halfSize(p);
-        return Math.abs(p.x - world.x) <= hw && Math.abs(p.y - world.y) <= hh;
-      });
-    if (found?.id !== hovered?.id) setHovered(found ?? null);
+    const found = projectAt(e.clientX, e.clientY);
+    if (found?.id !== hovered?.id) setHovered(found);
   };
 
   return (
@@ -606,14 +785,14 @@ const HolyGraph: React.FC = () => {
           <>
             <canvas
               ref={canvasRef}
+              className={hovered ? 'over-node' : ''}
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
-              onMouseUp={() => {
-                draggingRef.current = null;
-              }}
+              onMouseUp={handleMouseUp}
               onMouseLeave={() => {
                 draggingRef.current = null;
+                pressRef.current = null;
                 setHovered(null);
               }}
             />
@@ -681,15 +860,34 @@ const HolyGraph: React.FC = () => {
                   {STATUS_LABELS[key]}
                 </span>
               ))}
+              <span className="legend-item">
+                <span
+                  className="legend-dot"
+                  style={{ background: 'transparent', borderColor: SIMULATED_COLOR }}
+                />
+                Simulé
+              </span>
             </div>
 
-            {hovered && mouse && (
-              <div className="holy-graph-tooltip" style={{ left: mouse.x + 16, top: mouse.y + 16 }}>
-                <strong>{hovered.name}</strong>
-                <span>Statut : {STATUS_LABELS[statusOf(hovered)]}</span>
-                {hovered.difficulty > 0 && <span>XP : {hovered.difficulty}</span>}
-                {hovered.finalMark != null && <span>Note finale : {hovered.finalMark}</span>}
-              </div>
+            {selectedProject && (
+              <ProjectPanel
+                project={selectedProject}
+                details={details}
+                simulation={selectedSimulation}
+                simulationXp={
+                  simulationTargetOf(selectedProject).rncp?.xp ??
+                  (details?.details?.xp || selectedProject.difficulty)
+                }
+                maxPercentage={getProjectMaxPercentage(
+                  simulationTargetOf(selectedProject).rncp ?? undefined
+                )}
+                hasSubProjects={!!simulationTargetOf(selectedProject).rncp?.subProjects}
+                readOnly={readOnly}
+                simulationReady={simData !== null}
+                onToggleSimulation={toggleSimulation}
+                onPercentageChange={changeSimulationPercentage}
+                onClose={() => setSelectedId(null)}
+              />
             )}
           </>
         )}

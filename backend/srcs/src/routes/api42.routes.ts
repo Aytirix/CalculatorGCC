@@ -69,6 +69,13 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getHolyGraph(request, reply, fastify);
 	});
 
+	// Détail d'un projet du Holy Graph (description, durée, groupe, prérequis)
+	fastify.get('/api42/project-details/:projectId', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getProjectDetails(request, reply, fastify);
+	});
+
 	// Récupérer les utilisateurs inscrits sur un projet depuis l'intra 42
 	fastify.get('/api42/project-users/:slug', {
 		preHandler: authenticate,

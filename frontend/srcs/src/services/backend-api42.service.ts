@@ -153,6 +153,50 @@ export interface HolyGraphResponse {
   cursus: HolyGraphCursus[];
 }
 
+/** Un prérequis du projet, et le fait qu'on le remplisse déjà. */
+export interface ProjectRequirement {
+  slug: string;
+  name: string;
+  met: boolean;
+}
+
+/**
+ * Détail d'un projet tel que l'intra l'affiche : ces informations viennent des
+ * `project_sessions` du campus (description, durée, taille de groupe) et de
+ * leurs `project_sessions_rules` (prérequis d'inscription).
+ */
+export interface HolyGraphProjectDetails {
+  projectId: number;
+  xp: number;
+  estimateTime: string | null;
+  durationDays: number | null;
+  description: string | null;
+  objectives: string[];
+  solo: boolean;
+  groupMin: number | null;
+  groupMax: number | null;
+  correctionNumber: number | null;
+  uploads: string[];
+  isSubscriptable: boolean;
+  retryDelayDays: number | null;
+  minLevel: number | null;
+  minLevelMet: boolean | null;
+  level: number;
+  requiredProjects: ProjectRequirement[];
+  anyOfProjects: { count: number; done: number; projects: ProjectRequirement[] } | null;
+  exclusiveProjects: ProjectRequirement[];
+  requiredQuests: string[];
+}
+
+export interface HolyGraphProjectDetailsResponse {
+  /** true tant que le détail des sessions du campus n'est pas encore récupéré. */
+  loading: boolean;
+  available: boolean;
+  /** UNKNOWN_CAMPUS = campus non renseigné ; NOT_OFFERED = projet absent du campus. */
+  reason?: 'UNKNOWN_CAMPUS' | 'NOT_OFFERED';
+  details: HolyGraphProjectDetails | null;
+}
+
 /**
  * Service pour récupérer les données de l'API 42 via le backend
  */
@@ -317,5 +361,19 @@ export class BackendAPI42Service {
    */
   static async getHolyGraph(): Promise<HolyGraphResponse> {
     return this.request<HolyGraphResponse>('/api42/holy-graph');
+  }
+
+  /**
+   * Détail d'un projet du Holy Graph (description, durée, groupe, prérequis).
+   * Aucune requête vers l'API 42 côté serveur : tout vient du cache mensuel des
+   * sessions du campus et de l'instantané personnel.
+   */
+  static async getProjectDetails(
+    projectId: number,
+    cursusId: number
+  ): Promise<HolyGraphProjectDetailsResponse> {
+    return this.request<HolyGraphProjectDetailsResponse>(
+      `/api42/project-details/${projectId}?cursus_id=${cursusId}`
+    );
   }
 }

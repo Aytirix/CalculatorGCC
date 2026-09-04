@@ -10,6 +10,7 @@ import type { Project42, UserData } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
+import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import { simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
@@ -315,6 +316,14 @@ const Dashboard: React.FC = () => {
 					if (project) return isProjectCompleted(project.slug || project.id, completed);
 				}
 			}
+			// Projet simulé depuis le Holy Graph : il n'est pas dans RNCP_DATA, mais
+			// son slug 42 est stocké dans `customProjects` — on peut donc le
+			// réconcilier comme les autres au lieu de le laisser double-compter.
+			if (isGraphSimulationId(simId)) {
+				const graphProject = customProjects.find(p => p.id === simId);
+				const slug = graphProject?.slug;
+				return slug ? isProjectCompleted(slug, completed) : false;
+			}
 			// Projet custom (hors RNCP) : jamais validé via l'intra → on le garde.
 			return false;
 		};
@@ -328,6 +337,12 @@ const Dashboard: React.FC = () => {
 
 		// Retirer les métadonnées associées pour ne pas laisser d'orphelins (%, boost, note).
 		if (staleProjects.length > 0) {
+			// Les entrées `42-<id>` ne servent qu'à porter le nom et l'XP d'un projet
+			// simulé depuis le Holy Graph : sans le projet simulé, elles n'ont plus
+			// de raison d'être (les vrais projets personnalisés, eux, restent).
+			setCustomProjects(prev =>
+				prev.filter(p => !(isGraphSimulationId(p.id) && staleSet.has(p.id)))
+			);
 			setProjectPercentages(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
 			setCoalitionBoosts(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
 			setProjectNotes(prev => { const n = { ...prev }; staleProjects.forEach(id => delete n[id]); return n; });
@@ -346,7 +361,7 @@ const Dashboard: React.FC = () => {
 		// `isInitialLoad.current = false` (fin de chargement), ce qui garantit un
 		// déclenchement de cet effet une fois la garde levée — sans lui, si `userProgress`
 		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
-	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded]);
+	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects]);
 
 	const stageFilter = (p: Project42) => {
 		const slug = p.project.slug?.toLowerCase() || '';
@@ -549,6 +564,21 @@ const Dashboard: React.FC = () => {
 				}
 				if (countedProjects.has(projectSlug)) break; // On sort de la boucle des RNCPs
 			}
+
+			// Projet simulé depuis le Holy Graph et absent de nos données RNCP
+			// (tronc commun, examens, cursus secondaires) : son nom et son XP,
+			// relevés sur l'API 42, sont stockés dans `customProjects` sous
+			// l'identifiant `42-<id>`.
+			if (!countedProjects.has(projectSlug) && isGraphSimulationId(projectSlug)) {
+				const graphProject = customProjects.find(p => p.id === projectSlug);
+				if (graphProject && graphProject.xp > 0) {
+					const percentage = projectPercentages[projectSlug] ?? 100;
+					let addedXP = Math.round((graphProject.xp * percentage) / 100);
+					if (coalitionBoosts[projectSlug]) addedXP = Math.round(addedXP * 1.042);
+					totalXP += addedXP;
+					countedProjects.add(projectSlug);
+				}
+			}
 		});
 
 		// Pour les projets avec sous-projets, calculer l'XP en fonction des sous-projets validés
@@ -637,7 +667,7 @@ const Dashboard: React.FC = () => {
 
 		const newLevel = xpService.getLevelFromXP(totalXP);
 		setProjectedLevel(newLevel);
-	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion]);
+	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, customProjects]);
 
 	const handleToggleSimulation = (projectId: string) => {
 		setSimulatedProjects(prev => {
@@ -879,6 +909,14 @@ const Dashboard: React.FC = () => {
 				});
 			});
 		});
+		// Projets simulés depuis le Holy Graph : ils n'existent pas dans RNCP_DATA,
+		// mais ils comptent dans le total — les omettre ici afficherait « 8 projets
+		// simulés » au-dessus d'une liste qui n'en montre que 7.
+		customProjects.forEach(project => {
+			if (isGraphSimulationId(project.id) && simulatedProjects.includes(project.id)) {
+				projects.push(project);
+			}
+		});
 		return projects;
 	};
 
@@ -925,7 +963,10 @@ const Dashboard: React.FC = () => {
 						if (category.id === 'other-projects') {
 							return {
 								...category,
-								projects: customProjects,
+								// Seuls les projets créés à la main sont des « autres projets » :
+								// ceux simulés depuis le Holy Graph (`42-<id>`) sont des projets
+								// 42 hors référentiel RNCP, ils n'ont rien à valider ici.
+								projects: customProjects.filter(p => !isGraphSimulationId(p.id)),
 							};
 						}
 						return category;
@@ -1060,7 +1101,11 @@ const Dashboard: React.FC = () => {
 
 	if (!userProgress) return null;
 
-	// Injecter les projets personnalisés dans la catégorie "Autres projets"
+	// Injecter les projets personnalisés dans la catégorie "Autres projets".
+	// Les projets simulés depuis le Holy Graph (`42-<id>`) en sont exclus : ce
+	// sont de vrais projets 42, pas des projets saisis à la main, et ils ne
+	// comptent pas dans la validation de cette catégorie — les afficher ici
+	// laisserait croire le contraire. Ils se gèrent depuis le graphe.
 	const rncpDataWithCustom = RNCP_DATA.map(rncp => {
 		if (rncp.id === 'rncp-global') {
 			return {
@@ -1069,7 +1114,7 @@ const Dashboard: React.FC = () => {
 					if (category.id === 'other-projects') {
 						return {
 							...category,
-							projects: customProjects,
+							projects: customProjects.filter(p => !isGraphSimulationId(p.id)),
 						};
 					}
 					return category;

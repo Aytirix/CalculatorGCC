@@ -6,6 +6,7 @@ import {
 	api42CacheRepository,
 	CACHE_KEY_PROJECT_DATA,
 	cacheKeyCursusProjects,
+	cacheKeyProjectSessions,
 	cacheKeyProjectSkills,
 } from '../db/api42CacheRepository.js';
 import { token42Service } from './token42.service.js';
@@ -269,6 +270,127 @@ export interface ProjectSkills {
 
 const projectSkillsCache = new Map<string, { data: ProjectSkills; at: number }>();
 const projectSkillsInFlight = new Map<string, Promise<void>>();
+
+// ---------------------------------------------------------------------------
+// DÉTAIL D'UN PROJET — ce que l'intra affiche quand on clique sur un nœud
+//
+// `/v2/project_sessions?filter[cursus_id]=X&filter[campus_id]=Y` renvoie, pour
+// chaque projet du campus, sa description, sa durée estimée, s'il est solo ou
+// en groupe, et surtout ses `project_sessions_rules` : c'est là que 42 encode
+// les prérequis (projets à avoir validés, niveau minimum, rang du tronc commun).
+//
+// Mesuré sur 42cursus / Nice : 424 sessions = 5 pages, ~2,3 Mo bruts. Une fois
+// allégé et mis en cache un mois, ça représente 5 requêtes par mois, partagées
+// par tous les utilisateurs du campus.
+// ---------------------------------------------------------------------------
+
+/** Une règle d'inscription/correction, réduite à ce qu'on sait interpréter. */
+export interface SlimSessionRule {
+	/** `internal_name` côté 42 : ProjectsValidated, LevelMin, GroupSizeBetweenNAndM… */
+	name: string;
+	kind: string;
+	/** Paramètres indexés par `param_id` (leur signification dépend de la règle). */
+	params: Record<number, string>;
+}
+
+export interface SlimProjectSession {
+	id: number;
+	projectId: number;
+	solo: boolean;
+	estimateTime: string | null;
+	durationDays: number | null;
+	description: string | null;
+	objectives: string[];
+	difficulty: number;
+	maxPeople: number | null;
+	isSubscriptable: boolean;
+	/** Nombre de correcteurs prévu par le barème principal. */
+	correctionNumber: number | null;
+	/** Corrections automatiques attachées (« Moulinette »). */
+	uploads: string[];
+	rules: SlimSessionRule[];
+}
+
+function slimProjectSessions(raw: any[]): SlimProjectSession[] {
+	return raw
+		.filter((s) => s?.id != null && s?.project_id != null)
+		.map((s) => {
+			const primaryScale = (s.scales ?? []).find((sc: any) => sc?.is_primary) ?? (s.scales ?? [])[0];
+			return {
+				id: s.id,
+				projectId: s.project_id,
+				solo: s.solo === true,
+				estimateTime: s.estimate_time ?? null,
+				durationDays: s.duration_days ?? null,
+				description: s.description ?? null,
+				objectives: Array.isArray(s.objectives) ? s.objectives : [],
+				difficulty: s.difficulty ?? 0,
+				maxPeople: s.max_people ?? null,
+				isSubscriptable: s.is_subscriptable === true,
+				correctionNumber: primaryScale?.correction_number ?? null,
+				uploads: (s.uploads ?? []).map((u: any) => u?.name).filter((n: any): n is string => !!n),
+				rules: (s.project_sessions_rules ?? [])
+					.filter((r: any) => r?.rule?.internal_name)
+					.map((r: any) => ({
+						name: r.rule.internal_name as string,
+						kind: (r.rule.kind ?? '') as string,
+						params: Object.fromEntries(
+							(r.params ?? [])
+								.filter((p: any) => p?.param_id != null)
+								.map((p: any) => [p.param_id, String(p.value ?? '')])
+						) as Record<number, string>,
+					})),
+			};
+		});
+}
+
+const projectSessionsCache = new Map<string, { data: SlimProjectSession[]; at: number }>();
+const projectSessionsInFlight = new Map<string, Promise<void>>();
+
+/**
+ * Identifiants des paramètres des règles 42, relevés sur les données réelles du
+ * 42cursus. Une règle porte ses valeurs dans des `params` numérotés dont seul
+ * l'id donne le sens : les nommer ici évite des nombres magiques plus bas.
+ */
+const RULE_PARAM = {
+	projectsValidated: 1,
+	groupMin: 2,
+	groupMax: 3,
+	levelMin: 5,
+	notValidatedProjects: 22,
+	retryDelayDays: 23,
+	minimumCount: 24,
+	minimumProjects: 25,
+	questsValidated: 31,
+	neitherOngoingOrValidated: 32,
+	questAndQuestValidated: 47,
+} as const;
+
+/** Détail affichable d'un projet du Holy Graph. */
+export interface GraphProjectDetails {
+	projectId: number;
+	xp: number;
+	estimateTime: string | null;
+	durationDays: number | null;
+	description: string | null;
+	objectives: string[];
+	solo: boolean;
+	groupMin: number | null;
+	groupMax: number | null;
+	correctionNumber: number | null;
+	uploads: string[];
+	isSubscriptable: boolean;
+	retryDelayDays: number | null;
+	minLevel: number | null;
+	/** Projets à avoir validés (tous). */
+	requiredProjects: { slug: string; name: string }[];
+	/** « N projets parmi cette liste » (règle MinimumProjectValidated). */
+	anyOfProjects: { count: number; projects: { slug: string; name: string }[] } | null;
+	/** Projets qui EMPÊCHENT l'inscription s'ils sont validés (choix exclusif). */
+	exclusiveProjects: { slug: string; name: string }[];
+	/** Rangs / quêtes du tronc commun exigés (non vérifiables depuis nos données). */
+	requiredQuests: string[];
+}
 
 /**
  * Supprime les seuls traits qui flottent VRAIMENT dans le vide, c'est-à-dire
@@ -555,6 +677,149 @@ export class API42Service {
 		cursusProjectsCache.clear();
 		projectDataCache = null;
 		projectSkillsCache.clear();
+		projectSessionsCache.clear();
+	}
+
+	/** Sessions du cursus/campus déjà en cache mémoire, ou `null`. Aucun appel réseau. */
+	static getProjectSessionsCached(cursusId: number, campusId: number): SlimProjectSession[] | null {
+		return projectSessionsCache.get(cacheKeyProjectSessions(cursusId, campusId))?.data ?? null;
+	}
+
+	/**
+	 * Récupère en tâche de fond le détail des sessions d'un cursus sur un campus.
+	 * Non bloquant, comme les layers : le graphe s'affiche sans attendre et le
+	 * panneau de détail se remplit dès que la donnée est là.
+	 *
+	 * Le filtre campus est indispensable : sans lui, l'endpoint renvoie les
+	 * sessions de TOUS les campus (des dizaines de milliers de lignes).
+	 */
+	static ensureProjectSessionsFetching(cursusId: number, campusId: number): void {
+		const cacheKey = cacheKeyProjectSessions(cursusId, campusId);
+		if (this.getProjectSessionsCached(cursusId, campusId) !== null) return;
+		if (projectSessionsInFlight.has(cacheKey)) return;
+
+		const promise = (async () => {
+			const persisted = await api42CacheRepository.getFresh<SlimProjectSession[]>(cacheKey);
+			if (persisted) {
+				projectSessionsCache.set(cacheKey, { data: persisted, at: Date.now() });
+				return;
+			}
+
+			const token = await appToken42Service.get();
+			let page = 1;
+			const pageSize = 100;
+			const all: any[] = [];
+			while (true) {
+				const url =
+					`${config.oauth42.apiUrl}/project_sessions` +
+					`?filter[cursus_id]=${cursusId}&filter[campus_id]=${campusId}` +
+					`&page[number]=${page}&page[size]=${pageSize}`;
+				const rows = await this.request<any[]>(url, token, CURSUS_PROJECTS_PAGE_TIMEOUT_MS);
+				if (!rows || rows.length === 0) break;
+				all.push(...rows);
+				if (rows.length < pageSize) break;
+				page++;
+			}
+
+			const slim = slimProjectSessions(all);
+			projectSessionsCache.set(cacheKey, { data: slim, at: Date.now() });
+			await api42CacheRepository.set(cacheKey, slim);
+			console.log(
+				`[API42] Détail des sessions récupéré pour le cursus ${cursusId} / campus ${campusId} : ${slim.length} sessions`
+			);
+		})()
+			.catch((error) => {
+				console.error('[API42] Échec du fetch du détail des sessions :', error?.message || error);
+			})
+			.finally(() => {
+				projectSessionsInFlight.delete(cacheKey);
+			});
+
+		projectSessionsInFlight.set(cacheKey, promise);
+	}
+
+	/**
+	 * Détail d'un projet pour le panneau du Holy Graph. `null` tant que les
+	 * sessions ne sont pas en cache (l'appelant relance alors le fetch de fond).
+	 *
+	 * Un projet peut avoir plusieurs sessions sur un même campus (rejeu d'une
+	 * ancienne version) : on retient la plus récente, celle dont l'id est le
+	 * plus grand, qui est celle proposée aujourd'hui.
+	 */
+	static getProjectDetails(
+		cursusId: number,
+		campusId: number,
+		projectId: number
+	): GraphProjectDetails | null {
+		const sessions = this.getProjectSessionsCached(cursusId, campusId);
+		if (!sessions) return null;
+
+		const mine = sessions.filter((s) => s.projectId === projectId);
+		if (mine.length === 0) return null;
+		const session = mine.reduce((best, s) => (s.id > best.id ? s : best));
+
+		const catalog = this.getCursusProjectsCached(cursusId) ?? [];
+		// slug -> nom lisible, pour traduire les prérequis (42 les référence par slug).
+		const nameBySlug = new Map<string, string>();
+		for (const p of catalog) {
+			nameBySlug.set(p.slug, p.name.trim());
+			// Les règles citent souvent le slug SANS le préfixe de cursus
+			// (`libft` là où le catalogue dit `42cursus-libft`).
+			const stripped = p.slug.replace(/^42cursus-/, '');
+			if (!nameBySlug.has(stripped)) nameBySlug.set(stripped, p.name.trim());
+		}
+		const toProjects = (value: string | undefined) =>
+			(value ?? '')
+				.split(/\s+/)
+				.filter(Boolean)
+				.map((slug) => ({ slug, name: nameBySlug.get(slug) ?? slug }));
+
+		const ruleNamed = (name: string) => session.rules.find((r) => r.name === name);
+		const num = (value: string | undefined) => {
+			const n = Number.parseInt(value ?? '', 10);
+			return Number.isFinite(n) ? n : null;
+		};
+
+		const groupSize = ruleNamed('GroupSizeBetweenNAndM');
+		const minimum = ruleNamed('MinimumProjectValidated');
+		const minimumCount = num(minimum?.params[RULE_PARAM.minimumCount]);
+		// La règle « ni en cours ni validé » se cite toujours elle-même : on retire
+		// le projet courant, qui n'apprend rien, pour ne garder que ses alternatives
+		// exclusives (ex. minishell ↔ 42sh, cub3d ↔ miniRT).
+		const ownSlug = catalog.find((c) => c.id === projectId)?.slug ?? '';
+		const ownSlugs = new Set([ownSlug, ownSlug.replace(/^42cursus-/, '')]);
+		const exclusive = toProjects(
+			ruleNamed('NeitherOngoingOrValidated')?.params[RULE_PARAM.neitherOngoingOrValidated]
+		).filter((p) => !ownSlugs.has(p.slug));
+
+		const quests = [
+			...toProjects(ruleNamed('QuestsValidated')?.params[RULE_PARAM.questsValidated]),
+			...toProjects(ruleNamed('QuestAndQuestValidated')?.params[RULE_PARAM.questAndQuestValidated]),
+		].map((q) => q.slug);
+
+		return {
+			projectId,
+			xp: session.difficulty,
+			estimateTime: session.estimateTime,
+			durationDays: session.durationDays,
+			description: session.description,
+			objectives: session.objectives,
+			solo: session.solo,
+			groupMin: num(groupSize?.params[RULE_PARAM.groupMin]),
+			groupMax: num(groupSize?.params[RULE_PARAM.groupMax]) ?? session.maxPeople,
+			correctionNumber: session.correctionNumber,
+			uploads: session.uploads,
+			isSubscriptable: session.isSubscriptable,
+			retryDelayDays: num(ruleNamed('InDays')?.params[RULE_PARAM.retryDelayDays]),
+			minLevel: num(ruleNamed('LevelMin')?.params[RULE_PARAM.levelMin]),
+			requiredProjects: toProjects(ruleNamed('ProjectsValidated')?.params[RULE_PARAM.projectsValidated]),
+			anyOfProjects:
+				minimum && minimumCount != null
+					? { count: minimumCount, projects: toProjects(minimum.params[RULE_PARAM.minimumProjects]) }
+					: null,
+			exclusiveProjects: exclusive,
+			requiredQuests: [...new Set(quests)],
+		};
 	}
 
 	/**

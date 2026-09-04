@@ -17,6 +17,9 @@ export const cacheKeyCursusProjects = (cursusId: number) => `cursus_projects:${c
 /** Compétences (= « layers » du graphe officiel) par projet, pour un cursus et un campus. */
 export const cacheKeyProjectSkills = (cursusId: number, campusId: number | null) =>
 	`project_skills:${cursusId}:${campusId ?? 'all'}`;
+/** Détail des sessions de projet (durée, taille de groupe, règles d'inscription…). */
+export const cacheKeyProjectSessions = (cursusId: number, campusId: number) =>
+	`project_sessions:${cursusId}:${campusId}`;
 
 export const api42CacheRepository = {
 	/** Contenu du cache s'il existe ET qu'il est encore frais, sinon `null`. */
