@@ -4,7 +4,7 @@ import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
 import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomProjectModal';
 import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
-import { RNCP_DATA } from '@/data/rncp.data';
+import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
 import { xpService } from '@/services/xp.service';
@@ -21,13 +21,14 @@ import { useTour } from '@/contexts/TourContext';
 import { useRefresh } from '@/contexts/useRefresh';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import { useAuth } from '@/contexts/useAuth';
+import { useRncpData } from '@/contexts/useRncpData';
 import './Dashboard.scss';
 
 const findConfiguredProjectById = (
 	projectId: string,
 	customProjects: SimulatorProject[] = []
 ): SimulatorProject | undefined => {
-	for (const rncp of RNCP_DATA) {
+	for (const rncp of getRncpData()) {
 		for (const category of rncp.categories) {
 			const project = category.projects.find((entry) => entry.id === projectId);
 			if (project) return project;
@@ -110,6 +111,7 @@ const Dashboard: React.FC = () => {
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
 	const { isViewingOther } = useViewingUser();
 	const { login } = useAuth();
+	const { rncpData, loading: rncpLoading } = useRncpData();
 	// Session 42 réellement expirée (refresh_token mort) : filet de sécurité pour
 	// couper la boucle de synchro et proposer une reconnexion, au lieu de retenter à l'infini.
 	const [authExpired, setAuthExpired] = useState(false);
@@ -344,17 +346,17 @@ const Dashboard: React.FC = () => {
 		const completed = userProgress.completedProjects;
 
 		// Un id simulé est « désormais validé » s'il correspond à un projet RNCP dont le
-		// slug/id est validé côté API. On passe par RNCP_DATA + le même `isProjectCompleted`
+		// slug/id est validé côté API. On passe par le référentiel RNCP + le même `isProjectCompleted`
 		// que l'affichage (matching permissif : gère le préfixe « 42cursus- »), pour rester
 		// exactement cohérent avec la liste de cartes qui produit le « 7 ».
 		const isNowValidated = (simId: string): boolean => {
-			for (const rncp of RNCP_DATA) {
+			for (const rncp of rncpData) {
 				for (const cat of rncp.categories) {
 					const project = cat.projects.find(p => p.slug === simId || p.id === simId);
 					if (project) return isProjectCompleted(project.slug || project.id, completed);
 				}
 			}
-			// Projet simulé depuis le Holy Graph : il n'est pas dans RNCP_DATA, mais
+			// Projet simulé depuis le Holy Graph : il n'est pas dans le référentiel RNCP, mais
 			// son slug 42 est stocké dans `customProjects` — on peut donc le
 			// réconcilier comme les autres au lieu de le laisser double-compter.
 			if (isGraphSimulationId(simId)) {
@@ -399,7 +401,7 @@ const Dashboard: React.FC = () => {
 		// `isInitialLoad.current = false` (fin de chargement), ce qui garantit un
 		// déclenchement de cet effet une fois la garde levée — sans lui, si `userProgress`
 		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
-	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects]);
+	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData]);
 
 	const stageFilter = (p: Project42) => {
 		const slug = p.project.slug?.toLowerCase() || '';
@@ -429,7 +431,7 @@ const Dashboard: React.FC = () => {
 	// Calcule quels sous-projets sont validés individuellement via l'API
 	const computeCompletedSubProjects = (completedProjectSlugs: string[]): Record<string, string[]> => {
 		const result: Record<string, string[]> = {};
-		RNCP_DATA.forEach(rncp => {
+		rncpData.forEach(rncp => {
 			rncp.categories.forEach(cat => {
 				cat.projects.forEach(p => {
 					if (p.subProjects && p.subProjects.length > 0) {
@@ -573,6 +575,9 @@ const Dashboard: React.FC = () => {
 	// Mettre à jour le niveau projeté quand les projets simulés changent
 	useEffect(() => {
 		if (!userProgress) return;
+		// Sans le référentiel, aucun projet simulé ne serait trouvé : le niveau
+		// projeté retomberait au niveau actuel le temps qu'il arrive.
+		if (rncpData.length === 0) return;
 
 		// Calculer l'XP total de tous les projets (complétés + simulés)
 		let totalXP = userProgress.currentXP;
@@ -583,7 +588,7 @@ const Dashboard: React.FC = () => {
 		// Pour chaque projet simulé sans sous-projets, ajouter son XP
 		simulatedProjects.forEach(projectSlug => {
 			// Trouver le projet dans les données RNCP (on s'arrête dès qu'on le trouve)
-			for (const rncp of RNCP_DATA) {
+			for (const rncp of rncpData) {
 				for (const category of rncp.categories) {
 					const project = category.projects.find(p => p.slug === projectSlug || p.id === projectSlug);
 					if (project && !project.subProjects && !countedProjects.has(project.id)) {
@@ -626,7 +631,7 @@ const Dashboard: React.FC = () => {
 			// On compte ce projet seulement s'il n'a pas déjà été compté
 			if (countedProjects.has(projectId)) return;
 
-			for (const rncp of RNCP_DATA) {
+			for (const rncp of rncpData) {
 				for (const category of rncp.categories) {
 					const project = category.projects.find(p => p.id === projectId);
 					if (project && project.subProjects) {
@@ -707,7 +712,7 @@ const Dashboard: React.FC = () => {
 
 		const newLevel = xpService.getLevelFromXP(totalXP);
 		setProjectedLevel(newLevel);
-	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, manualExperiences, customProjects]);
+	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, manualExperiences, customProjects, rncpData]);
 
 	const handleToggleSimulation = (projectId: string) => {
 		setSimulatedProjects(prev => {
@@ -898,7 +903,7 @@ const Dashboard: React.FC = () => {
 		const apiSlugs = userProgress.completedProjects;
 		const matchedApiSlugs = new Set<string>();
 
-		RNCP_DATA.forEach(rncp => {
+		rncpData.forEach(rncp => {
 			rncp.categories.forEach(category => {
 				category.projects.forEach(project => {
 					const projectSlug = project.slug || project.id;
@@ -940,7 +945,7 @@ const Dashboard: React.FC = () => {
 
 	const getSimulatedProjectsDetails = (): SimulatorProject[] => {
 		const projects: SimulatorProject[] = [];
-		RNCP_DATA.forEach(rncp => {
+		rncpData.forEach(rncp => {
 			rncp.categories.forEach(category => {
 				category.projects.forEach(project => {
 					if (simulatedProjects.includes(project.slug || project.id)) {
@@ -949,7 +954,7 @@ const Dashboard: React.FC = () => {
 				});
 			});
 		});
-		// Projets simulés depuis le Holy Graph : ils n'existent pas dans RNCP_DATA,
+		// Projets simulés depuis le Holy Graph : ils n'existent pas dans le référentiel RNCP,
 		// mais ils comptent dans le total — les omettre ici afficherait « 8 projets
 		// simulés » au-dessus d'une liste qui n'en montre que 7.
 		customProjects.forEach(project => {
@@ -999,7 +1004,7 @@ const Dashboard: React.FC = () => {
 		if (!userProgress) return [];
 
 		// Injecter les projets personnalisés dans la catégorie "Autres projets"
-		const rncpDataWithCustom = RNCP_DATA.map(rncp => {
+		const rncpDataWithCustom = rncpData.map(rncp => {
 			if (rncp.id === 'rncp-global') {
 				return {
 					...rncp,
@@ -1023,7 +1028,7 @@ const Dashboard: React.FC = () => {
 		// Ajouter les projets dont tous les sous-projets sont simulés
 		const fullySimulatedParents: string[] = [];
 		Object.entries(simulatedSubProjects).forEach(([projectId, subIds]) => {
-			for (const rncp of RNCP_DATA) {
+			for (const rncp of rncpData) {
 				for (const category of rncp.categories) {
 					const project = category.projects.find(p => p.id === projectId);
 					if (project?.subProjects && project.subProjects.every(sub => (subIds as string[]).includes(sub.id))) {
@@ -1057,9 +1062,9 @@ const Dashboard: React.FC = () => {
 				mergedSubProjects
 			);
 		});
-	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects]);
+	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects, rncpData]);
 
-	if (loading) {
+	if (loading || rncpLoading) {
 		return (
 			<div className="dashboard-page">
 				<Header />
@@ -1150,7 +1155,7 @@ const Dashboard: React.FC = () => {
 	// sont de vrais projets 42, pas des projets saisis à la main, et ils ne
 	// comptent pas dans la validation de cette catégorie — les afficher ici
 	// laisserait croire le contraire. Ils se gèrent depuis le graphe.
-	const rncpDataWithCustom = RNCP_DATA.map(rncp => {
+	const rncpDataWithCustom = rncpData.map(rncp => {
 		if (rncp.id === 'rncp-global') {
 			return {
 				...rncp,

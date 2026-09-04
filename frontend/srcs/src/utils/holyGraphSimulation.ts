@@ -1,5 +1,5 @@
-import { RNCP_DATA } from '@/data/rncp.data';
-import type { SimulatorProject } from '@/types/rncp.types';
+import { getRncpData } from '@/data/rncp.data';
+import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from './projectMatcher';
 
 /**
@@ -29,16 +29,20 @@ export const graphSimulationId = (projectId42: number): string => `42-${projectI
 export const isGraphSimulationId = (id: string): boolean => /^42-\d+$/.test(id);
 
 /**
- * Index nom/slug normalisé → projet RNCP. Construit une seule fois : les
- * données RNCP sont statiques.
+ * Index nom/slug normalisé → projet RNCP.
+ *
+ * Le référentiel arrive du backend : on mémorise la version indexée et on la
+ * reconstruit si elle change (elle ne change qu'une fois, au chargement).
  */
 let rncpIndex: Map<string, SimulatorProject> | null = null;
+let indexedFrom: RNCP[] | null = null;
 
 function getRncpIndex(): Map<string, SimulatorProject> {
-	if (rncpIndex) return rncpIndex;
+	const data = getRncpData();
+	if (rncpIndex && indexedFrom === data) return rncpIndex;
 
 	const index = new Map<string, SimulatorProject>();
-	for (const rncp of RNCP_DATA) {
+	for (const rncp of data) {
 		for (const category of rncp.categories) {
 			for (const project of category.projects) {
 				for (const key of [project.id, project.slug, project.name]) {
@@ -51,6 +55,7 @@ function getRncpIndex(): Map<string, SimulatorProject> {
 	}
 
 	rncpIndex = index;
+	indexedFrom = data;
 	return index;
 }
 

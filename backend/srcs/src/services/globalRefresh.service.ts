@@ -1,5 +1,6 @@
 import { prisma } from '../db/connection.js';
 import { api42CacheRepository } from '../db/api42CacheRepository.js';
+import { rncpService } from './rncp.service.js';
 import { API42Service, refreshJobManager } from './api42.service.js';
 
 /**
@@ -83,6 +84,7 @@ export const globalRefreshService = {
 			// 1) Données de référence : on vide le cache (mémoire + base) puis on
 			//    relance leur récupération, qui repasse par le rate limiter.
 			await api42CacheRepository.invalidateAll();
+			rncpService.clearCache();
 			API42Service.clearReferenceCaches();
 			API42Service.ensureProjectDataFetching();
 

@@ -8,6 +8,7 @@ import { ViewingUserProvider } from '@/contexts/ViewingUserContext';
 import { RefreshProvider } from '@/contexts/RefreshContext';
 import { ChangelogProvider } from '@/contexts/ChangelogContext';
 import { ProjectTeamsProvider } from '@/contexts/ProjectTeamsContext';
+import { RncpDataProvider } from '@/contexts/RncpDataContext';
 import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
@@ -132,9 +133,11 @@ function App() {
 						<RefreshProvider>
 							<ChangelogProvider>
 								<ProjectTeamsProvider>
-									<Router>
-										<AppRoutes />
-									</Router>
+									<RncpDataProvider>
+										<Router>
+											<AppRoutes />
+										</Router>
+									</RncpDataProvider>
 								</ProjectTeamsProvider>
 							</ChangelogProvider>
 						</RefreshProvider>

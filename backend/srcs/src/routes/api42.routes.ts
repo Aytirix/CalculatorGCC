@@ -69,6 +69,13 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getHolyGraph(request, reply, fastify);
 	});
 
+	// Référentiel RNCP (structure locale + noms et XP réels de l'API 42)
+	fastify.get('/api42/rncp', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getRncp(request, reply, fastify);
+	});
+
 	// Taille d'équipe de chaque projet du cursus (solo / groupe)
 	fastify.get('/api42/project-teams', {
 		preHandler: authenticate,

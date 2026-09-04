@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Header from '@/components/Header/Header';
-import { RNCP_DATA } from '@/data/rncp.data';
-import type { SimulatorProject } from '@/types/rncp.types';
+import { useRncpData } from '@/contexts/useRncpData';
+import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { parseAlternanceXlsx, type AlternanceLegend } from './alternanceParser';
 import { calendarService } from '@/services/calendar.service';
 import './Calendar.scss';
@@ -228,14 +228,14 @@ function projectOverlapsDay(proj: PlacedProject, day: Date): boolean {
 	return proj.startDate < dayEnd && proj.endDate > dayStart;
 }
 
-function getSimulatedProjects(): { projects: SimulatorProject[] } {
+function getSimulatedProjects(rncpData: RNCP[]): { projects: SimulatorProject[] } {
 	const simulatedIds: string[] = JSON.parse(localStorage.getItem('simulated_projects') || '[]');
 	const simulatedSubProjects: Record<string, string[]> = JSON.parse(localStorage.getItem('simulated_sub_projects') || '{}');
 
 	const projects: SimulatorProject[] = [];
 	const seen = new Set<string>();
 
-	RNCP_DATA.forEach(rncp => {
+	rncpData.forEach(rncp => {
 		rncp.categories.forEach(cat => {
 			cat.projects.forEach(p => {
 				if (seen.has(p.id)) return;
@@ -313,6 +313,7 @@ const Calendar: React.FC = () => {
 	const [dateRange, setDateRange] = useState(loadDateRange);
 	const [placedProjects, setPlacedProjects] = useState<PlacedProject[]>(loadPlacedProjects);
 	const [simulatedProjects, setSimulatedProjects] = useState<SimulatorProject[]>([]);
+	const { rncpData } = useRncpData();
 	const [dragData, setDragData] = useState<{ projectId: string; name: string; xp: number } | null>(null);
 	const [resizing, setResizing] = useState<{
 		id: string; edge: 'left' | 'right'; startGridX: number;
@@ -387,10 +388,11 @@ const Calendar: React.FC = () => {
 		};
 	}, [moving, movingGhost]);
 
+	// Le référentiel RNCP arrive du backend : on (re)calcule dès qu'il est là.
 	useEffect(() => {
-		const { projects } = getSimulatedProjects();
+		const { projects } = getSimulatedProjects(rncpData);
 		setSimulatedProjects(projects);
-	}, []);
+	}, [rncpData]);
 
 	useEffect(() => { savePlacedProjects(placedProjects); }, [placedProjects]);
 	useEffect(() => { saveDateRange(dateRange.start, dateRange.end); }, [dateRange]);

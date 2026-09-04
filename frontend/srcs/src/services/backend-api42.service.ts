@@ -1,5 +1,6 @@
 import { backendAuthService } from './backend-auth.service';
 import { config } from '@/config/config';
+import type { RNCP } from '@/types/rncp.types';
 
 const BACKEND_URL = config.backendUrl;
 
@@ -195,6 +196,13 @@ export interface HolyGraphProjectDetailsResponse {
   /** UNKNOWN_CAMPUS = campus non renseigné ; NOT_OFFERED = projet absent du campus. */
   reason?: 'UNKNOWN_CAMPUS' | 'NOT_OFFERED';
   details: HolyGraphProjectDetails | null;
+}
+
+/** Référentiel RNCP construit par le backend à partir du catalogue 42. */
+export interface RncpResponse {
+  /** true tant que le catalogue du cursus n'est pas récupéré côté serveur. */
+  loading: boolean;
+  rncp: RNCP[];
 }
 
 /** Taille d'équipe d'un projet, telle que 42 la définit pour le campus. */
@@ -394,6 +402,13 @@ export class BackendAPI42Service {
    * Aucune requête vers l'API 42 côté serveur : tout vient du cache mensuel des
    * sessions du campus et de l'instantané personnel.
    */
+  /**
+   * Référentiel RNCP : structure décidée par l'app, noms et XP lus sur l'API 42.
+   */
+  static async getRncp(): Promise<RncpResponse> {
+    return this.request<RncpResponse>('/api42/rncp');
+  }
+
   /** Taille d'équipe de chaque projet du cursus (solo / groupe). */
   static async getProjectTeams(cursusId = 21): Promise<ProjectTeamsResponse> {
     return this.request<ProjectTeamsResponse>(`/api42/project-teams?cursus_id=${cursusId}`);
