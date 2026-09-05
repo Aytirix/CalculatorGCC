@@ -281,19 +281,25 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 					<div className="teammate-modal__team-count">
 						On est
 						<span className="teammate-modal__stepper">
-							{/* Au minimum, retirer quelqu'un n'a pas de sens ; au maximum,
-							    en ajouter non plus : le bouton concerné disparaît. */}
-							{teamSize > minTeamSize && (
-								<button type="button" onClick={() => saveTeam(true, teamSize - 1)} aria-label="Retirer une personne">
-									−
-								</button>
-							)}
+							{/* Les boutons restent en place et se grisent aux bornes : les
+							    faire disparaître décalait toute la ligne. */}
+							<button
+								type="button"
+								onClick={() => saveTeam(true, teamSize - 1)}
+								disabled={teamSize <= minTeamSize}
+								aria-label="Retirer une personne"
+							>
+								−
+							</button>
 							<strong>{teamSize}</strong>
-							{teamSize < maxTeamSize && (
-								<button type="button" onClick={() => saveTeam(true, teamSize + 1)} aria-label="Ajouter une personne">
-									+
-								</button>
-							)}
+							<button
+								type="button"
+								onClick={() => saveTeam(true, teamSize + 1)}
+								disabled={teamSize >= maxTeamSize}
+								aria-label="Ajouter une personne"
+							>
+								+
+							</button>
 						</span>
 						sur {maxTeamSize}
 						<span className={myTeamFull ? 'teammate-modal__full' : 'teammate-modal__open'}>

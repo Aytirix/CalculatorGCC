@@ -318,9 +318,14 @@
 			line-height: 1;
 			cursor: pointer;
 
-			&:hover {
+			&:hover:not(:disabled) {
 				border-color: var(--color-primary);
 				color: var(--color-primary);
+			}
+
+			&:disabled {
+				opacity: 0.35;
+				cursor: not-allowed;
 			}
 		}
 	}

@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Header from '@/components/Header/Header';
-import { BackendAPI42Service, type Project42 } from '@/services/backend-api42.service';
+import {
+	BackendAPI42Service,
+	type Project42,
+	type ProjectTeamInfo,
+} from '@/services/backend-api42.service';
 import { simulationService, type SimulationData } from '@/services/simulation.service';
 import { useRncpData } from '@/contexts/useRncpData';
 import { useProjectTeams } from '@/contexts/useProjectTeams';
+import TeammateModal from '@/components/TeammateModal/TeammateModal';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import type { SimulatorProject } from '@/types/rncp.types';
 import {
@@ -92,7 +97,7 @@ function formatDate(iso: string | null): string {
 
 const MyProjects: React.FC = () => {
 	const { rncpData, loading: rncpLoading } = useRncpData();
-	const { allProjects: catalog42 } = useProjectTeams();
+	const { allProjects: catalog42, getTeamInfo } = useProjectTeams();
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const [apiProjects, setApiProjects] = useState<Project42[]>([]);
@@ -100,6 +105,7 @@ const MyProjects: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [filters, setFilters] = useState<Filters>(loadFilters);
+	const [teammateRow, setTeammateRow] = useState<MyProjectRow | null>(null);
 
 	// La recherche peut être pilotée depuis la palette de commandes. L'effet suit
 	// les paramètres d'URL, et pas seulement le montage : sélectionner un projet
@@ -164,10 +170,18 @@ const MyProjects: React.FC = () => {
 
 	const rncpNames = useMemo(() => rncpData.map((r) => r.name), [rncpData]);
 
+	const searching = filters.search.trim().length > 0;
+
 	const visible = useMemo(() => {
 		const needle = filters.search.trim().toLowerCase();
 		const filtered = rows.filter((row) => {
-			if (needle && !row.name.toLowerCase().includes(needle)) return false;
+			if (needle) {
+				// Chercher un projet par son nom est une demande explicite : elle
+				// prime sur les filtres. Sinon, taper « bomberman » ne donnerait
+				// rien tant que « Non commencé » est masqué — le contraire de ce
+				// qu'on attend, surtout en arrivant depuis la recherche Ctrl+K.
+				return row.name.toLowerCase().includes(needle);
+			}
 			if (!filters.statuses.includes(row.status)) return false;
 			if (!filters.sources.includes(row.source)) return false;
 			if (filters.rncp && !row.rncpNames.includes(filters.rncp)) return false;
@@ -271,32 +285,43 @@ const MyProjects: React.FC = () => {
 						))}
 					</div>
 
-					<select
-						value={filters.sort}
-						onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as SortKey }))}
-						aria-label="Trier par"
-					>
-						{(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-							<option key={key} value={key}>Trier par {SORT_LABELS[key].toLowerCase()}</option>
-						))}
-					</select>
+					{/* Tri et réinitialisation sur leur propre ligne, alignés à droite :
+					    ils agissent sur la liste, pas sur ce qu'elle contient. */}
+					<div className="my-projects-filters__row">
+						{!filtersAreDefault && (
+							<button className="filter-reset" onClick={() => setFilters(DEFAULT_FILTERS)}>
+								Réinitialiser
+							</button>
+						)}
 
-					<button
-						className="filter-direction"
-						onClick={() =>
-							setFilters((f) => ({ ...f, direction: f.direction === 'asc' ? 'desc' : 'asc' }))
-						}
-						title={filters.direction === 'asc' ? 'Ordre croissant' : 'Ordre décroissant'}
-					>
-						{filters.direction === 'asc' ? '↑' : '↓'}
-					</button>
+						<select
+							value={filters.sort}
+							onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as SortKey }))}
+							aria-label="Trier par"
+						>
+							{(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+								<option key={key} value={key}>Trier par {SORT_LABELS[key].toLowerCase()}</option>
+							))}
+						</select>
 
-					{!filtersAreDefault && (
-						<button className="filter-reset" onClick={() => setFilters(DEFAULT_FILTERS)}>
-							Réinitialiser
+						<button
+							className="filter-direction"
+							onClick={() =>
+								setFilters((f) => ({ ...f, direction: f.direction === 'asc' ? 'desc' : 'asc' }))
+							}
+							title={filters.direction === 'asc' ? 'Ordre croissant' : 'Ordre décroissant'}
+							aria-label={filters.direction === 'asc' ? 'Ordre croissant' : 'Ordre décroissant'}
+						>
+							{filters.direction === 'asc' ? '↑' : '↓'}
 						</button>
-					)}
+					</div>
 				</div>
+
+				{searching && (
+					<p className="my-projects-search-note">
+						Recherche « {filters.search.trim()} » — les filtres de statut sont ignorés.
+					</p>
+				)}
 
 				{loading || rncpLoading ? (
 					<p className="my-projects-empty">Chargement…</p>
@@ -310,18 +335,46 @@ const MyProjects: React.FC = () => {
 							{visible.length} projet{visible.length > 1 ? 's' : ''}
 						</p>
 						<ul className="my-projects-list">
-							{visible.map((row) => (
-								<ProjectRow key={row.id} row={row} />
-							))}
+							{visible.map((row) => {
+								const teamInfo = getTeamInfo({ id: row.id, name: row.name, slug: row.slug });
+								return (
+									<ProjectRow
+										key={row.id}
+										row={row}
+										teamInfo={teamInfo && !teamInfo.solo ? teamInfo : null}
+										onFindTeammates={() => setTeammateRow(row)}
+									/>
+								);
+							})}
 						</ul>
 					</>
 				)}
 			</div>
+
+			{teammateRow && (
+				<TeammateModal
+					isOpen
+					onClose={() => setTeammateRow(null)}
+					projectId={teammateRow.id}
+					projectName={teammateRow.name}
+					teamInfo={getTeamInfo({
+						id: teammateRow.id,
+						name: teammateRow.name,
+						slug: teammateRow.slug,
+					})}
+					isSimulated={teammateRow.status === 'simulated'}
+				/>
+			)}
 		</div>
 	);
 };
 
-const ProjectRow: React.FC<{ row: MyProjectRow }> = ({ row }) => (
+const ProjectRow: React.FC<{
+	row: MyProjectRow;
+	/** Renseigné seulement pour les projets qui se font en groupe. */
+	teamInfo: ProjectTeamInfo | null;
+	onFindTeammates: () => void;
+}> = ({ row, teamInfo, onFindTeammates }) => (
 	<li className={`project-row project-row--${row.status}`}>
 		<span className={`project-row__status status-${row.status}`}>{STATUS_LABELS[row.status]}</span>
 		<div className="project-row__main">
@@ -341,6 +394,22 @@ const ProjectRow: React.FC<{ row: MyProjectRow }> = ({ row }) => (
 		</span>
 		<span className="project-row__xp">{row.xp > 0 ? `${row.xp.toLocaleString('fr-FR')} XP` : '—'}</span>
 		<span className="project-row__date">{formatDate(row.date)}</span>
+		{teamInfo ? (
+			<button
+				className="project-row__teammates"
+				onClick={onFindTeammates}
+				title={
+					teamInfo.groupMin != null && teamInfo.groupMax != null
+						? `Trouver des teammates (groupe de ${teamInfo.groupMin} à ${teamInfo.groupMax})`
+						: 'Trouver des teammates'
+				}
+				aria-label={`Trouver des teammates pour ${row.name}`}
+			>
+				👥
+			</button>
+		) : (
+			<span className="project-row__teammates" aria-hidden="true" />
+		)}
 	</li>
 );
 

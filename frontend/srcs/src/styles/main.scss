@@ -2,6 +2,7 @@
 @use './themes';
 @use './mixins' as *;
 @use './tour';
+@use './auth';
 
 * {
   margin: 0;

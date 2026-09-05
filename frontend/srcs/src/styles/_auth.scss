@@ -1,0 +1,80 @@
+// Coquille commune aux écrans d'entrée dans l'application : la connexion 42 et
+// l'accès administrateur. Les deux partagent le même fond et la même typographie
+// pour qu'on reconnaisse la maison quelle que soit la porte empruntée.
+
+.auth-page {
+	position: relative;
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2rem 1.5rem;
+	background: var(--bg-primary);
+	overflow: hidden;
+}
+
+// Halo coloré en fond : deux taches floutées, assez discrètes pour rester
+// lisibles dans les deux thèmes.
+.auth-aurora {
+	position: absolute;
+	inset: -20%;
+	pointer-events: none;
+	background:
+		radial-gradient(38% 38% at 22% 28%, rgba(var(--color-primary-rgb), 0.28), transparent 70%),
+		radial-gradient(34% 34% at 78% 72%, rgba(45, 212, 191, 0.22), transparent 70%);
+	filter: blur(40px);
+}
+
+.auth-badge {
+	display: inline-block;
+	padding: 0.25rem 0.6rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	color: var(--text-muted);
+	font-size: 0.72rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.auth-title {
+	margin: 0 0 0.75rem;
+	font-weight: 800;
+	line-height: 1.05;
+	letter-spacing: -0.02em;
+	color: var(--text-primary);
+}
+
+.auth-note {
+	font-size: 0.78rem;
+	line-height: 1.5;
+	color: var(--text-muted);
+}
+
+// Bouton principal : celui qui fait entrer.
+.auth-cta {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.6rem;
+	padding: 0.8rem 1.5rem;
+	border: 0;
+	border-radius: 12px;
+	background: var(--color-primary);
+	color: white;
+	font-family: inherit;
+	font-size: 0.98rem;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: 0 10px 30px rgba(var(--color-primary-rgb), 0.35);
+	transition: background-color 0.15s;
+
+	&:hover:not(:disabled) {
+		background: var(--color-primary-hover);
+	}
+
+	&:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+}

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Project42 } from '@/services/backend-api42.service';
 import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import { STAGE_MODELS } from '@/utils/stageModel';
 
 interface ProfExpListProps {
 	entries: Project42[];
@@ -122,7 +123,9 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 				<span className="prof-exp-item__name">
 					{exp.type === 'alternance'
 						? `Alternance ${exp.duration} an${exp.duration > 1 ? 's' : ''}`
-						: 'Stage'}
+						/* Un stage simulé porte son niveau : sans lui, impossible de
+						   distinguer un Work Experience I d'un II dans la liste. */
+						: STAGE_MODELS[exp.stageLevel ?? 1].label}
 				</span>
 				<div className="prof-exp-item__marks">
 					<span className="prof-exp-item__mark prof-exp-item__mark--sub">{exp.xpEarned.toLocaleString()} XP</span>

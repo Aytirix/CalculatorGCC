@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
 import { adminService } from '@/services/admin.service';
 import './Admin.scss';
+import './AdminLogin.scss';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -62,15 +62,30 @@ const AdminLogin: React.FC = () => {
   };
 
   return (
-    <div className="admin-page">
+    <div className="auth-page admin-login-page">
+      <div className="auth-aurora" aria-hidden="true" />
+
+      <button
+        type="button"
+        className="admin-login-back"
+        onClick={() => navigate('/')}
+        title="Retour à l'accueil"
+      >
+        ← Accueil
+      </button>
+
       <motion.div
-        className="admin-card"
+        className="admin-login-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1>🔐 Accès administrateur</h1>
-        <p className="subtitle">Authentification indépendante d'OAuth 42.</p>
+        <span className="auth-badge">Administration</span>
+        <h1 className="auth-title admin-login-title">Accès administrateur</h1>
+        <p className="admin-login-subtitle">
+          Authentification indépendante d'OAuth&nbsp;42 : elle reste utilisable même si la
+          connexion 42 ne fonctionne plus.
+        </p>
 
         {error && (
           <div className="admin-error">
@@ -85,9 +100,9 @@ const AdminLogin: React.FC = () => {
           <>
             {canTryPasskey && !showConsole && (
               <>
-                <Button size="lg" className="admin-btn" onClick={handlePasskey} disabled={busy}>
+                <button type="button" className="auth-cta admin-login-cta" onClick={handlePasskey} disabled={busy}>
                   {busy ? 'Authentification…' : 'Se connecter avec une passkey'}
-                </Button>
+                </button>
                 <button className="admin-link" onClick={() => setShowConsole(true)} disabled={busy}>
                   Utiliser le token console (recovery)
                 </button>
@@ -124,9 +139,9 @@ const AdminLogin: React.FC = () => {
                     disabled={busy}
                   />
                 </div>
-                <Button type="submit" size="lg" className="admin-btn" disabled={busy || !consoleToken.trim()}>
+                <button type="submit" className="auth-cta admin-login-cta" disabled={busy || !consoleToken.trim()}>
                   {busy ? 'Vérification…' : 'Valider'}
-                </Button>
+                </button>
                 {canTryPasskey && (
                   <button type="button" className="admin-link" onClick={() => setShowConsole(false)} disabled={busy}>
                     ← Essayer la passkey

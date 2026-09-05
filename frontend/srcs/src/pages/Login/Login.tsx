@@ -40,7 +40,7 @@ const Login: React.FC = () => {
 	const navigate = useNavigate();
 
 	return (
-		<div className="login-page">
+		<div className="auth-page login-page">
 			{/* Accès administrateur discret : authentification autonome (passkey / token
 			    console), indépendante d'OAuth 42. */}
 			<button
@@ -53,7 +53,7 @@ const Login: React.FC = () => {
 				⚙
 			</button>
 
-			<div className="login-aurora" aria-hidden="true" />
+			<div className="auth-aurora" aria-hidden="true" />
 
 			<div className="login-layout">
 				<motion.section
@@ -62,8 +62,8 @@ const Login: React.FC = () => {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.45 }}
 				>
-					<span className="login-badge">Pour les étudiants de 42</span>
-					<h1 className="login-title">
+					<span className="auth-badge login-badge">Pour les étudiants de 42</span>
+					<h1 className="auth-title login-title">
 						Calculator<span>GCC</span>
 					</h1>
 					<p className="login-tagline">
@@ -73,7 +73,7 @@ const Login: React.FC = () => {
 
 					<motion.button
 						type="button"
-						className="login-cta"
+						className="auth-cta login-cta"
 						onClick={login}
 						whileHover={{ scale: 1.02 }}
 						whileTap={{ scale: 0.98 }}
@@ -81,7 +81,7 @@ const Login: React.FC = () => {
 						Se connecter avec 42
 					</motion.button>
 
-					<p className="login-note">
+					<p className="auth-note login-note">
 						Connexion via l'intra 42. L'application lit tes projets, ton niveau et tes
 						événements — elle n'écrit jamais rien sur ton compte.
 					</p>

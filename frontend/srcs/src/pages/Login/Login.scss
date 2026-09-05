@@ -1,24 +1,5 @@
-.login-page {
-	position: relative;
-	min-height: 100vh;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 2rem 1.5rem;
-	background: var(--bg-primary);
-	overflow: hidden;
-}
-
-// Halo coloré en fond : deux taches floutées, assez discrètes pour rester
-// lisibles dans les deux thèmes.
-.login-aurora {
-	position: absolute;
-	inset: -20%;
-	pointer-events: none;
-	background:
-		radial-gradient(38% 38% at 22% 28%, rgba(var(--color-primary-rgb), 0.28), transparent 70%),
-		radial-gradient(34% 34% at 78% 72%, rgba(45, 212, 191, 0.22), transparent 70%);
-	filter: blur(40px);
+.login-badge {
+	margin-bottom: 1rem;
 }
 
 .login-admin-link {
@@ -51,26 +32,8 @@
 	align-items: center;
 }
 
-.login-badge {
-	display: inline-block;
-	padding: 0.25rem 0.6rem;
-	margin-bottom: 1rem;
-	border-radius: 999px;
-	border: 1px solid var(--border-color);
-	background: var(--bg-card);
-	color: var(--text-muted);
-	font-size: 0.72rem;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-}
-
 .login-title {
-	margin: 0 0 0.75rem;
 	font-size: clamp(2.4rem, 5vw, 3.4rem);
-	font-weight: 800;
-	line-height: 1.05;
-	letter-spacing: -0.02em;
-	color: var(--text-primary);
 
 	span {
 		color: var(--color-primary);
@@ -85,33 +48,9 @@
 	color: var(--text-muted);
 }
 
-.login-cta {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.6rem;
-	padding: 0.85rem 1.6rem;
-	border: 0;
-	border-radius: 12px;
-	background: var(--color-primary);
-	color: white;
-	font-family: inherit;
-	font-size: 1rem;
-	font-weight: 600;
-	cursor: pointer;
-	box-shadow: 0 10px 30px rgba(var(--color-primary-rgb), 0.35);
-	transition: background-color 0.15s;
-
-	&:hover {
-		background: var(--color-primary-hover);
-	}
-}
-
 .login-note {
 	margin: 1.1rem 0 0;
 	max-width: 30rem;
-	font-size: 0.78rem;
-	line-height: 1.5;
-	color: var(--text-muted);
 }
 
 .login-features {
