@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { simulationService, type UserSearchResult } from '@/services/simulation.service';
 import { useRncpData } from '@/contexts/useRncpData';
@@ -201,7 +202,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
 		user: 'Utilisateur',
 	};
 
-	return (
+	// Rendu dans un portail au niveau du <body>. La palette est déclarée dans le
+	// header, qui porte un `backdrop-filter` : un tel ancêtre devient le bloc
+	// conteneur des éléments `position: fixed` et empêche le flou d'un enfant de
+	// s'appliquer au reste de la page — le fond restait donc net.
+	return createPortal(
 		<div className="command-palette-overlay" onMouseDown={onClose}>
 			<div
 				className="command-palette"
@@ -252,7 +257,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
 					</ul>
 				)}
 			</div>
-		</div>
+		</div>,
+		document.body
 	);
 };
 

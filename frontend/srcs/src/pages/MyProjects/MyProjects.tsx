@@ -172,9 +172,18 @@ const MyProjects: React.FC = () => {
 
 	const searching = filters.search.trim().length > 0;
 
-	const visible = useMemo(() => {
+	/**
+	 * Lignes retenues par TOUT sauf le filtre de statut.
+	 *
+	 * C'est sur cet ensemble que sont comptés les badges : sélectionner un RNCP
+	 * doit faire bouger « 50 validés » vers le nombre de projets validés DANS ce
+	 * RNCP. Les exclure du filtre de statut est nécessaire, sinon un statut
+	 * masqué afficherait toujours zéro et on ne pourrait plus le rallumer en
+	 * connaissance de cause.
+	 */
+	const inScope = useMemo(() => {
 		const needle = filters.search.trim().toLowerCase();
-		const filtered = rows.filter((row) => {
+		return rows.filter((row) => {
 			if (needle) {
 				// Chercher un projet par son nom est une demande explicite : elle
 				// prime sur les filtres. Sinon, taper « bomberman » ne donnerait
@@ -182,11 +191,18 @@ const MyProjects: React.FC = () => {
 				// qu'on attend, surtout en arrivant depuis la recherche Ctrl+K.
 				return row.name.toLowerCase().includes(needle);
 			}
-			if (!filters.statuses.includes(row.status)) return false;
 			if (!filters.sources.includes(row.source)) return false;
 			if (filters.rncp && !row.rncpNames.includes(filters.rncp)) return false;
 			return true;
 		});
+	}, [rows, filters.search, filters.sources, filters.rncp]);
+
+	const visible = useMemo(() => {
+		// Copie systématique : `sort` mute, et `inScope` est un résultat mémorisé
+		// partagé avec le calcul des compteurs.
+		const filtered = searching
+			? [...inScope]
+			: inScope.filter((row) => filters.statuses.includes(row.status));
 
 		const sign = filters.direction === 'asc' ? 1 : -1;
 		const statusOrder = ALL_STATUSES;
@@ -204,7 +220,7 @@ const MyProjects: React.FC = () => {
 					return sign * (new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 			}
 		});
-	}, [rows, filters]);
+	}, [inScope, searching, filters]);
 
 	const counts = useMemo(() => {
 		const out: Record<ProjectStatus, number> = {
@@ -214,9 +230,9 @@ const MyProjects: React.FC = () => {
 			simulated: 0,
 			not_started: 0,
 		};
-		for (const row of rows) out[row.status]++;
+		for (const row of inScope) out[row.status]++;
 		return out;
-	}, [rows]);
+	}, [inScope]);
 
 	const toggle = <T,>(list: T[], value: T): T[] =>
 		list.includes(value) ? list.filter((v) => v !== value) : [...list, value];

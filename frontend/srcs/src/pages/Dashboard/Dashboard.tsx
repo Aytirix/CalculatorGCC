@@ -605,15 +605,17 @@ const Dashboard: React.FC = () => {
 				if (countedProjects.has(projectSlug)) break; // On sort de la boucle des RNCPs
 			}
 
-			// Projet simulé depuis le Holy Graph et absent de nos données RNCP
-			// (tronc commun, examens, cursus secondaires) : son nom et son XP,
-			// relevés sur l'API 42, sont stockés dans `customProjects` sous
-			// l'identifiant `42-<id>`.
-			if (!countedProjects.has(projectSlug) && isGraphSimulationId(projectSlug)) {
-				const graphProject = customProjects.find(p => p.id === projectSlug);
-				if (graphProject && graphProject.xp > 0) {
+			// Projet absent du référentiel RNCP, dont l'XP vit dans `customProjects` :
+			//  - `42-<id>` : simulé depuis le Holy Graph (tronc commun, examens…) ;
+			//  - `custom-<id>` : projet saisi à la main du temps où c'était possible.
+			// Ces derniers n'étaient tout simplement pas comptés — la boucle
+			// ci-dessus ne cherche que dans le référentiel — alors que l'XP a été
+			// saisi explicitement par l'utilisateur pour être compté.
+			if (!countedProjects.has(projectSlug)) {
+				const extraProject = customProjects.find(p => p.id === projectSlug);
+				if (extraProject && extraProject.xp > 0) {
 					const percentage = projectPercentages[projectSlug] ?? 100;
-					let addedXP = Math.round((graphProject.xp * percentage) / 100);
+					let addedXP = Math.round((extraProject.xp * percentage) / 100);
 					if (coalitionBoosts[projectSlug]) addedXP = Math.round(addedXP * 1.042);
 					totalXP += addedXP;
 					countedProjects.add(projectSlug);
