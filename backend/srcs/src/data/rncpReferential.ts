@@ -147,14 +147,6 @@ export const RNCP_REFERENTIAL: RncpReferentialEntry[] = [
 					{ id: 'total-perspective-vortex', slug42: '42cursus-total-perspective-vortex' },
 				],
 			},
-			{
-				id: 'other-projects',
-				name: 'Autres projets',
-				requiredCount: 0,
-				requiredXP: 0,
-				projects: [
-				],
-			},
 		],
 	},
 	{

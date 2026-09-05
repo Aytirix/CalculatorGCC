@@ -384,11 +384,16 @@ export interface ProjectRegistration {
 	registeredAt: string | null;
 }
 
-/** Taille d'équipe d'un projet, pour savoir s'il se fait en groupe. */
+/**
+ * Carte d'identité légère d'un projet du cursus : taille d'équipe (pour savoir
+ * s'il se fait en groupe) et XP (pour les projets hors référentiel RNCP, comme
+ * le tronc commun, que la liste « Mes projets » affiche aussi).
+ */
 export interface ProjectTeamInfo {
 	id: number;
 	name: string;
 	slug: string;
+	xp: number;
 	solo: boolean;
 	groupMin: number | null;
 	groupMax: number | null;
@@ -1086,6 +1091,7 @@ export class API42Service {
 				id: project.id,
 				name: project.name.trim(),
 				slug: project.slug,
+				xp: session.difficulty || project.difficulty || 0,
 				solo: session.solo,
 				groupMin: toInt(rule?.params[RULE_PARAM.groupMin]),
 				groupMax: toInt(rule?.params[RULE_PARAM.groupMax]) ?? session.maxPeople,

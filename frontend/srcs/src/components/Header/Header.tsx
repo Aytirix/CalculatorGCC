@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -13,22 +13,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { simulationService, type UserSearchResult } from '@/services/simulation.service';
+import CommandPalette from '@/components/CommandPalette/CommandPalette';
 import './Header.scss';
+
+/** Pages principales, dans l'ordre du parcours d'un utilisateur. */
+const NAV_ITEMS: { label: string; path: string; icon: string; tour?: string }[] = [
+  { label: 'Projets', path: '/dashboard', icon: '◎' },
+  { label: 'Mes projets', path: '/my-projects', icon: '☰' },
+  { label: 'Holy Graph', path: '/holy-graph', icon: '✳' },
+  { label: 'Calendrier', path: '/calendar', icon: '▤', tour: 'nav-calendar' },
+  { label: 'Conso API', path: '/api-usage', icon: '⚡' },
+];
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { viewingUser, setViewingUser, clearViewingUser, isViewingOther } = useViewingUser();
+  const { viewingUser, clearViewingUser, isViewingOther } = useViewingUser();
   const { open: openChangelog } = useChangelog();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const handleLogout = () => {
     clearViewingUser();
@@ -36,55 +41,16 @@ const Header: React.FC = () => {
     navigate('/');
   };
 
-  // Debounce la recherche
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const q = e.target.value;
-    setSearchQuery(q);
-
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-
-    if (q.trim().length === 0) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    searchTimeout.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const results = await simulationService.searchUsers(q.trim());
-        setSearchResults(results);
-        setShowDropdown(true);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-  }, []);
-
-  const handleSelectUser = useCallback((result: UserSearchResult) => {
-    if (!result.isPublic) return;
-    setSearchQuery('');
-    setShowDropdown(false);
-    setViewingUser({
-      userId42: result.userId42,
-      login: result.login,
-      firstName: result.firstName,
-      lastName: result.lastName,
-      imageUrl: result.imageUrl,
-    });
-  }, [setViewingUser]);
-
-  // Fermer le dropdown en cliquant ailleurs
+  // Raccourci global : Ctrl/⌘ + K ouvre la recherche depuis n'importe quelle page.
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   return (
@@ -154,102 +120,45 @@ const Header: React.FC = () => {
           <h1>CalculatorGCC</h1>
         </motion.div>
 
-        {/* Recherche utilisateur */}
-        <motion.div
-          className="header-search"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          ref={searchRef}
-        >
-          <div className="search-input-wrapper">
-            <span className="search-icon">🔍</span>
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Rechercher un utilisateur…"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
-            />
-            {isSearching && <span className="search-spinner" />}
-          </div>
-
-          {showDropdown && searchResults.length > 0 && (
-            <div className="search-dropdown">
-              {searchResults.map((result) => (
-                <div
-                  key={result.userId42}
-                  className={`search-result-item ${!result.isPublic ? 'search-result-private' : ''}`}
-                  onClick={() => handleSelectUser(result)}
-                  title={!result.isPublic ? 'Profil privé' : undefined}
-                >
-                  <img
-                    src={result.imageUrl || '/default-avatar.png'}
-                    alt={result.login}
-                    className="search-result-avatar"
-                  />
-                  <div className="search-result-info">
-                    <span className="search-result-login">{result.login}</span>
-                    {(result.firstName || result.lastName) && (
-                      <span className="search-result-name">
-                        {[result.firstName, result.lastName].filter(Boolean).join(' ')}
-                      </span>
-                    )}
-                  </div>
-                  {!result.isPublic && (
-                    <span className="search-result-lock" title="Profil privé">🔒</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showDropdown && searchResults.length === 0 && !isSearching && searchQuery.trim().length > 0 && (
-            <div className="search-dropdown">
-              <div className="search-no-results">Aucun utilisateur trouvé</div>
-            </div>
-          )}
-        </motion.div>
-
         <motion.div
           className="header-actions"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Navigation */}
-          <div className="header-nav" data-tour="header-nav">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/dashboard')}
-              className="nav-button"
-            >
-              Projets
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/calendar')}
-              className="nav-button"
-              data-tour="nav-calendar"
-            >
-              Calendrier
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/holy-graph')}
-              className="nav-button"
-            >
-              Holy Graph
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/api-usage')}
-              className="nav-button"
-            >
-              Conso API
-            </Button>
-          </div>
+          {/* Navigation — l'onglet courant est explicitement marqué : avec cinq
+              pages, la seule différence de teinte ne suffisait plus à savoir
+              où on se trouve. */}
+          <nav className="header-nav" data-tour="header-nav">
+            {NAV_ITEMS.map((item) => {
+              const active = location.pathname === item.path;
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  className={`nav-link${active ? ' nav-link--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                  aria-current={active ? 'page' : undefined}
+                  {...(item.tour ? { 'data-tour': item.tour } : {})}
+                >
+                  <span className="nav-link__icon" aria-hidden="true">{item.icon}</span>
+                  <span className="nav-link__label">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Recherche universelle : une loupe plutôt qu'un champ, et Ctrl+K. */}
+          <button
+            type="button"
+            className="header-search-btn"
+            onClick={() => setPaletteOpen(true)}
+            title="Rechercher (Ctrl + K)"
+            aria-label="Rechercher"
+          >
+            <span aria-hidden="true">⌕</span>
+            <kbd>Ctrl K</kbd>
+          </button>
 
           <Button
             variant="ghost"
@@ -318,6 +227,8 @@ const Header: React.FC = () => {
           )}
         </motion.div>
       </div>
+
+      <CommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </header>
   );
 };

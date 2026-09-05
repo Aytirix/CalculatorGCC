@@ -2,8 +2,38 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/useAuth';
-import { Button } from '@/components/ui/button';
 import './Login.scss';
+
+/**
+ * Page d'accueil des visiteurs non connectés.
+ *
+ * Elle ne se contente plus d'un bouton posé au milieu : avant de demander à
+ * quelqu'un d'autoriser l'application sur son compte 42, autant lui dire ce
+ * qu'elle fait et ce qu'elle lit.
+ */
+
+const FEATURES: { icon: string; title: string; text: string }[] = [
+	{
+		icon: '◎',
+		title: 'Simulateur RNCP',
+		text: "Coche les projets que tu comptes faire et vois ton niveau projeté, avec l'XP réel de l'API 42.",
+	},
+	{
+		icon: '✳',
+		title: 'Holy Graph',
+		text: 'Le graphe officiel de 42, avec ton avancement, les prérequis de chaque projet et ses détails.',
+	},
+	{
+		icon: '☰',
+		title: 'Ton parcours',
+		text: 'Tout ce que tu as validé, raté, commencé ou prévu, dans une liste filtrable.',
+	},
+	{
+		icon: '▤',
+		title: 'Calendrier',
+		text: 'Étale tes projets dans le temps pour préparer une échéance RNCP ou une alternance.',
+	},
+];
 
 const Login: React.FC = () => {
 	const { login } = useAuth();
@@ -15,42 +45,65 @@ const Login: React.FC = () => {
 			    console), indépendante d'OAuth 42. */}
 			<button
 				type="button"
+				className="login-admin-link"
 				onClick={() => navigate('/admin/login')}
 				title="Accès administrateur"
 				aria-label="Accès administrateur"
-				style={{
-					position: 'absolute',
-					top: 16,
-					right: 16,
-					background: 'transparent',
-					border: 'none',
-					cursor: 'pointer',
-					fontSize: 20,
-					opacity: 0.45,
-					lineHeight: 1,
-				}}
 			>
-				⚙️
+				⚙
 			</button>
 
-			<motion.div
-				className="login-card"
-				initial={{ opacity: 0, y: 20 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.5 }}
-			>
-				<h1>CalculatorGCC</h1>
-				<p className="subtitle">Simulez votre progression et vos validations RNCP</p>
+			<div className="login-aurora" aria-hidden="true" />
 
-				<motion.div
-					whileHover={{ scale: 1.05 }}
-					whileTap={{ scale: 0.95 }}
+			<div className="login-layout">
+				<motion.section
+					className="login-intro"
+					initial={{ opacity: 0, y: 24 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.45 }}
 				>
-					<Button onClick={login} size="lg" className="login-button">
+					<span className="login-badge">Pour les étudiants de 42</span>
+					<h1 className="login-title">
+						Calculator<span>GCC</span>
+					</h1>
+					<p className="login-tagline">
+						Simule ta progression, ton niveau et tes validations RNCP à partir de tes vraies
+						données 42.
+					</p>
+
+					<motion.button
+						type="button"
+						className="login-cta"
+						onClick={login}
+						whileHover={{ scale: 1.02 }}
+						whileTap={{ scale: 0.98 }}
+					>
 						Se connecter avec 42
-					</Button>
-				</motion.div>
-			</motion.div>
+					</motion.button>
+
+					<p className="login-note">
+						Connexion via l'intra 42. L'application lit tes projets, ton niveau et tes
+						événements — elle n'écrit jamais rien sur ton compte.
+					</p>
+				</motion.section>
+
+				<motion.ul
+					className="login-features"
+					initial={{ opacity: 0, y: 24 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.45, delay: 0.12 }}
+				>
+					{FEATURES.map((feature) => (
+						<li key={feature.title} className="login-feature">
+							<span className="login-feature__icon" aria-hidden="true">{feature.icon}</span>
+							<div>
+								<h2>{feature.title}</h2>
+								<p>{feature.text}</p>
+							</div>
+						</li>
+					))}
+				</motion.ul>
+			</div>
 		</div>
 	);
 };

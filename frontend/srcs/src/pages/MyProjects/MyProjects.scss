@@ -1,0 +1,234 @@
+.my-projects-page {
+	min-height: 100vh;
+	background: var(--bg-primary);
+}
+
+.my-projects-container {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 2rem 1.5rem 4rem;
+}
+
+.my-projects-header {
+	margin-bottom: 1.5rem;
+
+	h1 {
+		margin: 0 0 0.35rem;
+		font-size: 1.8rem;
+		color: var(--text-primary);
+	}
+}
+
+.my-projects-subtitle {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+}
+
+// Compteurs par statut : ils servent aussi de filtre rapide.
+.my-projects-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.stat-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.4rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	color: var(--text-muted);
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: border-color 0.15s, color 0.15s, opacity 0.15s;
+	opacity: 0.5;
+
+	&.active {
+		opacity: 1;
+		color: var(--text-primary);
+	}
+
+	&__count {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	&--validated.active { border-color: #2dd4bf; color: #2dd4bf; }
+	&--in_progress.active { border-color: #38bdf8; color: #38bdf8; }
+	&--simulated.active { border-color: #a78bfa; color: #a78bfa; }
+	&--failed.active { border-color: #f87171; color: #f87171; }
+	&--not_started.active { border-color: var(--border-color); }
+}
+
+.my-projects-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.85rem;
+	margin-bottom: 1rem;
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+
+	select,
+	.filter-search {
+		padding: 0.4rem 0.6rem;
+		border-radius: 8px;
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		font-size: 0.82rem;
+	}
+
+	.filter-search {
+		flex: 1 1 240px;
+		min-width: 240px;
+	}
+}
+
+.filter-sources {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+}
+
+.filter-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	cursor: pointer;
+
+	input {
+		accent-color: var(--color-primary);
+		cursor: pointer;
+	}
+}
+
+.filter-direction,
+.filter-reset {
+	padding: 0.4rem 0.7rem;
+	border-radius: 8px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-secondary);
+	color: var(--text-primary);
+	font-size: 0.82rem;
+	cursor: pointer;
+
+	&:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+}
+
+.my-projects-count {
+	margin: 0 0 0.5rem;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+}
+
+.my-projects-empty {
+	padding: 2rem;
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+}
+
+.my-projects-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.project-row {
+	display: grid;
+	grid-template-columns: 110px 1fr auto 110px 100px;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.55rem 0.85rem;
+	border-radius: 10px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	font-size: 0.85rem;
+
+	&__status {
+		font-size: 0.7rem;
+		text-align: center;
+		padding: 0.15rem 0.4rem;
+		border-radius: 999px;
+		border: 1px solid currentColor;
+		white-space: nowrap;
+	}
+
+	.status-validated { color: #2dd4bf; }
+	.status-in_progress { color: #38bdf8; }
+	.status-simulated { color: #a78bfa; }
+	.status-failed { color: #f87171; }
+	.status-not_started { color: var(--text-muted); }
+
+	&__main {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	&__name {
+		color: var(--text-primary);
+		font-weight: 600;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&__rncp {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&__meta {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.1rem;
+		font-size: 0.72rem;
+	}
+
+	&__mark {
+		color: var(--text-primary);
+	}
+
+	&__simulated {
+		color: #a78bfa;
+	}
+
+	&__xp,
+	&__date {
+		text-align: right;
+		color: var(--text-muted);
+		font-size: 0.78rem;
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+@media (max-width: 820px) {
+	.project-row {
+		grid-template-columns: 90px 1fr auto;
+
+		&__xp,
+		&__date {
+			display: none;
+		}
+	}
+}

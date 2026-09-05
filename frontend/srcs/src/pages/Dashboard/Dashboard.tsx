@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
 import RNCPCard from '@/components/RNCPCard/RNCPCard';
-import AddCustomProjectModal from '@/components/AddCustomProjectModal/AddCustomProjectModal';
 import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
@@ -86,10 +85,6 @@ const Dashboard: React.FC = () => {
 	const [completedSubProjects, setCompletedSubProjects] = useState<Record<string, string[]>>({});
 	const [projectedLevel, setProjectedLevel] = useState<number>(0);
 	const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
-	const [customProjectModal, setCustomProjectModal] = useState<{
-		isOpen: boolean;
-		editProject: SimulatorProject | null;
-	}>({ isOpen: false, editProject: null });
 	const [syncing, setSyncing] = useState(false);
 	const [apiStages, setApiStages] = useState<Project42[]>([]);
 	const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
@@ -791,90 +786,6 @@ const Dashboard: React.FC = () => {
 		}
 	};
 
-	const handleAddCustomProject = (name: string, xp: number, percentage: number, note?: string, hasCoalitionBoost?: boolean) => {
-		const newProject: SimulatorProject = {
-			id: `custom-${Date.now()}`,
-			name: name,
-			xp: xp,
-			slug: name.toLowerCase().replace(/\s+/g, '-'),
-		};
-		setCustomProjects(prev => [...prev, newProject]);
-
-		// Ajouter automatiquement à la simulation
-		setSimulatedProjects(prev => [...prev, newProject.id]);
-
-		// Définir le pourcentage si différent de 100%
-		if (percentage !== 100) {
-			setProjectPercentages(prev => ({ ...prev, [newProject.id]: percentage }));
-		}
-
-		// Sauvegarder la note si elle existe
-		if (note) {
-			setProjectNotes(prev => ({ ...prev, [newProject.id]: note }));
-		}
-
-		// Sauvegarder le boost coalition si activé
-		if (hasCoalitionBoost) {
-			setCoalitionBoosts(prev => {
-				const newBoosts = { ...prev, [newProject.id]: true };
-				localStorage.setItem('coalition_boosts', JSON.stringify(newBoosts));
-				return newBoosts;
-			});
-		}
-	};
-
-	const handleEditCustomProject = (id: string, name: string, xp: number, percentage: number, note?: string, hasCoalitionBoost?: boolean) => {
-		setCustomProjects(prev =>
-			prev.map(project =>
-				project.id === id
-					? { ...project, name, xp, slug: name.toLowerCase().replace(/\s+/g, '-') }
-					: project
-			)
-		);
-
-		// Mettre à jour le pourcentage
-		if (percentage !== 100) {
-			setProjectPercentages(prev => ({ ...prev, [id]: percentage }));
-		} else {
-			// Retirer le pourcentage s'il est à 100%
-			setProjectPercentages(prev => {
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				const { [id]: _removed, ...rest } = prev;
-				return rest;
-			});
-		}
-
-		// Mettre à jour ou supprimer la note
-		if (note) {
-			setProjectNotes(prev => ({ ...prev, [id]: note }));
-		} else {
-			setProjectNotes(prev => {
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				const { [id]: _removed, ...rest } = prev;
-				return rest;
-			});
-		}
-
-		// Mettre à jour le boost coalition
-		setCoalitionBoosts(prev => {
-			const newBoosts = { ...prev };
-			if (hasCoalitionBoost) {
-				newBoosts[id] = true;
-			} else {
-				delete newBoosts[id];
-			}
-			localStorage.setItem('coalition_boosts', JSON.stringify(newBoosts));
-			return newBoosts;
-		});
-	};
-
-	const handleDeleteCustomProject = (id: string) => {
-		setCustomProjects(prev => prev.filter(project => project.id !== id));
-
-		// Retirer aussi de la simulation
-		setSimulatedProjects(prev => prev.filter(projId => projId !== id));
-	};
-
 	const handleSaveNote = (projectId: string, note: string) => {
 		if (note.trim()) {
 			setProjectNotes(prev => ({ ...prev, [projectId]: note }));
@@ -1003,27 +914,6 @@ const Dashboard: React.FC = () => {
 	const rncpValidations = useMemo((): RNCPValidation[] => {
 		if (!userProgress) return [];
 
-		// Injecter les projets personnalisés dans la catégorie "Autres projets"
-		const rncpDataWithCustom = rncpData.map(rncp => {
-			if (rncp.id === 'rncp-global') {
-				return {
-					...rncp,
-					categories: rncp.categories.map(category => {
-						if (category.id === 'other-projects') {
-							return {
-								...category,
-								// Seuls les projets créés à la main sont des « autres projets » :
-								// ceux simulés depuis le Holy Graph (`42-<id>`) sont des projets
-								// 42 hors référentiel RNCP, ils n'ont rien à valider ici.
-								projects: customProjects.filter(p => !isGraphSimulationId(p.id)),
-							};
-						}
-						return category;
-					}),
-				};
-			}
-			return rncp;
-		});
 
 		// Ajouter les projets dont tous les sous-projets sont simulés
 		const fullySimulatedParents: string[] = [];
@@ -1048,7 +938,7 @@ const Dashboard: React.FC = () => {
 			mergedSubProjects[id] = [...new Set([...(mergedSubProjects[id] || []), ...subs])];
 		}
 
-		return rncpDataWithCustom.map(rncp => {
+		return rncpData.map(rncp => {
 			return xpService.validateRNCP(
 				rncp,
 				projectedLevel,
@@ -1062,7 +952,7 @@ const Dashboard: React.FC = () => {
 				mergedSubProjects
 			);
 		});
-	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, customProjects, rncpData]);
+	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
 
 	if (loading || rncpLoading) {
 		return (
@@ -1150,32 +1040,10 @@ const Dashboard: React.FC = () => {
 
 	if (!userProgress) return null;
 
-	// Injecter les projets personnalisés dans la catégorie "Autres projets".
-	// Les projets simulés depuis le Holy Graph (`42-<id>`) en sont exclus : ce
-	// sont de vrais projets 42, pas des projets saisis à la main, et ils ne
-	// comptent pas dans la validation de cette catégorie — les afficher ici
-	// laisserait croire le contraire. Ils se gèrent depuis le graphe.
-	const rncpDataWithCustom = rncpData.map(rncp => {
-		if (rncp.id === 'rncp-global') {
-			return {
-				...rncp,
-				categories: rncp.categories.map(category => {
-					if (category.id === 'other-projects') {
-						return {
-							...category,
-							projects: customProjects.filter(p => !isGraphSimulationId(p.id)),
-						};
-					}
-					return category;
-				}),
-			};
-		}
-		return rncp;
-	});
 
 	const completedProjects = getCompletedProjects();
 	const simulatedProjectsDetails = getSimulatedProjectsDetails();
-	const selectedRNCP = rncpDataWithCustom[selectedRNCPIndex];
+	const selectedRNCP = rncpData[selectedRNCPIndex];
 	const selectedValidation = rncpValidations[selectedRNCPIndex];
 
 	// Grouper les évaluations d'alternance/stage pour l'affichage
@@ -1333,7 +1201,7 @@ const Dashboard: React.FC = () => {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.5, delay: 0.1 }}
 				>
-					{rncpDataWithCustom.map((rncp, index) => {
+					{rncpData.map((rncp, index) => {
 						const validation = rncpValidations[index];
 						const isActive = selectedRNCPIndex === index;
 
@@ -1431,35 +1299,12 @@ const Dashboard: React.FC = () => {
 						projectPercentages={projectPercentages}
 						completedProjectsPercentages={completedProjectsPercentages}
 						onPercentageChange={handlePercentageChange}
-						customProjects={customProjects}
-						onAddCustomProject={() => setCustomProjectModal({ isOpen: true, editProject: null })}
-						onEditCustomProject={(project) => setCustomProjectModal({ isOpen: true, editProject: project })}
-						onDeleteCustomProject={handleDeleteCustomProject}
 						projectNotes={projectNotes}
 						onSaveNote={handleSaveNote}
 						coalitionBoosts={coalitionBoosts}
 						onToggleCoalitionBoost={handleToggleCoalitionBoost}
 					/>
 				</motion.div>
-
-				{/* Modal d'ajout/édition de projet personnalisé */}
-				<AddCustomProjectModal
-					isOpen={customProjectModal.isOpen}
-					onClose={() => setCustomProjectModal({ isOpen: false, editProject: null })}
-					onSave={(name, xp, percentage, note, hasCoalitionBoost) => {
-						if (customProjectModal.editProject) {
-							handleEditCustomProject(customProjectModal.editProject.id, name, xp, percentage, note, hasCoalitionBoost);
-						} else {
-							handleAddCustomProject(name, xp, percentage, note, hasCoalitionBoost);
-						}
-					}}
-					editProject={customProjectModal.editProject ? {
-						...customProjectModal.editProject,
-						percentage: projectPercentages[customProjectModal.editProject.id] || 100,
-						note: projectNotes[customProjectModal.editProject.id] || '',
-						hasCoalitionBoost: coalitionBoosts[customProjectModal.editProject.id] || false,
-					} : null}
-				/>
 
 				{/* Modal ajout expérience professionnelle */}
 				<AddExperienceModal

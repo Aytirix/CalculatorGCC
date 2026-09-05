@@ -114,7 +114,7 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 				// Mon propre état d'équipe vient de la même liste.
 				const mine = users.find((u) => u.login === myLogin);
 				setHasTeam(mine?.hasTeam ?? false);
-				setTeamSize(mine?.teamSize ?? 2);
+				setTeamSize(mine?.teamSize ?? Math.max(2, teamInfo?.groupMin ?? 2));
 			})
 			.catch(() => !cancelled && setError('Impossible de charger les utilisateurs'))
 			.finally(() => !cancelled && setLoadingSim(false));
@@ -122,7 +122,7 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [isOpen, projectId, myLogin]);
+	}, [isOpen, projectId, myLogin, teamInfo]);
 
 	// Colonne « Intra 42 » : les personnes réellement inscrites sur le projet.
 	// `teamInfo.id` est l'identifiant 42 du projet ; sans lui, pas d'appel.
@@ -220,6 +220,8 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	// Taille maximale du groupe : celle du projet quand 42 la donne, sinon une
 	// borne large pour ne pas bloquer la saisie.
 	const maxTeamSize = teamInfo?.groupMax ?? 10;
+	// Une équipe compte au moins 2 personnes, ou la taille minimale du projet.
+	const minTeamSize = Math.max(2, teamInfo?.groupMin ?? 2);
 	const myTeamFull = teamSize >= maxTeamSize;
 
 	const teamLabel = teamInfo
@@ -257,29 +259,6 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 							J'ai déjà ma team
 						</label>
 					)}
-					{!readOnly && hasTeam && (
-						<span className="teammate-modal__team-count">
-							On est
-							<input
-								type="number"
-								min={2}
-								max={maxTeamSize}
-								value={teamSize}
-								onChange={(e) => {
-									const value = parseInt(e.target.value, 10);
-									if (Number.isNaN(value)) return;
-									saveTeam(true, Math.min(maxTeamSize, Math.max(2, value)));
-								}}
-								aria-label="Nombre de personnes dans ton groupe"
-							/>
-							sur {maxTeamSize}
-							<span className={myTeamFull ? 'teammate-modal__full' : 'teammate-modal__open'}>
-								{myTeamFull
-									? '· complet'
-									: `· ${maxTeamSize - teamSize} place${maxTeamSize - teamSize > 1 ? 's' : ''}`}
-							</span>
-						</span>
-					)}
 					<label className="teammate-modal__toggle">
 						<input
 							type="checkbox"
@@ -298,6 +277,32 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 						<option value="oldest">Plus anciens d'abord</option>
 					</select>
 				</div>
+				{!readOnly && hasTeam && (
+					<div className="teammate-modal__team-count">
+						On est
+						<span className="teammate-modal__stepper">
+							{/* Au minimum, retirer quelqu'un n'a pas de sens ; au maximum,
+							    en ajouter non plus : le bouton concerné disparaît. */}
+							{teamSize > minTeamSize && (
+								<button type="button" onClick={() => saveTeam(true, teamSize - 1)} aria-label="Retirer une personne">
+									−
+								</button>
+							)}
+							<strong>{teamSize}</strong>
+							{teamSize < maxTeamSize && (
+								<button type="button" onClick={() => saveTeam(true, teamSize + 1)} aria-label="Ajouter une personne">
+									+
+								</button>
+							)}
+						</span>
+						sur {maxTeamSize}
+						<span className={myTeamFull ? 'teammate-modal__full' : 'teammate-modal__open'}>
+							{myTeamFull
+								? '· groupe complet'
+								: `· ${maxTeamSize - teamSize} place${maxTeamSize - teamSize > 1 ? 's' : ''} libre${maxTeamSize - teamSize > 1 ? 's' : ''}`}
+						</span>
+					</div>
+				)}
 				{teamError && <p className="teammate-modal__error">{teamError}</p>}
 
 				<div className="teammate-modal__body">

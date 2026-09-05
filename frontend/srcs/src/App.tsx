@@ -17,6 +17,7 @@ import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalE
 import Calendar from '@/pages/Calendar/Calendar';
 import ApiUsage from '@/pages/ApiUsage/ApiUsage';
 import HolyGraph from '@/pages/HolyGraph/HolyGraph';
+import MyProjects from '@/pages/MyProjects/MyProjects';
 import Setup from '@/pages/Setup/Setup';
 import AdminLogin from '@/pages/Admin/AdminLogin';
 import AdminPanel from '@/pages/Admin/AdminPanel';
@@ -91,6 +92,14 @@ const AppRoutes: React.FC = () => {
 				element={
 					<ProtectedRoute>
 						<Calendar key={viewKey} />
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/my-projects"
+				element={
+					<ProtectedRoute>
+						<MyProjects key={viewKey} />
 					</ProtectedRoute>
 				}
 			/>

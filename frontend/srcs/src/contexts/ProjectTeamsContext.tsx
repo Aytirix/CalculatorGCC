@@ -18,11 +18,14 @@ export interface ProjectTeamsContextValue {
 	getTeamInfo: (project: { id: string; name: string; slug?: string }) => ProjectTeamInfo | null;
 	/** true tant que la donnée n'est pas arrivée : on n'affiche rien plutôt que faux. */
 	loading: boolean;
+	/** Catalogue brut du cursus (nom, slug, XP) pour qui en a besoin. */
+	allProjects: ProjectTeamInfo[];
 }
 
 export const ProjectTeamsContext = createContext<ProjectTeamsContextValue>({
 	getTeamInfo: () => null,
 	loading: true,
+	allProjects: [],
 });
 
 export const ProjectTeamsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -100,7 +103,9 @@ export const ProjectTeamsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 	);
 
 	return (
-		<ProjectTeamsContext.Provider value={{ getTeamInfo, loading: projects === null }}>
+		<ProjectTeamsContext.Provider
+			value={{ getTeamInfo, loading: projects === null, allProjects: projects ?? [] }}
+		>
 			{children}
 		</ProjectTeamsContext.Provider>
 	);

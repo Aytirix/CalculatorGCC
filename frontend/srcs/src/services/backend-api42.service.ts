@@ -210,6 +210,8 @@ export interface ProjectTeamInfo {
   id: number;
   name: string;
   slug: string;
+  /** XP du projet côté 42 (0 pour les piscines, dont l'XP est dans les modules). */
+  xp: number;
   solo: boolean;
   groupMin: number | null;
   groupMax: number | null;

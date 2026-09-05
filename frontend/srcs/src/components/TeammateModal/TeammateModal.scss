@@ -282,21 +282,46 @@
 		}
 	}
 
+	// Ligne « On est − 3 + sur 5 », sous la barre d'outils.
 	&__team-count {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1.5rem;
+		font-size: 0.8rem;
+		color: var(--text-primary);
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	&__stepper {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.35rem;
-		font-size: 0.8rem;
-		color: var(--text-primary);
 
-		input[type='number'] {
-			width: 52px;
-			padding: 0.2rem 0.3rem;
+		strong {
+			min-width: 1.2rem;
+			text-align: center;
+			font-variant-numeric: tabular-nums;
+		}
+
+		button {
+			width: 22px;
+			height: 22px;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
 			border-radius: 6px;
 			border: 1px solid var(--border-color);
 			background: var(--bg-secondary);
 			color: var(--text-primary);
-			font-size: 0.8rem;
+			font-size: 0.9rem;
+			line-height: 1;
+			cursor: pointer;
+
+			&:hover {
+				border-color: var(--color-primary);
+				color: var(--color-primary);
+			}
 		}
 	}
 
