@@ -198,6 +198,37 @@ export interface HolyGraphProjectDetailsResponse {
   details: HolyGraphProjectDetails | null;
 }
 
+/** Compteurs sur les 4 fenêtres de temps proposées par la page Stats. */
+export interface PeriodCounts {
+  day: number;
+  week: number;
+  month: number;
+  year: number;
+}
+
+/**
+ * Statistiques d'usage de l'application. Volontairement agrégées et anonymes :
+ * aucun login, aucun niveau individuel, aucun projet personnalisé.
+ */
+export interface AppStats {
+  users: {
+    total: number;
+    withData: number;
+    publicProfiles: number;
+    joined: PeriodCounts;
+    active: PeriodCounts;
+  };
+  simulation: {
+    usersSimulating: number;
+    projectsSimulated: number;
+    usersWithTeam: number;
+    topProjects: { projectId: string; name: string; count: number }[];
+  };
+  levels: { label: string; users: number }[];
+  sync: { refreshed: PeriodCounts };
+  generatedAt: string;
+}
+
 /** Référentiel RNCP construit par le backend à partir du catalogue 42. */
 export interface RncpResponse {
   /** true tant que le catalogue du cursus n'est pas récupéré côté serveur. */
@@ -404,6 +435,11 @@ export class BackendAPI42Service {
    * Aucune requête vers l'API 42 côté serveur : tout vient du cache mensuel des
    * sessions du campus et de l'instantané personnel.
    */
+  /** Statistiques d'usage agrégées (aucune requête vers l'API 42). */
+  static async getStats(): Promise<AppStats> {
+    return this.request<AppStats>('/api42/stats');
+  }
+
   /**
    * Référentiel RNCP : structure décidée par l'app, noms et XP lus sur l'API 42.
    */

@@ -47,7 +47,13 @@ export interface RncpEntry {
 	categories: RncpCategory[];
 }
 
-let memoryCache: { data: RncpEntry[]; at: number } | null = null;
+/**
+ * `fromCatalog` distingue un référentiel VRAIMENT construit depuis le catalogue
+ * 42 d'un repli sur la dernière version enregistrée. Sans cette distinction, un
+ * repli servi au démarrage se figeait en mémoire et un changement du référentiel
+ * (ajout d'un projet dans une catégorie) n'apparaissait jamais.
+ */
+let memoryCache: { data: RncpEntry[]; fromCatalog: boolean } | null = null;
 
 /**
  * Le slug servi au front est celui de 42 SANS son préfixe de cursus
@@ -108,16 +114,19 @@ export const rncpService = {
 	 * en cache (l'appelant relance alors sa récupération en tâche de fond).
 	 */
 	async build(): Promise<RncpEntry[] | null> {
-		if (memoryCache) return memoryCache.data;
+		// Un référentiel issu du catalogue fait autorité et n'est recalculé qu'au
+		// prochain redémarrage ; un repli, lui, doit être retenté.
+		if (memoryCache?.fromCatalog) return memoryCache.data;
 
 		const projects = API42Service.getCursusProjectsCached(RNCP_CURSUS_ID);
 		if (!projects) {
+			if (memoryCache) return memoryCache.data;
 			// Le catalogue n'est pas encore en mémoire : on se rabat sur le dernier
-			// référentiel construit, pour ne pas laisser le Dashboard sans données
+			// référentiel enregistré, pour ne pas laisser le Dashboard sans données
 			// pendant qu'il se remplit (ou si l'API 42 est injoignable).
 			const persisted = await api42CacheRepository.getFresh<RncpEntry[]>(CACHE_KEY);
 			if (persisted) {
-				memoryCache = { data: persisted, at: Date.now() };
+				memoryCache = { data: persisted, fromCatalog: false };
 				return persisted;
 			}
 			return null;
@@ -143,7 +152,7 @@ export const rncpService = {
 			})),
 		}));
 
-		memoryCache = { data, at: Date.now() };
+		memoryCache = { data, fromCatalog: true };
 		await api42CacheRepository.set(CACHE_KEY, data);
 		console.log(
 			`[RNCP] Référentiel construit depuis le catalogue 42 : ${data.length} RNCP, ` +

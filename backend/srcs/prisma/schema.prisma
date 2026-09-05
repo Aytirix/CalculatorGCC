@@ -40,6 +40,10 @@ model UserSimulation {
   // Sert à n'afficher sur le Holy Graph que les projets proposés sur ce campus.
   campusId              Int?
   isPublic              Boolean?
+  // Dernier passage dans l'application, rafraîchi au plus une fois par heure.
+  // Sert UNIQUEMENT aux statistiques agrégées (combien de personnes utilisent
+  // l'app sur une journée, une semaine…) : rien de nominatif n'en sort.
+  lastSeenAt            DateTime?
   hasSeenTour           Boolean  @default(false)
   lastSeenChangelog     String?  @db.VarChar(32) // version du dernier changelog acquitté (null = jamais)
   simulatedSubProjects  Json?    // Record<string, string[]>
@@ -52,6 +56,7 @@ model UserSimulation {
 
   simulatedProjects SimulatedProject[]
 
+  @@index([lastSeenAt])
   @@map("user_simulation")
 }
 

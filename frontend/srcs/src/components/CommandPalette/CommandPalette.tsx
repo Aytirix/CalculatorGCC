@@ -35,7 +35,7 @@ const PAGES: { label: string; path: string; hint: string }[] = [
 	{ label: 'Mes projets', path: '/my-projects', hint: 'Tout mon parcours' },
 	{ label: 'Holy Graph', path: '/holy-graph', hint: 'Carte des projets' },
 	{ label: 'Calendrier', path: '/calendar', hint: 'Planification' },
-	{ label: 'Conso API', path: '/api-usage', hint: 'Usage de l’API 42' },
+	{ label: 'Stats', path: '/api-usage', hint: "Usage de l'application et de l'API 42" },
 	{ label: 'Paramètres', path: '/settings', hint: 'Mon compte' },
 ];
 

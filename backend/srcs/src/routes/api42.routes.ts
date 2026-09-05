@@ -69,6 +69,13 @@ export async function api42Routes(fastify: FastifyInstance) {
 		return API42Controller.getHolyGraph(request, reply, fastify);
 	});
 
+	// Statistiques d'usage de l'application (agrégées, anonymes)
+	fastify.get('/api42/stats', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return API42Controller.getStats(request, reply, fastify);
+	});
+
 	// Référentiel RNCP (structure locale + noms et XP réels de l'API 42)
 	fastify.get('/api42/rncp', {
 		preHandler: authenticate,

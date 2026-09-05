@@ -1,7 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header/Header';
-import { BackendAPI42Service, type ApiUsageStats } from '@/services/backend-api42.service';
+import {
+  BackendAPI42Service,
+  type ApiUsageStats,
+  type AppStats,
+  type PeriodCounts,
+} from '@/services/backend-api42.service';
 import './ApiUsage.scss';
 
 const POLL_MS = 2000;
@@ -16,8 +21,19 @@ const relTime = (iso: string | null): string => {
   return `il y a ${Math.round(m / 60)} h`;
 };
 
+type Period = keyof PeriodCounts;
+
+const PERIOD_LABELS: Record<Period, string> = {
+  day: '24 h',
+  week: '7 jours',
+  month: '30 jours',
+  year: '1 an',
+};
+
 const ApiUsage: React.FC = () => {
   const [stats, setStats] = useState<ApiUsageStats | null>(null);
+  const [app, setApp] = useState<AppStats | null>(null);
+  const [period, setPeriod] = useState<Period>('week');
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -41,6 +57,18 @@ const ApiUsage: React.FC = () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [load]);
+
+  // Les statistiques d'usage bougent lentement : une seule lecture au montage,
+  // contrairement au budget API qu'on suit en direct.
+  useEffect(() => {
+    let cancelled = false;
+    BackendAPI42Service.getStats()
+      .then((s) => !cancelled && setApp(s))
+      .catch(() => !cancelled && setApp(null));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const renderBody = () => {
     if (!stats && error) {
@@ -135,6 +163,110 @@ const ApiUsage: React.FC = () => {
     );
   };
 
+  const renderAppStats = () => {
+    if (!app) return null;
+
+    const maxTop = Math.max(1, ...app.simulation.topProjects.map((p) => p.count));
+    const maxLevel = Math.max(1, ...app.levels.map((l) => l.users));
+
+    return (
+      <section className="app-stats">
+        <div className="app-stats__head">
+          <h2>Utilisation de l'application</h2>
+          <div className="app-stats__periods">
+            {(Object.keys(PERIOD_LABELS) as Period[]).map((key) => (
+              <button
+                key={key}
+                className={key === period ? 'active' : ''}
+                onClick={() => setPeriod(key)}
+              >
+                {PERIOD_LABELS[key]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="stat-grid">
+          <div className="stat-card">
+            <span className="stat-card__label">Personnes actives</span>
+            <span className="stat-card__value">{app.users.active[period].toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">Ont ouvert l'application sur {PERIOD_LABELS[period]}</span>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-card__label">Nouveaux comptes</span>
+            <span className="stat-card__value">{app.users.joined[period].toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">Première connexion sur {PERIOD_LABELS[period]}</span>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-card__label">Synchros 42</span>
+            <span className="stat-card__value">{app.sync.refreshed[period].toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">Instantanés rafraîchis sur {PERIOD_LABELS[period]}</span>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-card__label">Comptes au total</span>
+            <span className="stat-card__value">{app.users.total.toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">
+              {app.users.withData} synchronisés · {app.users.publicProfiles} profils publics
+            </span>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-card__label">Simulations en cours</span>
+            <span className="stat-card__value">{app.simulation.usersSimulating.toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">
+              {app.simulation.projectsSimulated.toLocaleString('fr-FR')} projets simulés au total
+            </span>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-card__label">Équipes déclarées</span>
+            <span className="stat-card__value">{app.simulation.usersWithTeam.toLocaleString('fr-FR')}</span>
+            <span className="stat-card__hint">Ont annoncé avoir leur team sur un projet</span>
+          </div>
+        </div>
+
+        <div className="app-stats__charts">
+          <div className="app-stats__panel">
+            <h3>Projets les plus simulés</h3>
+            {app.simulation.topProjects.length === 0 ? (
+              <p className="app-stats__empty">Personne n'a encore simulé de projet.</p>
+            ) : (
+              <ul className="app-stats__bars">
+                {app.simulation.topProjects.map((project) => (
+                  <li key={project.projectId}>
+                    <span className="app-stats__bar-label">{project.name}</span>
+                    <span className="app-stats__bar">
+                      <span style={{ width: `${(project.count / maxTop) * 100}%` }} />
+                    </span>
+                    <span className="app-stats__bar-value">{project.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="app-stats__panel">
+            <h3>Répartition des niveaux</h3>
+            <ul className="app-stats__bars">
+              {app.levels.map((bucket) => (
+                <li key={bucket.label}>
+                  <span className="app-stats__bar-label">Niveau {bucket.label}</span>
+                  <span className="app-stats__bar">
+                    <span style={{ width: `${(bucket.users / maxLevel) * 100}%` }} />
+                  </span>
+                  <span className="app-stats__bar-value">{bucket.users}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   return (
     <div className="api-usage-page">
       <Header />
@@ -146,8 +278,8 @@ const ApiUsage: React.FC = () => {
           transition={{ duration: 0.4 }}
         >
           <div>
-            <h1>Consommation API 42</h1>
-            <p>Suivi en temps réel du budget de requêtes vers l'API de 42.</p>
+            <h1>Statistiques &amp; conso API</h1>
+            <p>Usage de l'application et budget de requêtes vers l'API de 42.</p>
           </div>
           <span className={`live-badge ${live ? 'on' : 'off'}`}>
             <span className="live-dot" />
@@ -155,6 +287,7 @@ const ApiUsage: React.FC = () => {
           </span>
         </motion.div>
 
+        {renderAppStats()}
         {renderBody()}
       </div>
     </div>

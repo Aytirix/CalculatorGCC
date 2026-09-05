@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyOwnerSession } from '../services/adminAuth.service.js';
 import { isDelegate } from '../db/adminRepository.js';
+import { touchPresence } from '../services/stats.service.js';
 
 // Le type AuthenticatedRequest est maintenant géré par fastify.d.ts
 export type AuthenticatedRequest = FastifyRequest;
@@ -12,6 +13,9 @@ export type AuthenticatedRequest = FastifyRequest;
 export const authenticate = async (request: FastifyRequest, reply: FastifyReply) => {
 	try {
 		await request.jwtVerify();
+		// Marque le passage pour les statistiques d'usage agrégées. Throttlé à une
+		// écriture par heure et par utilisateur, et jamais attendu.
+		touchPresence(request.user.user_id_42);
 	} catch (err: any) {
 		reply.code(401).send({ error: 'Token invalide ou expiré' });
 	}

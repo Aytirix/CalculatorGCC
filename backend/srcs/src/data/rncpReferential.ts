@@ -213,6 +213,7 @@ export const RNCP_REFERENTIAL: RncpReferentialEntry[] = [
 				requiredXP: 10000,
 				projects: [
 					{ id: 'ft-hangouts', slug42: '42cursus-ft_hangouts' },
+					{ id: 'music-room', slug42: '42cursus-music-room' },
 					{ id: 'peace-break', slug42: 'peace_break' },
 					{ id: 'swifty-companion', slug42: '42cursus-swifty-companion' },
 					{ id: 'swifty-proteins', slug42: '42cursus-swifty-proteins' },

@@ -22,7 +22,7 @@ const NAV_ITEMS: { label: string; path: string; icon: string; tour?: string }[] 
   { label: 'Mes projets', path: '/my-projects', icon: '☰' },
   { label: 'Holy Graph', path: '/holy-graph', icon: '✳' },
   { label: 'Calendrier', path: '/calendar', icon: '▤', tour: 'nav-calendar' },
-  { label: 'Conso API', path: '/api-usage', icon: '⚡' },
+  { label: 'Stats', path: '/api-usage', icon: '⚡' },
 ];
 
 const Header: React.FC = () => {

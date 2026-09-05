@@ -5,6 +5,7 @@ import { simulationRepository } from '../db/simulationRepository.js';
 import { userData42Repository } from '../db/userData42Repository.js';
 import { config } from '../config/config.js';
 import { rncpService } from '../services/rncp.service.js';
+import { statsService } from '../services/stats.service.js';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -433,6 +434,19 @@ export class API42Controller {
 
       fastify.log.info(`[API42 Controller] Holy graph: ${cursus.length} cursus pour ${userId}`);
       return reply.send({ cursus });
+    } catch (error: any) {
+      return handleAPI42Error(error, reply, fastify);
+    }
+  }
+
+  /**
+   * GET /api42/stats
+   * Statistiques d'usage de l'application, agrégées et anonymes. Aucune requête
+   * vers l'API 42 : tout est calculé sur notre base.
+   */
+  static async getStats(_request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    try {
+      return reply.send(await statsService.build());
     } catch (error: any) {
       return handleAPI42Error(error, reply, fastify);
     }
