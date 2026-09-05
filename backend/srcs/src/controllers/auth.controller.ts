@@ -7,25 +7,52 @@ import { userToken42Repository } from '../db/userToken42Repository.js';
 import { requestOAuth42Token } from '../services/oauth42.service.js';
 import { getAdminConfigStatus } from '../db/configRepository.js';
 import { isDelegate } from '../db/adminRepository.js';
+import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
+import { createOAuthState, readOAuthState } from '../services/oauthState.service.js';
 
 export class AuthController {
   /**
    * Redirige vers la page d'authentification 42
    */
-  static initiateOAuth(_request: FastifyRequest, reply: FastifyReply) {
+  static async initiateOAuth(request: FastifyRequest, reply: FastifyReply) {
     // Toujours utiliser APP_DOMAIN comme source de vérité pour le redirect_uri.
     // Si on dérive depuis les headers (x-forwarded-proto/host), le moindre écart
     // entre init et callback (proto manquant, port suffixé, etc.) provoque un
     // invalid_grant à l'échange du code → l'auth échoue silencieusement.
     const redirectUri = config.oauth42.redirectUri;
 
+    // Origine d'où part la connexion : un frontend miroir proxifie /api vers ce
+    // backend, et c'est chez LUI qu'il faut revenir à la fin. On la valide dès
+    // maintenant, et on la scelle dans le `state` pour la retrouver au retour.
+    const { origin } = request.query as { origin?: string };
+    const requested = origin ? normalizeOrigin(origin) : null;
+    const target =
+      requested && (await allowedOriginRepository.isAllowed(requested))
+        ? requested
+        : normalizeOrigin(config.frontendUrl) ?? config.frontendUrl;
+
     const authUrl = new URL(config.oauth42.authUrl);
     authUrl.searchParams.append('client_id', config.oauth42.clientId);
     authUrl.searchParams.append('redirect_uri', redirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('scope', 'public');
+    authUrl.searchParams.append('state', createOAuthState(target));
 
     return reply.redirect(authUrl.toString());
+  }
+
+  /**
+   * Origine vers laquelle renvoyer l'utilisateur à la fin du flux.
+   *
+   * La signature du `state` prouve que NOUS l'avons émise ; on revalide quand
+   * même contre la liste d'origines autorisées, pour qu'une révocation dans le
+   * panneau admin prenne effet immédiatement, même sur un flux déjà commencé.
+   */
+  private static async resolveReturnOrigin(request: FastifyRequest): Promise<string> {
+    const { state } = request.query as { state?: string };
+    const origin = readOAuthState(state);
+    if (origin && (await allowedOriginRepository.isAllowed(origin))) return origin;
+    return config.frontendUrl;
   }
 
   /**
@@ -33,8 +60,8 @@ export class AuthController {
    * Important : on cible /callback (et pas la racine), sinon aucun composant
    * ne lit le paramètre ?error et l'utilisateur reste bloqué sur Login.
    */
-  private static redirectWithError(reply: FastifyReply, reason?: string) {
-    const errorUrl = new URL(`${config.frontendUrl}/callback`);
+  private static redirectWithError(reply: FastifyReply, reason?: string, origin?: string) {
+    const errorUrl = new URL(`${origin ?? config.frontendUrl}/callback`);
     errorUrl.searchParams.append('error', 'authentication_failed');
     if (reason) {
       errorUrl.searchParams.append('reason', reason);
@@ -49,6 +76,11 @@ export class AuthController {
     const { code, error: oauthError } = request.query as { code?: string; error?: string };
     const redirectUri = config.oauth42.redirectUri;
 
+    // Domaine à qui rendre la main : celui d'où la connexion est partie, scellé
+    // dans le `state`. Résolu AVANT tout traitement, pour que même les erreurs
+    // ramènent la personne sur son propre site.
+    const returnOrigin = await AuthController.resolveReturnOrigin(request);
+
     console.log('[Auth Controller] OAuth callback received with code:', code);
     console.log('[Auth Controller] Using redirect_uri:', redirectUri);
 
@@ -56,7 +88,7 @@ export class AuthController {
     // clé OAuth expirée...). On redirige vers le front au lieu d'un JSON 400 cul-de-sac.
     if (!code) {
       console.error('[Auth Controller] No authorization code in callback. 42 error:', oauthError);
-      return AuthController.redirectWithError(reply, oauthError || 'missing_code');
+      return AuthController.redirectWithError(reply, oauthError || 'missing_code', returnOrigin);
     }
 
     try {
@@ -130,7 +162,7 @@ export class AuthController {
       console.log(`[Auth Controller] JWT généré pour ${payload.login} (len ${token.length})`);
 
       // Rediriger vers le frontend avec le token JWT
-      const redirectUrl = new URL(`${config.frontendUrl}/callback`);
+      const redirectUrl = new URL(`${returnOrigin}/callback`);
       redirectUrl.searchParams.append('token', token);
 
       console.log('[Auth Controller] Redirection vers le callback frontend');
@@ -141,7 +173,7 @@ export class AuthController {
       // Raison réelle renvoyée par 42 (ex: invalid_client quand le secret a été
       // régénéré / la clé OAuth a expiré) pour pouvoir l'afficher côté front.
       const reason = error.response?.data?.error || error.response?.data?.message;
-      return AuthController.redirectWithError(reply, reason);
+      return AuthController.redirectWithError(reply, reason, returnOrigin);
     }
   }
 

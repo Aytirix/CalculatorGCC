@@ -18,7 +18,7 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Stage de build pour la production
 FROM base AS builder
-# Build l'application React avec Vite
+# Build l'application React avec Vite (typecheck inclus : `tsc -b && vite build`)
 RUN npm run build
 
 # Stage de production avec Nginx léger

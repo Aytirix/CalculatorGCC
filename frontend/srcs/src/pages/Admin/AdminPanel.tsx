@@ -8,8 +8,22 @@ import {
   type PasskeyInfo,
   type DelegateInfo,
   type GlobalRefreshState,
+  type AllowedOriginInfo,
 } from '@/services/admin.service';
 import './Admin.scss';
+import './AdminLogin.scss';
+
+
+/** Onglets du panneau : chacun n'affiche qu'une chose, au lieu de tout empiler. */
+const TABS = [
+  { id: 'secrets', label: 'Secrets API 42', icon: '🔑' },
+  { id: 'passkeys', label: 'Passkeys', icon: '🛡️' },
+  { id: 'delegates', label: 'Délégués', icon: '👥' },
+  { id: 'origins', label: 'Origines autorisées', icon: '🌐' },
+  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
 
 const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -23,6 +37,14 @@ const AdminPanel: React.FC = () => {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<TabId>('secrets');
+  const [origins, setOrigins] = useState<AllowedOriginInfo[]>([]);
+  const [originsSelf, setOriginsSelf] = useState('');
+  const [originsSelfAllowed, setOriginsSelfAllowed] = useState(true);
+  const [mirrorUrl, setMirrorUrl] = useState<string | null>(null);
+  const [mirrorInput, setMirrorInput] = useState('');
+  const [newOrigin, setNewOrigin] = useState('');
+  const [newOriginLabel, setNewOriginLabel] = useState('');
 
   // Session admin expirée/invalide → on repart proprement vers l'écran d'auth.
   const onAuthError = useCallback((e: any): boolean => {
@@ -36,16 +58,23 @@ const AdminPanel: React.FC = () => {
 
   const reload = useCallback(async () => {
     try {
-      const [cfg, pk, dl, gr] = await Promise.all([
+      const [cfg, pk, dl, gr, og, mi] = await Promise.all([
         adminService.getConfig(),
         adminService.listPasskeys(),
         adminService.listDelegates(),
         adminService.getGlobalRefresh(),
+        adminService.listOrigins(),
+        adminService.getMirror(),
       ]);
       setConfig(cfg);
       setPasskeys(pk);
       setDelegates(dl);
       setRefresh(gr);
+      setOrigins(og.origins);
+      setOriginsSelf(og.self);
+      setOriginsSelfAllowed(og.self_allowed);
+      setMirrorUrl(mi.mirror_api_url);
+      setMirrorInput(mi.mirror_api_url ?? '');
       setSecretForm((f) => ({ ...f, client_id: cfg.client_id || f.client_id }));
     } catch (e) {
       if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Chargement impossible.' });
@@ -75,6 +104,59 @@ const AdminPanel: React.FC = () => {
     }, 5000);
     return () => clearInterval(timer);
   }, [refresh?.running]);
+
+  const saveMirror = async (url: string | null) => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      await adminService.setMirror(url);
+      await reload();
+      setMsg({
+        kind: 'ok',
+        text: url ? `Cette instance relaie désormais ${url}.` : 'Cette instance sert de nouveau ses propres données.',
+      });
+    } catch (e: unknown) {
+      if (!onAuthError(e)) {
+        const detail = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setMsg({ kind: 'err', text: detail || 'Réglage impossible.' });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addOrigin = async () => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      await adminService.addOrigin(newOrigin.trim(), newOriginLabel.trim() || undefined);
+      setNewOrigin('');
+      setNewOriginLabel('');
+      await reload();
+      setMsg({ kind: 'ok', text: 'Origine autorisée.' });
+    } catch (e: unknown) {
+      if (!onAuthError(e)) {
+        const detail = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setMsg({ kind: 'err', text: detail || 'Origine invalide.' });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeOrigin = async (origin: string) => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      await adminService.removeOrigin(origin);
+      await reload();
+      setMsg({ kind: 'ok', text: 'Origine révoquée.' });
+    } catch (e: unknown) {
+      if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Révocation impossible.' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const startGlobalRefresh = async () => {
     setMsg(null);
@@ -194,11 +276,34 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="admin-page admin-panel">
-      <motion.div className="admin-card wide" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="admin-head">
-          <h1>🛠️ Panneau administrateur</h1>
-          <button className="admin-link" onClick={logout}>Déconnexion</button>
-        </div>
+      <motion.div className="admin-shell" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <aside className="admin-sidebar">
+          <div className="admin-sidebar__brand">
+            <span className="auth-badge">Administration</span>
+            <h1>CalculatorGCC</h1>
+          </div>
+
+          <nav className="admin-sidebar__nav">
+            {TABS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className={`admin-tab${tab === entry.id ? ' admin-tab--active' : ''}`}
+                onClick={() => setTab(entry.id)}
+                aria-current={tab === entry.id ? 'page' : undefined}
+              >
+                <span className="admin-tab__icon" aria-hidden="true">{entry.icon}</span>
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+
+          <button className="admin-link admin-sidebar__logout" onClick={logout}>
+            Déconnexion
+          </button>
+        </aside>
+
+        <main className="admin-main">
 
         {msg && (
           <div className={msg.kind === 'ok' ? 'admin-ok' : 'admin-error'}>
@@ -207,6 +312,7 @@ const AdminPanel: React.FC = () => {
         )}
 
         {/* ===== Secrets API 42 ===== */}
+        {tab === 'secrets' && (
         <section className="admin-section">
           <h2>Secrets API 42</h2>
           {config && (
@@ -262,8 +368,10 @@ const AdminPanel: React.FC = () => {
             <Button type="submit" className="admin-btn" disabled={busy}>Enregistrer les secrets</Button>
           </form>
         </section>
+        )}
 
         {/* ===== Passkeys ===== */}
+        {tab === 'passkeys' && (
         <section className="admin-section">
           <h2>Passkeys ({passkeys.length})</h2>
           <ul className="admin-list">
@@ -293,8 +401,10 @@ const AdminPanel: React.FC = () => {
             <Button onClick={addPasskey} className="admin-btn" disabled={busy}>+ Ajouter une passkey</Button>
           </div>
         </section>
+        )}
 
         {/* ===== Admins délégués ===== */}
+        {tab === 'delegates' && (
         <section className="admin-section">
           <h2>Admins délégués ({delegates.length})</h2>
           <p className="muted">Ces logins 42 peuvent éditer les secrets 42 — rien d'autre.</p>
@@ -320,8 +430,93 @@ const AdminPanel: React.FC = () => {
             <Button onClick={addDelegate} className="admin-btn" disabled={busy || !newDelegate.trim()}>+ Ajouter</Button>
           </div>
         </section>
+        )}
 
         {/* ===== Refresh global des données 42 ===== */}
+        {tab === 'origins' && (
+        <section className="admin-section">
+          <h2>Origines autorisées</h2>
+          <p className="muted">
+            Une autre instance peut servir le frontend et proxifier <code>/api</code> vers ce
+            backend : une seule base, un seul serveur, aucun secret partagé. Seules les origines
+            listées ici peuvent appeler l'API depuis un autre domaine et recevoir le retour de
+            connexion 42. Une révocation prend effet immédiatement.
+          </p>
+
+          <div className="admin-status">
+            <span>
+              Source des données :{' '}
+              <code>{mirrorUrl || 'base de données locale'}</code>
+            </span>
+            <span className="muted">
+              {mirrorUrl
+                ? "Mode miroir : cette instance ne sert plus ses propres données, elle relaie tout vers l'instance ci-dessus, qui doit avoir autorisé ce domaine. Le panneau admin, lui, reste local."
+                : 'Cette instance sert ses propres données. Renseigne ci-dessous l’API d’une autre instance pour relayer vers elle — sans rien reconstruire.'}
+            </span>
+          </div>
+
+          <div className="admin-inline">
+            <input
+              value={mirrorInput}
+              onChange={(e) => setMirrorInput(e.target.value)}
+              placeholder="https://theomouty.fr/api"
+              disabled={busy}
+            />
+            <Button
+              onClick={() => saveMirror(mirrorInput.trim() || null)}
+              className="admin-btn"
+              disabled={busy || mirrorInput.trim() === (mirrorUrl ?? '')}
+            >
+              {mirrorInput.trim() ? 'Relayer vers cette API' : 'Revenir à la base locale'}
+            </Button>
+          </div>
+
+          <ul className="admin-list">
+            <li>
+              <span><code>{originsSelf || '—'}</code></span>
+              <span className="muted">
+                {originsSelfAllowed
+                  ? 'cette instance — toujours autorisée'
+                  : 'origine locale en production — non auto-autorisée'}
+              </span>
+            </li>
+            {origins.map((o) => (
+              <li key={o.origin}>
+                <span>
+                  <code>{o.origin}</code>
+                  {o.label && <span className="muted"> — {o.label}</span>}
+                </span>
+                <button className="admin-link danger" onClick={() => removeOrigin(o.origin)} disabled={busy}>
+                  Révoquer
+                </button>
+              </li>
+            ))}
+            {origins.length === 0 && (
+              <li className="muted">Aucune autre origine autorisée.</li>
+            )}
+          </ul>
+
+          <div className="admin-inline">
+            <input
+              value={newOrigin}
+              onChange={(e) => setNewOrigin(e.target.value)}
+              placeholder="https://calculator.42nice.fr"
+              disabled={busy}
+            />
+            <input
+              value={newOriginLabel}
+              onChange={(e) => setNewOriginLabel(e.target.value)}
+              placeholder="Libellé (facultatif)"
+              disabled={busy}
+            />
+            <Button onClick={addOrigin} className="admin-btn" disabled={busy || !newOrigin.trim()}>
+              + Autoriser
+            </Button>
+          </div>
+        </section>
+        )}
+
+        {tab === 'refresh' && (
         <section className="admin-section">
           <h2>Données 42 partagées</h2>
           <p className="muted">
@@ -376,6 +571,8 @@ const AdminPanel: React.FC = () => {
             {refresh?.running ? 'Refresh en cours…' : 'Lancer un refresh global'}
           </Button>
         </section>
+        )}
+        </main>
       </motion.div>
     </div>
   );

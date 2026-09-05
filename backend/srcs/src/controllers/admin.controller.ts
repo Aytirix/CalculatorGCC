@@ -24,6 +24,9 @@ import {
   finishAuthentication,
 } from '../services/webauthn.service.js';
 import { applyApi42Configuration, getApi42ConfigState } from '../services/api42Config.service.js';
+import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
+import { config } from '../config/config.js';
+import { getMirrorApiUrl, normalizeMirrorUrl, setMirrorApiUrl } from '../services/mirror.service.js';
 
 /** Acteur pour l'audit : sujet de la session owner, sinon 'owner'. */
 function actorOf(request: FastifyRequest): string {
@@ -221,6 +224,79 @@ export const adminController = {
     await removeDelegate(login);
     await logAdminEvent(actorOf(request), 'delegate_removed', login);
     return reply.send({ ok: true });
+  },
+
+  // ===== Origines autorisées (owner requis) =====
+
+  async listOriginsHandler(_request: FastifyRequest, reply: FastifyReply) {
+    const origins = await allowedOriginRepository.list();
+    return reply.send({
+      origins: origins.map((o) => ({
+        origin: o.origin,
+        label: o.label,
+        created_at: o.createdAt,
+      })),
+      // L'instance elle-même est toujours autorisée, sans être en base : on la
+      // renvoie pour que le panneau puisse l'afficher comme telle.
+      self: config.frontendUrl,
+      // En production, une origine locale n'est jamais auto-autorisée.
+      self_allowed: await allowedOriginRepository.isAllowed(config.frontendUrl),
+      environment: config.nodeEnv,
+    });
+  },
+
+  async addOriginHandler(request: FastifyRequest, reply: FastifyReply) {
+    const body = (request.body ?? {}) as { origin?: string; label?: string };
+    const origin = normalizeOrigin(body.origin ?? '');
+    if (!origin) {
+      return reply.code(400).send({ error: 'Origine invalide (attendu : https://exemple.fr)' });
+    }
+    const label = (body.label ?? '').trim().slice(0, 128) || null;
+    await allowedOriginRepository.add(origin, label);
+    await logAdminEvent(actorOf(request), 'origin_added', origin);
+    return reply.send({ ok: true, origin });
+  },
+
+  async removeOriginHandler(request: FastifyRequest, reply: FastifyReply) {
+    const raw = String((request.params as any).origin ?? '');
+    const origin = normalizeOrigin(decodeURIComponent(raw));
+    if (!origin) {
+      return reply.code(400).send({ error: 'Origine invalide' });
+    }
+    await allowedOriginRepository.remove(origin);
+    await logAdminEvent(actorOf(request), 'origin_removed', origin);
+    return reply.send({ ok: true });
+  },
+
+  // ===== Mode miroir (owner requis) =====
+
+  async getMirrorHandler(_request: FastifyRequest, reply: FastifyReply) {
+    return reply.send({ mirror_api_url: await getMirrorApiUrl() });
+  },
+
+  async setMirrorHandler(request: FastifyRequest, reply: FastifyReply) {
+    const body = (request.body ?? {}) as { mirror_api_url?: string | null };
+    const raw = body.mirror_api_url;
+
+    // Chaîne vide ou null : on repasse l'instance sur ses propres données.
+    if (!raw) {
+      await setMirrorApiUrl(null);
+      await logAdminEvent(actorOf(request), 'mirror_disabled');
+      return reply.send({ mirror_api_url: null });
+    }
+
+    const url = normalizeMirrorUrl(raw);
+    if (!url) {
+      return reply.code(400).send({ error: 'URL invalide (attendu : https://exemple.fr/api)' });
+    }
+    // On refuse de se relayer vers soi-même : boucle infinie garantie.
+    if (url.startsWith(config.frontendUrl)) {
+      return reply.code(400).send({ error: 'Cette instance ne peut pas se relayer vers elle-même.' });
+    }
+
+    await setMirrorApiUrl(url);
+    await logAdminEvent(actorOf(request), 'mirror_enabled', url);
+    return reply.send({ mirror_api_url: url });
   },
 
   // ===== Journal d'audit (owner requis) =====

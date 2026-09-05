@@ -133,3 +133,134 @@
 		border-color: var(--color-primary);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Panneau administrateur : une barre latérale plutôt que cinq sections
+// empilées les unes sous les autres.
+// ---------------------------------------------------------------------------
+.admin-panel {
+  display: block;
+  padding: 0;
+
+  .admin-shell {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    min-height: 100vh;
+    align-items: stretch;
+  }
+}
+
+.admin-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 1rem;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-card);
+
+  &__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+
+    h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: var(--text-primary);
+    }
+  }
+
+  &__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__logout {
+    margin-top: auto;
+    align-self: flex-start;
+  }
+}
+
+.admin-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+  }
+
+  &--active {
+    color: white;
+    background: var(--color-primary);
+
+    &:hover {
+      color: white;
+      background: var(--color-primary-hover);
+    }
+  }
+
+  &__icon {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+}
+
+.admin-main {
+  padding: 2rem 2rem 3rem;
+  max-width: 900px;
+  width: 100%;
+
+  .admin-section {
+    // Une seule section visible à la fois : plus besoin de la séparer des
+    // suivantes par un trait.
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.15rem;
+    color: var(--text-primary);
+  }
+}
+
+@media (max-width: 780px) {
+  .admin-panel .admin-shell {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .admin-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-color);
+
+    &__nav {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    &__logout {
+      margin-top: 0;
+    }
+  }
+
+  .admin-main {
+    padding: 1.25rem;
+  }
+}

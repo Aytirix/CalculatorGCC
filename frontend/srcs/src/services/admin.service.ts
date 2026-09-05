@@ -68,6 +68,22 @@ export interface DelegateInfo {
   created_at: string;
 }
 
+/** Une origine web autorisée à consommer l'API depuis un autre domaine. */
+export interface AllowedOriginInfo {
+  origin: string;
+  label: string | null;
+  created_at: string;
+}
+
+export interface OriginsState {
+  origins: AllowedOriginInfo[];
+  /** Domaine de cette instance. */
+  self: string;
+  /** false si ce domaine n'est PAS auto-autorisé (localhost en production). */
+  self_allowed: boolean;
+  environment: string;
+}
+
 export const adminService = {
   isAuthenticated(): boolean {
     return !!getAdminToken();
@@ -146,6 +162,25 @@ export const adminService = {
   },
   async removeDelegate(login: string): Promise<void> {
     await api.delete(`/admin/delegates/${encodeURIComponent(login)}`, { headers: authHeader() });
+  },
+
+  // ----- Origines autorisées (déploiements miroir) -----
+  async listOrigins(): Promise<OriginsState> {
+    return (await api.get<OriginsState>('/admin/origins', { headers: authHeader() })).data;
+  },
+  async addOrigin(origin: string, label?: string): Promise<void> {
+    await api.post('/admin/origins', { origin, label }, { headers: authHeader() });
+  },
+  async removeOrigin(origin: string): Promise<void> {
+    await api.delete(`/admin/origins/${encodeURIComponent(origin)}`, { headers: authHeader() });
+  },
+
+  // ----- Mode miroir (relais vers une autre instance) -----
+  async getMirror(): Promise<{ mirror_api_url: string | null }> {
+    return (await api.get<{ mirror_api_url: string | null }>('/admin/mirror', { headers: authHeader() })).data;
+  },
+  async setMirror(url: string | null): Promise<void> {
+    await api.put('/admin/mirror', { mirror_api_url: url }, { headers: authHeader() });
   },
 
   // ----- Refresh global des données 42 -----

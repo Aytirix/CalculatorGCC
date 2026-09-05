@@ -4,6 +4,8 @@ import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config/config.js';
+import { allowedOriginRepository } from './db/allowedOriginRepository.js';
+import { getMirrorApiUrl, proxyToMirror } from './services/mirror.service.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { api42Routes } from './routes/api42.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
@@ -36,7 +38,23 @@ const fastify = Fastify({
 // Le frontend accède au backend via Nginx (frontendUrl)
 // En dev, on accepte aussi les ports Vite directs pour le développement local
 await fastify.register(cors, {
-	origin: true,
+	// En production, seules l'instance elle-même et les origines explicitement
+	// autorisées par l'owner peuvent appeler l'API depuis un autre domaine.
+	// Sans ça, la liste blanche ne protégerait que la redirection de connexion.
+	// En développement, on reste permissif (ports Vite, IP locale, tunnels).
+	// La fonction NE doit pas être `async` : @fastify/cors valide le type de
+	// l'option au chargement et rejette une fonction qui renvoie une promesse
+	// (« Invalid CORS origin option »). Le travail asynchrone passe par le
+	// callback, qui est justement là pour ça.
+	origin: (origin, cb) => {
+		// Pas d'en-tête Origin : same-origin, ou appel serveur à serveur.
+		if (!origin) return cb(null, true);
+		if (config.nodeEnv !== 'production') return cb(null, true);
+		allowedOriginRepository
+			.isAllowed(origin)
+			.then((allowed) => cb(null, allowed))
+			.catch(() => cb(null, false));
+	},
 	credentials: true,
 	methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 	maxAge: 86400,
@@ -102,6 +120,24 @@ await fastify.register(jwt, {
 // ===== GLOBAL MIDDLEWARE =====
 // Bloque toutes les routes sauf /api/setup/* si l'application n'est pas configurée
 fastify.addHook('onRequest', requireConfigured);
+
+// MODE MIROIR : si une API distante est configurée, cette instance ne sert plus
+// ses propres données et relaie tout (sauf /admin et /setup, qui doivent rester
+// locaux — sinon on ne pourrait plus désactiver le mode). Le corps est déjà
+// parsé à ce stade, d'où le hook `preHandler` plutôt que `onRequest`.
+fastify.addHook('preHandler', async (request, reply) => {
+	const mirror = await getMirrorApiUrl();
+	if (!mirror) return;
+	try {
+		if (await proxyToMirror(request, reply, mirror)) return reply;
+	} catch (error) {
+		request.log.error({ err: error }, '[Miroir] Relais impossible');
+		return reply.code(502).send({
+			error: 'Bad Gateway',
+			message: "L'instance principale est injoignable.",
+		});
+	}
+});
 
 // ===== HEALTH CHECK =====
 

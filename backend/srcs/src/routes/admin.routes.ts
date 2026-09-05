@@ -93,6 +93,37 @@ export async function adminRoutes(server: FastifyInstance) {
     return adminController.removeDelegateHandler(request, reply);
   });
 
+  // ===== Origines autorisées (owner uniquement) =====
+  // Déploiements miroir : une autre instance sert le frontend et proxifie /api
+  // vers ce backend, sans jamais toucher à la base.
+  server.get('/admin/origins', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.listOriginsHandler(request, reply);
+  });
+  server.post('/admin/origins', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.addOriginHandler(request, reply);
+  });
+  server.delete('/admin/origins/:origin', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.removeOriginHandler(request, reply);
+  });
+
+  // ===== Mode miroir (owner uniquement) =====
+  server.get('/admin/mirror', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.getMirrorHandler(request, reply);
+  });
+  server.put('/admin/mirror', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.setMirrorHandler(request, reply);
+  });
+
   // ===== Journal d'audit (owner uniquement) =====
   server.get('/admin/audit', {
     preHandler: [requireOwner],

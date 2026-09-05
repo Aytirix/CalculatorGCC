@@ -48,7 +48,12 @@ export const backendAuthService = {
    * Redirige vers le backend pour initier l'authentification OAuth 42
    */
   login: (): void => {
-    window.location.href = `${BACKEND_URL}/auth/42`;
+    // On indique d'où part la connexion : sur un déploiement miroir (frontend
+    // servi ailleurs, /api proxifié vers le backend principal), c'est ici qu'il
+    // faut revenir à la fin. Le backend ne l'accepte que si l'origine figure
+    // dans sa liste blanche, et retombe sinon sur son propre domaine.
+    const origin = encodeURIComponent(window.location.origin);
+    window.location.href = `${BACKEND_URL}/auth/42?origin=${origin}`;
   },
 
   /**

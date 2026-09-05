@@ -23,6 +23,11 @@ model Configuration {
   // migration `retire_setup_token` ; plus aucun code ne la lit/écrit.
   setupToken         String?   @db.VarChar(128)
   isConfigured       Boolean   @default(false)
+  // MODE MIROIR : quand cette URL est renseignée, l'instance ne sert plus ses
+  // propres données mais relaie les routes applicatives vers l'API d'une autre
+  // instance (ex. https://theomouty.fr/api). Sa base locale ne garde que sa
+  // configuration et ses accès admin. Réglable à chaud depuis /admin.
+  mirrorApiUrl       String?   @db.VarChar(255)
   updatedAt          DateTime  @updatedAt
 
   @@map("configuration")
@@ -171,6 +176,19 @@ model AdminDelegate {
   createdAt DateTime @default(now())
 
   @@map("admin_delegate")
+}
+
+// Origines web autorisées à consommer cette API et à recevoir le retour de
+// connexion 42. Sert aux déploiements « miroir » : une autre instance héberge
+// le frontend et proxifie /api vers ce backend, sans jamais toucher à la base.
+// Gérée par l'owner depuis le panneau admin, révocable en un clic.
+model AllowedOrigin {
+  id        Int      @id @default(autoincrement())
+  origin    String   @unique @db.VarChar(255) // ex. https://calculator.42nice.fr
+  label     String?  @db.VarChar(128)
+  createdAt DateTime @default(now())
+
+  @@map("allowed_origin")
 }
 
 model AdminAuditEvent {
