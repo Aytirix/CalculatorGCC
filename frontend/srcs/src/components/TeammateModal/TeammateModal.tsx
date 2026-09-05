@@ -83,8 +83,9 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	const [error, setError] = useState<string | null>(null);
 	const [search, setSearch] = useState('');
 	const [sort, setSort] = useState<SortOrder>('recent');
-	const [hideTaken, setHideTaken] = useState(false);
+	const [hideFullTeams, setHideFullTeams] = useState(false);
 	const [hasTeam, setHasTeam] = useState(false);
+	const [teamSize, setTeamSize] = useState(2);
 	const [teamError, setTeamError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -110,8 +111,10 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 			.then((users) => {
 				if (cancelled) return;
 				setSimUsers(users);
-				// Mon propre état « j'ai ma team » vient de la même liste.
-				setHasTeam(users.find((u) => u.login === myLogin)?.hasTeam ?? false);
+				// Mon propre état d'équipe vient de la même liste.
+				const mine = users.find((u) => u.login === myLogin);
+				setHasTeam(mine?.hasTeam ?? false);
+				setTeamSize(mine?.teamSize ?? 2);
 			})
 			.catch(() => !cancelled && setError('Impossible de charger les utilisateurs'))
 			.finally(() => !cancelled && setLoadingSim(false));
@@ -148,18 +151,31 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 		};
 	}, [isOpen, teamInfo]);
 
-	const toggleHasTeam = async () => {
-		const next = !hasTeam;
-		setHasTeam(next);
+	/** Enregistre l'état d'équipe et le reflète tout de suite dans la liste. */
+	const saveTeam = async (nextHasTeam: boolean, nextSize: number) => {
+		const previous = { hasTeam, teamSize };
+		setHasTeam(nextHasTeam);
+		setTeamSize(nextSize);
 		setTeamError(null);
-		const ok = await simulationService.setProjectTeam(projectId, next);
+
+		const ok = await simulationService.setProjectTeam(
+			projectId,
+			nextHasTeam,
+			nextHasTeam ? nextSize : null
+		);
 		if (!ok) {
-			setHasTeam(!next);
+			setHasTeam(previous.hasTeam);
+			setTeamSize(previous.teamSize);
 			setTeamError("Ajoute d'abord ce projet à ta simulation pour signaler ton équipe.");
 			return;
 		}
-		// Se refléter tout de suite dans la liste, sans recharger.
-		setSimUsers((prev) => prev.map((u) => (u.login === myLogin ? { ...u, hasTeam: next } : u)));
+		setSimUsers((prev) =>
+			prev.map((u) =>
+				u.login === myLogin
+					? { ...u, hasTeam: nextHasTeam, teamSize: nextHasTeam ? nextSize : null }
+					: u
+			)
+		);
 	};
 
 	const needle = search.trim().toLowerCase();
@@ -170,16 +186,27 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 			return sort === 'recent' ? db - da : da - db;
 		});
 
+	/**
+	 * Un groupe est complet quand il a atteint la taille maximale du projet.
+	 * Sans taille déclarée, on considère qu'avoir une team suffit à le remplir :
+	 * c'est ce que voulait dire la case avant qu'on demande le nombre.
+	 */
+	const isTeamFull = (user: SimulatedProjectUser) => {
+		if (!user.hasTeam) return false;
+		if (user.teamSize == null || teamInfo?.groupMax == null) return true;
+		return user.teamSize >= teamInfo.groupMax;
+	};
+
 	const visibleSimUsers = useMemo(
 		() =>
 			byDate(
 				simUsers.filter(
-					(u) => u.login.toLowerCase().includes(needle) && (!hideTaken || !u.hasTeam)
+					(u) => u.login.toLowerCase().includes(needle) && (!hideFullTeams || !isTeamFull(u))
 				),
 				(u) => u.simulatedAt
 			),
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[simUsers, needle, hideTaken, sort]
+		[simUsers, needle, hideFullTeams, sort, teamInfo]
 	);
 
 	const visibleRegistrations = useMemo(
@@ -189,6 +216,11 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	);
 
 	if (!isOpen) return null;
+
+	// Taille maximale du groupe : celle du projet quand 42 la donne, sinon une
+	// borne large pour ne pas bloquer la saisie.
+	const maxTeamSize = teamInfo?.groupMax ?? 10;
+	const myTeamFull = teamSize >= maxTeamSize;
 
 	const teamLabel = teamInfo
 		? teamInfo.solo
@@ -220,18 +252,41 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 								type="checkbox"
 								checked={hasTeam}
 								disabled={!isSimulated}
-								onChange={toggleHasTeam}
+								onChange={() => saveTeam(!hasTeam, teamSize)}
 							/>
 							J'ai déjà ma team
 						</label>
 					)}
+					{!readOnly && hasTeam && (
+						<span className="teammate-modal__team-count">
+							On est
+							<input
+								type="number"
+								min={2}
+								max={maxTeamSize}
+								value={teamSize}
+								onChange={(e) => {
+									const value = parseInt(e.target.value, 10);
+									if (Number.isNaN(value)) return;
+									saveTeam(true, Math.min(maxTeamSize, Math.max(2, value)));
+								}}
+								aria-label="Nombre de personnes dans ton groupe"
+							/>
+							sur {maxTeamSize}
+							<span className={myTeamFull ? 'teammate-modal__full' : 'teammate-modal__open'}>
+								{myTeamFull
+									? '· complet'
+									: `· ${maxTeamSize - teamSize} place${maxTeamSize - teamSize > 1 ? 's' : ''}`}
+							</span>
+						</span>
+					)}
 					<label className="teammate-modal__toggle">
 						<input
 							type="checkbox"
-							checked={hideTaken}
-							onChange={() => setHideTaken((v) => !v)}
+							checked={hideFullTeams}
+							onChange={() => setHideFullTeams((v) => !v)}
 						/>
-						Masquer ceux qui ont une team
+						Masquer les groupes complets
 					</label>
 					<select
 						className="teammate-modal__sort"
@@ -293,7 +348,20 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 													{formatDate(u.simulatedAt)} · {formatAge(u.simulatedAt)}
 												</span>
 											</div>
-											{u.hasTeam && <span className="teammate-modal__badge">A sa team</span>}
+											{u.hasTeam && (
+												<span
+													className={`teammate-modal__badge${isTeamFull(u) ? ' teammate-modal__badge--full' : ' teammate-modal__badge--open'}`}
+													title={
+														isTeamFull(u)
+															? 'Groupe complet'
+															: 'Groupe incomplet : il reste de la place'
+													}
+												>
+													{u.teamSize != null && teamInfo?.groupMax != null
+														? `Team ${u.teamSize}/${teamInfo.groupMax}`
+														: 'A sa team'}
+												</span>
+											)}
 										</li>
 									))}
 								</ul>

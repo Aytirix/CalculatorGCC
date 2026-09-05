@@ -24,6 +24,19 @@ body {
   overflow-x: hidden;
 }
 
+// Listes déroulantes natives : sur certains navigateurs (Chrome sous Linux), le
+// menu d'un <select> n'hérite pas du thème et se retrouve en texte blanc sur
+// fond blanc. On force donc les couleurs du thème sur les options.
+select {
+  color: var(--text-primary);
+  background-color: var(--bg-card);
+
+  option {
+    color: var(--text-primary);
+    background-color: var(--bg-card);
+  }
+}
+
 // Scrollbar styling - Arrondie et moderne
 * {
   // Pour les navigateurs WebKit (Chrome, Safari, Edge)

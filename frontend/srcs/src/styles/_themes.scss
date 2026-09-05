@@ -2,6 +2,12 @@
 
 // Light theme
 .light {
+  // Indique au navigateur la palette à utiliser pour ce qu'il dessine lui-même :
+  // la liste déroulante d'un <select>, les sélecteurs de date, les ascenseurs.
+  // Sans ça, en thème sombre, le menu d'un <select> restait blanc avec du texte
+  // blanc — donc illisible.
+  color-scheme: light;
+
   --bg-primary: #{$light-background};
   --bg-secondary: #{rgba(0, 0, 0, 0.03)};
   --fg-primary: #{$light-foreground};
@@ -23,6 +29,8 @@
 
 // Dark theme
 .dark {
+  color-scheme: dark;
+
   --bg-primary: #{$dark-background};
   --bg-secondary: #{rgba(255, 255, 255, 0.05)};
   --fg-primary: #{$dark-foreground};

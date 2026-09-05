@@ -16,6 +16,8 @@ export interface SimulatedProjectUser {
 	imageUrl: string | null;
 	simulatedAt: string;
 	hasTeam: boolean;
+	/** Nombre de personnes déjà dans le groupe (null si non renseigné). */
+	teamSize: number | null;
 }
 
 export interface SimulationData {
@@ -160,18 +162,28 @@ export const simulationRepository = {
 			// « simulés il y a un an » que la personne ne fera sans doute jamais.
 			simulatedAt: r.createdAt.toISOString(),
 			hasTeam: r.hasTeam,
+			teamSize: r.teamSize,
 		}));
 	},
 
 	/**
-	 * Coche / décoche « j'ai déjà ma team » sur un projet simulé.
-	 * Renvoie `false` si l'utilisateur n'a pas ce projet en simulation : le
-	 * drapeau n'a de sens que pour quelqu'un qui apparaît dans la liste.
+	 * Met à jour l'état d'équipe d'un projet simulé : « j'ai ma team », et le
+	 * nombre de personnes déjà dedans.
+	 *
+	 * Renvoie `false` si l'utilisateur n'a pas ce projet en simulation : l'état
+	 * n'a de sens que pour quelqu'un qui apparaît dans la liste.
 	 */
-	async setProjectTeamFlag(userId42: number, projectId: string, hasTeam: boolean): Promise<boolean> {
+	async setProjectTeamFlag(
+		userId42: number,
+		projectId: string,
+		hasTeam: boolean,
+		teamSize: number | null
+	): Promise<boolean> {
 		const result = await prisma.simulatedProject.updateMany({
 			where: { userId42, projectId },
-			data: { hasTeam },
+			// Sans équipe, la taille n'a plus de sens : on la remet à zéro pour ne
+			// pas laisser un « 3/4 » traîner après un décochage.
+			data: { hasTeam, teamSize: hasTeam ? teamSize : null },
 		});
 		return result.count > 0;
 	},

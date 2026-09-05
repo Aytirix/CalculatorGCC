@@ -268,6 +268,44 @@
 			color: var(--color-primary);
 			border-color: var(--color-primary);
 		}
+
+		// Groupe complet : inutile de le contacter. Groupe incomplet : il reste
+		// une place, c'est justement quelqu'un à qui parler.
+		&--full {
+			color: #f87171;
+			border-color: rgba(248, 113, 113, 0.5);
+		}
+
+		&--open {
+			color: var(--success, #10b981);
+			border-color: rgba(16, 185, 129, 0.5);
+		}
+	}
+
+	&__team-count {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.8rem;
+		color: var(--text-primary);
+
+		input[type='number'] {
+			width: 52px;
+			padding: 0.2rem 0.3rem;
+			border-radius: 6px;
+			border: 1px solid var(--border-color);
+			background: var(--bg-secondary);
+			color: var(--text-primary);
+			font-size: 0.8rem;
+		}
+	}
+
+	&__full {
+		color: #f87171;
+	}
+
+	&__open {
+		color: var(--success, #10b981);
 	}
 }
 

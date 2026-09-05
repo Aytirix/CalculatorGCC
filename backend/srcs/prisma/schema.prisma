@@ -63,8 +63,12 @@ model SimulatedProject {
   coalitionBoost  Boolean  @default(false)
   note            String?  @db.Text
   // « J'ai déjà ma team » : l'utilisateur reste dans la liste des personnes qui
-  // ont simulé le projet, mais signale qu'il ne cherche plus de coéquipier.
+  // ont simulé le projet, mais signale où en est son groupe.
   hasTeam         Boolean  @default(false)
+  // Nombre de personnes déjà dans le groupe. Comparé à la taille maximale du
+  // projet, il dit si le groupe est complet ou s'il reste une place — un groupe
+  // incomplet reste contactable.
+  teamSize        Int?
   updatedAt       DateTime @updatedAt
   createdAt       DateTime @default(now())
 

@@ -42,15 +42,27 @@ export const SimulationController = {
 	 */
 	async setProjectTeam(request: FastifyRequest, reply: FastifyReply) {
 		const { projectId } = request.params as { projectId: string };
-		const { hasTeam } = request.body as { hasTeam?: unknown };
+		const { hasTeam, teamSize } = request.body as { hasTeam?: unknown; teamSize?: unknown };
 		if (typeof hasTeam !== 'boolean') {
 			return reply.code(400).send({ error: 'hasTeam doit être un booléen' });
+		}
+		// Une équipe compte au moins 2 personnes ; 50 est une borne large, la
+		// taille réelle du projet étant vérifiée à l'affichage.
+		const size =
+			teamSize === undefined || teamSize === null
+				? null
+				: typeof teamSize === 'number' && Number.isInteger(teamSize) && teamSize >= 2 && teamSize <= 50
+					? teamSize
+					: undefined;
+		if (size === undefined) {
+			return reply.code(400).send({ error: 'teamSize doit être un entier entre 2 et 50' });
 		}
 
 		const updated = await simulationRepository.setProjectTeamFlag(
 			request.user.user_id_42,
 			projectId,
-			hasTeam
+			hasTeam,
+			size
 		);
 		if (!updated) {
 			return reply.code(409).send({
@@ -58,7 +70,7 @@ export const SimulationController = {
 				message: "Ce projet n'est pas dans ta simulation",
 			});
 		}
-		return reply.send({ projectId, hasTeam });
+		return reply.send({ projectId, hasTeam, teamSize: hasTeam ? size : null });
 	},
 
 	/**

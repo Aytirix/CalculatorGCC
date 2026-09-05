@@ -66,8 +66,10 @@ export interface SimulatedProjectUser {
 	imageUrl: string | null;
 	/** Date à laquelle elle a ajouté le projet à sa simulation (ISO). */
 	simulatedAt: string;
-	/** Elle a déjà trouvé son équipe : elle ne cherche plus. */
+	/** Elle a déjà une équipe (complète ou non). */
 	hasTeam: boolean;
+	/** Nombre de personnes déjà dans son groupe (null si non renseigné). */
+	teamSize: number | null;
 }
 
 export interface UserSearchResult {
@@ -153,14 +155,15 @@ export const simulationService = {
 	},
 
 	/**
-	 * Coche / décoche « j'ai déjà ma team » sur un projet simulé.
+	 * Déclare l'état de son équipe sur un projet simulé : « j'ai ma team », et
+	 * combien de personnes en font déjà partie.
 	 * Renvoie false si le projet n'est pas dans MA simulation (409 côté serveur).
 	 */
-	async setProjectTeam(projectId: string, hasTeam: boolean): Promise<boolean> {
+	async setProjectTeam(projectId: string, hasTeam: boolean, teamSize: number | null): Promise<boolean> {
 		try {
-			await request<{ projectId: string; hasTeam: boolean }>(
+			await request<{ projectId: string; hasTeam: boolean; teamSize: number | null }>(
 				`/simulation/project-team/${encodeURIComponent(projectId)}`,
-				{ method: 'PUT', body: JSON.stringify({ hasTeam }) }
+				{ method: 'PUT', body: JSON.stringify({ hasTeam, teamSize }) }
 			);
 			return true;
 		} catch {
