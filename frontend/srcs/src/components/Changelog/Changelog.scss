@@ -1,5 +1,8 @@
 @use '../../styles/variables' as *;
 
+// Journal de version. Présenté comme une frise : une pastille par publication,
+// la plus récente dépliée, les précédentes repliées mais accessibles.
+
 .changelog-overlay {
   position: fixed;
   inset: 0;
@@ -18,158 +21,310 @@
   border-radius: $border-radius-xl;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   width: 100%;
-  max-width: 540px;
-  max-height: 85vh;
+  max-width: 40rem;
+  max-height: min(86vh, 46rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+// ===== En-tête =====
+
 .changelog-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: $spacing-lg $spacing-xl;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem 1.1rem;
   border-bottom: 1px solid var(--border-color);
 
   h2 {
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-
-  .changelog-close {
-    background: transparent;
-    border: none;
+    margin: 0.15rem 0 0;
     font-size: 1.25rem;
-    line-height: 1;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: $spacing-xs;
-    border-radius: $border-radius-md;
-    transition: all 0.15s ease;
-
-    &:hover {
-      color: var(--text-primary);
-      background: var(--bg-secondary);
-    }
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
   }
 }
 
+.changelog-eyebrow {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.changelog-close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+  }
+}
+
+// ===== Corps =====
+
 .changelog-body {
-  padding: $spacing-lg $spacing-xl;
+  padding: 1.25rem 1.5rem;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-lg;
 }
 
 .changelog-empty {
-  color: var(--text-muted);
   margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
-.changelog-entry {
-  &:not(:last-child) {
-    padding-bottom: $spacing-lg;
-    border-bottom: 1px dashed var(--border-color);
+.changelog-release {
+  display: flex;
+  gap: 0.9rem;
+
+  & + .changelog-release {
+    margin-top: 0.35rem;
   }
+}
 
-  &__head {
-    display: flex;
-    align-items: center;
-    gap: $spacing-sm;
+// Frise verticale : pastille + trait de liaison.
+.changelog-rail {
+  flex-shrink: 0;
+  width: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 0.45rem;
+}
 
-    h3 {
-      margin: 0;
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
+.changelog-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  background: var(--bg-card);
+
+  &.is-latest {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb), 0.18);
+  }
+}
+
+.changelog-line {
+  flex: 1;
+  width: 2px;
+  margin: 0.35rem 0 0;
+  background: var(--border-color);
+}
+
+.changelog-release__main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 1.1rem;
+}
+
+// En-tête d'une version. Seul le TITRE est cliquable : il déplie ou replie les
+// changements. Le bouton est à l'intérieur du <h3> et non l'inverse, pour que
+// les lecteurs d'écran conservent la navigation par en-têtes.
+.changelog-release__head {
+  position: relative;
+
+  h3 {
+    margin: 0.3rem 0 0;
+    font-size: 0.98rem;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+}
+
+.changelog-release__toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-primary);
+  }
+}
+
+.changelog-release__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.changelog-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.changelog-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  opacity: 0.85;
+
+  &::before {
+    content: '·';
+    margin-right: 0.45rem;
   }
 }
 
 .changelog-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #fff;
-  background: var(--color-primary);
-  padding: 2px 8px;
+  padding: 0.1rem 0.45rem;
   border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
-.changelog-date {
-  display: block;
-  font-size: 0.8rem;
+.changelog-summary {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
   color: var(--text-muted);
-  margin-top: 2px;
 }
 
-.changelog-list {
-  margin: $spacing-sm 0 0 0;
-  padding-left: 1.15rem;
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-xs;
+.changelog-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 
-  li {
-    color: var(--text-primary);
-    line-height: 1.5;
-    font-size: 0.95rem;
+// ===== Changements, groupés par nature =====
+
+.changelog-groups {
+  overflow: hidden;
+}
+
+.changelog-group {
+  margin-top: 0.95rem;
+}
+
+.changelog-kind {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+
+  &.kind-new {
+    border-color: rgba(45, 212, 191, 0.45);
+    background: rgba(45, 212, 191, 0.12);
+    color: #2dd4bf;
+  }
+
+  &.kind-improved {
+    border-color: rgba(96, 165, 250, 0.45);
+    background: rgba(96, 165, 250, 0.12);
+    color: #60a5fa;
+  }
+
+  &.kind-fixed {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(251, 191, 36, 0.12);
+    color: #f59e0b;
   }
 }
 
-.changelog-footer {
-  padding: $spacing-md $spacing-xl $spacing-lg;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
+.changelog-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 
-  .changelog-ok {
-    background: var(--color-primary);
-    color: #fff;
-    border: none;
-    border-radius: $border-radius-md;
-    padding: $spacing-sm $spacing-lg;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease;
+  li {
+    position: relative;
+    padding-left: 0.95rem;
+    font-size: 0.855rem;
+    line-height: 1.6;
+    color: var(--text-primary);
 
-    &:hover {
-      background: var(--color-primary-hover);
+    & + li {
+      margin-top: 0.45rem;
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.62em;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      opacity: 0.7;
     }
   }
 }
 
-// Bouton « Changelog » dans la navbar (tout à gauche)
-.changelog-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: $border-radius-md;
+// ===== Pied =====
+
+.changelog-footer {
+  padding: 0.95rem 1.5rem 1.15rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.changelog-ok {
+  padding: 0.55rem 1.35rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s;
 
   &:hover {
-    background: var(--bg-secondary);
-    border-color: var(--color-primary);
+    background: var(--color-primary-hover);
+  }
+}
+
+@media (max-width: 600px) {
+  .changelog-overlay {
+    padding: 0;
+    align-items: flex-end;
   }
 
-  .changelog-nav-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--color-primary);
+  .changelog-content {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: $border-radius-xl $border-radius-xl 0 0;
+  }
+
+  .changelog-header,
+  .changelog-body,
+  .changelog-footer {
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
   }
 }

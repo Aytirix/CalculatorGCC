@@ -21,6 +21,8 @@ interface ProjectCardProps {
 	onSaveNote?: (projectId: string, note: string) => void;
 	hasCoalitionBoost?: boolean;
 	onToggleCoalitionBoost?: (projectId: string) => void;
+	/** Ouvre le panneau « tout sur ce projet » (engrenage). */
+	onOpenDetails?: (project: SimulatorProject) => void;
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -37,6 +39,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	onSaveNote,
 	hasCoalitionBoost = false,
 	onToggleCoalitionBoost,
+	onOpenDetails,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -140,8 +143,16 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 	};
 
 	const handlePctInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const v = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-		onPercentageChange?.(project.id, clampProjectPercentage(v, project));
+		const raw = e.target.value.replace(/\D/g, '');
+		// Champ vidé : on ne descend pas le projet à 0 % au premier retour arrière,
+		// on attend la nouvelle valeur.
+		if (raw === '') return;
+		// Taper une valeur est une intention explicite : elle simule le projet.
+		// Le FOCUS, lui, ne doit rien faire — tabuler dans une catégorie de
+		// cinquante projets les simulait tous, et un simple clic pour lire la
+		// valeur suffisait à en simuler un.
+		if (!isSimulated) onToggleSimulation(project.id);
+		onPercentageChange?.(project.id, clampProjectPercentage(parseInt(raw, 10), project));
 	};
 
 	const allSubProjectsSimulated = hasSubProjects
@@ -208,8 +219,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 						<div className="project-info">
 							<h4 className="project-name">{project.name}</h4>
 						</div>
-						{status === 'simulated' && !hasSubProjects && (
-							<div className="project-sim-controls" onClick={(e) => e.stopPropagation()}>
+						{/* Contrôles toujours présents sur un projet simulable : les
+						    faire apparaître seulement une fois le projet coché faisait
+						    sauter toute la ligne au moindre clic. Ils sont simplement
+						    atténués tant que le projet n'est pas dans la simulation. */}
+						{!hasSubProjects && !isCompleted && (
+							<div
+								className={`project-sim-controls${isSimulated ? '' : ' inactive'}`}
+								onClick={(e) => e.stopPropagation()}
+							>
 								<div className="project-pct-wrapper">
 									<input
 										type="text"
@@ -217,14 +235,26 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 										className="project-pct-input"
 										value={projectPercentage}
 										onChange={handlePctInput}
+										title={isSimulated ? 'Pourcentage de validation' : 'Saisir un pourcentage simulera ce projet'}
 									/>
 									<span className="project-pct-symbol">%</span>
 								</div>
 								<button
-									className={`project-boost-btn ${hasCoalitionBoost ? 'active' : ''}`}
+									className={`project-boost-btn ${hasCoalitionBoost && isSimulated ? 'active' : ''}`}
 									data-tour="project-boost"
-									onClick={(e) => { e.stopPropagation(); onToggleCoalitionBoost?.(project.id); }}
-									title="Boost coalition +4.2%"
+									onClick={(e) => {
+										e.stopPropagation();
+										if (isSimulated) {
+											onToggleCoalitionBoost?.(project.id);
+											return;
+										}
+										// Projet non simulé : le clic veut ALLUMER le boost, pas
+										// l'inverser. Un boost resté à `true` d'une simulation
+										// précédente faisait donc exactement le contraire.
+										onToggleSimulation(project.id);
+										if (!hasCoalitionBoost) onToggleCoalitionBoost?.(project.id);
+									}}
+									title="Boost coalition +4,2 %"
 								>
 									⚡
 								</button>
@@ -237,6 +267,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 							<div className="expand-icon">
 								{isExpanded ? '▼' : '▶'}
 							</div>
+						)}
+						{onOpenDetails && (
+							<button
+								className="project-details-btn"
+								data-tour="project-details"
+								onClick={(e) => { e.stopPropagation(); onOpenDetails(project); }}
+								title="Voir toutes les informations du projet"
+								aria-label={`Informations sur ${project.name}`}
+							>
+								⚙
+							</button>
 						)}
 					</div>
 				</motion.div>

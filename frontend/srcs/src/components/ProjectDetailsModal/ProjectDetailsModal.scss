@@ -1,0 +1,287 @@
+// Panneau « tout sur le projet » ouvert depuis l'engrenage d'une ligne de
+// projet. Rendu en portail sur <body> : les conteneurs de catégories ont des
+// `overflow: hidden` qui rogneraient la fenêtre.
+
+.pdm-overlay {
+	position: fixed;
+	inset: 0;
+	// Au-dessus du bouton GitHub flottant (z-index 9000), qui sinon recouvrait la
+	// fenêtre sur petit écran et captait le clic.
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(4px);
+}
+
+.pdm {
+	width: min(34rem, 100%);
+	max-height: min(85vh, 48rem);
+	display: flex;
+	flex-direction: column;
+	border-radius: 16px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+	overflow: hidden;
+}
+
+.pdm-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1.25rem 1.25rem 0.85rem;
+	border-bottom: 1px solid var(--border-color);
+
+	h2 {
+		margin: 0 0 0.45rem;
+		font-size: 1.05rem;
+		line-height: 1.3;
+		color: var(--text-primary);
+	}
+}
+
+.pdm-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.pdm-badge {
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-color);
+	font-size: 0.68rem;
+	color: var(--text-muted);
+
+	&.validated {
+		border-color: #2dd4bf;
+		color: #2dd4bf;
+	}
+
+	&.simulated {
+		border-color: #a78bfa;
+		color: #a78bfa;
+	}
+
+	&.boost {
+		border-color: #fbbf24;
+		color: #fbbf24;
+	}
+}
+
+.pdm-close {
+	flex-shrink: 0;
+	width: 1.9rem;
+	height: 1.9rem;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	cursor: pointer;
+
+	&:hover {
+		background: var(--bg-primary);
+		color: var(--text-primary);
+	}
+}
+
+.pdm-body {
+	padding: 1rem 1.25rem 1.25rem;
+	overflow-y: auto;
+}
+
+.pdm-facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+	gap: 0.5rem 1rem;
+	margin-bottom: 1rem;
+}
+
+.pdm-fact {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+
+	&__label {
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--text-muted);
+	}
+
+	&__value {
+		font-size: 0.86rem;
+		color: var(--text-primary);
+	}
+}
+
+.pdm-section {
+	margin-top: 1.1rem;
+
+	h3 {
+		margin: 0 0 0.5rem;
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-muted);
+	}
+}
+
+.pdm-simulation {
+	padding: 0.85rem;
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-primary);
+}
+
+.pdm-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.85rem;
+	color: var(--text-primary);
+	cursor: pointer;
+
+	input {
+		accent-color: var(--color-primary);
+		cursor: pointer;
+	}
+
+	& + .pdm-toggle {
+		margin-top: 0.6rem;
+	}
+}
+
+.pdm-pct {
+	margin: 0.85rem 0;
+
+	&__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.82rem;
+		color: var(--text-primary);
+
+		input {
+			width: 4.2rem;
+			padding: 0.3rem 0.45rem;
+			border-radius: 8px;
+			border: 1px solid var(--border-color);
+			background: var(--bg-card);
+			color: var(--text-primary);
+			font-family: inherit;
+			font-size: 0.85rem;
+			text-align: right;
+		}
+	}
+
+	input[type='range'] {
+		width: 100%;
+		margin-top: 0.5rem;
+		accent-color: var(--color-primary);
+	}
+
+	&__scale {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.7rem;
+		color: var(--text-muted);
+	}
+}
+
+.pdm-description {
+	margin: 0;
+	font-size: 0.85rem;
+	line-height: 1.55;
+	white-space: pre-line;
+	color: var(--text-secondary, var(--text-primary));
+}
+
+.pdm-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.pdm-chip {
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-primary);
+	font-size: 0.72rem;
+	color: var(--text-muted);
+}
+
+.pdm-requirements {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+
+	li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		font-size: 0.82rem;
+		color: var(--text-primary);
+	}
+
+	.met .pdm-mark,
+	li.met .pdm-mark {
+		color: #2dd4bf;
+	}
+
+	li.unmet {
+		color: var(--text-muted);
+
+		.pdm-mark {
+			color: #f87171;
+		}
+	}
+}
+
+.pdm-subtitle {
+	margin: 0.6rem 0 0.35rem;
+	font-size: 0.76rem;
+	color: var(--text-muted);
+}
+
+.pdm-note {
+	margin: 0.5rem 0 0;
+	font-size: 0.78rem;
+	line-height: 1.5;
+	color: var(--text-muted);
+}
+
+.pdm-link {
+	display: inline-block;
+	margin-top: 1.1rem;
+	font-size: 0.82rem;
+	color: var(--color-primary);
+	text-decoration: none;
+
+	&:hover {
+		text-decoration: underline;
+	}
+}
+
+@media (max-width: 600px) {
+	.pdm-overlay {
+		padding: 0;
+		align-items: flex-end;
+	}
+
+	.pdm {
+		width: 100%;
+		max-height: 92vh;
+		border-radius: 16px 16px 0 0;
+	}
+}

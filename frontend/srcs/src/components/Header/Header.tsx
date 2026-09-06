@@ -18,11 +18,11 @@ import './Header.scss';
 
 /** Pages principales, dans l'ordre du parcours d'un utilisateur. */
 const NAV_ITEMS: { label: string; path: string; icon: string; tour?: string }[] = [
-  { label: 'Projets', path: '/dashboard', icon: '◎' },
-  { label: 'Mes projets', path: '/my-projects', icon: '☰' },
-  { label: 'Holy Graph', path: '/holy-graph', icon: '✳' },
+  { label: 'RNCP', path: '/dashboard', icon: '◎' },
   { label: 'Calendrier', path: '/calendar', icon: '▤', tour: 'nav-calendar' },
-  { label: 'Stats', path: '/api-usage', icon: '⚡' },
+  { label: 'Mes projets', path: '/my-projects', icon: '☰', tour: 'nav-my-projects' },
+  { label: 'Holy Graph', path: '/holy-graph', icon: '✳', tour: 'nav-holy-graph' },
+  { label: 'Stats', path: '/api-usage', icon: '⚡', tour: 'nav-stats' },
 ];
 
 const Header: React.FC = () => {
@@ -152,6 +152,7 @@ const Header: React.FC = () => {
           <button
             type="button"
             className="header-search-btn"
+            data-tour="header-search"
             onClick={() => setPaletteOpen(true)}
             title="Rechercher (Ctrl + K)"
             aria-label="Rechercher"

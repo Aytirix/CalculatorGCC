@@ -366,28 +366,6 @@ const Calendar: React.FC = () => {
 	const moveTooltipKeyRef = useRef('');
 	const gridViewportRectRef = useRef<DOMRect | null>(null);
 
-	useEffect(() => {
-		const isMoveTourStep = document.body.dataset.tourStep === 'step-calendar-move-project';
-		const ghostEl = dragGhostRef.current;
-		const sourceEl = document.querySelector<HTMLElement>('.placed-project.ghost-source-hidden[data-tour="calendar-placed-project"]');
-
-		if (!isMoveTourStep || !moving || !movingGhost || !ghostEl) {
-			return;
-		}
-
-		sourceEl?.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
-		ghostEl.classList.add('gcc-tour-target');
-
-		return () => {
-			ghostEl.classList.remove('gcc-tour-target', 'gcc-tour-target--clickable');
-
-			const visibleSourceEl = document.querySelector<HTMLElement>(
-				'.placed-project:not(.drag-ghost-project)[data-tour="calendar-placed-project"]'
-			);
-			visibleSourceEl?.classList.add('gcc-tour-target');
-		};
-	}, [moving, movingGhost]);
-
 	// Le référentiel RNCP arrive du backend : on (re)calcule dès qu'il est là.
 	useEffect(() => {
 		const { projects } = getSimulatedProjects(rncpData);

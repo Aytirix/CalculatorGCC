@@ -6,6 +6,12 @@ import { TOUR_STEPS } from '@/config/tourSteps';
 import type { TourStepDef } from '@/config/tourSteps';
 import { simulationService } from '@/services/simulation.service';
 
+// ATTENTION : incrémenter ce suffixe ne suffit PAS à rejouer le guide pour les
+// utilisateurs existants. L'état « déjà vu » est un booléen miroité en base, et
+// `Dashboard` réécrit cette clé depuis le serveur à chaque chargement
+// (`syncTourSeen(data.hasSeenTour)`). Rejouer le guide après une refonte
+// demande donc de remettre `hasSeenTour` à false côté serveur — c'est une
+// décision produit, pas un détail de stockage.
 const TOUR_SEEN_KEY = 'gcc_tour_seen_v1';
 
 interface TourContextValue {
@@ -232,7 +238,24 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cancelIcon: { enabled: showCancelIcon },
 
         ...(targetSelector && {
-          beforeShowPromise: () => waitForElement(targetSelector),
+          beforeShowPromise: async () => {
+            const element = await waitForElement(targetSelector);
+            // Cible introuvable : l'étape s'affichait quand même, détachée, et
+            // son `advanceOn` ne pouvait plus jamais se déclencher — une étape
+            // sans bouton « Passer » enfermait alors l'utilisateur, sans autre
+            // issue que recharger la page. On la saute.
+            if (!element) {
+              console.warn(`[Tour] Étape « ${stepDef.id} » sautée : cible absente.`);
+              // `setTimeout` : `next()` pendant `beforeShowPromise` casserait la
+              // machine à états de Shepherd, qui est en train d'afficher.
+              setTimeout(() => {
+                const current = tour.getCurrentStep();
+                if (current?.id !== stepDef.id) return;
+                isLast ? tour.complete() : tour.next();
+              }, 0);
+            }
+            return element;
+          },
           attachTo: {
             element: () => document.querySelector<HTMLElement>(targetSelector),
             on: stepDef.position ?? 'bottom',

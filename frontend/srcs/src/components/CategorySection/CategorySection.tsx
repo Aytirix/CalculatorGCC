@@ -6,6 +6,8 @@ import { clampProjectPercentage } from '@/utils/projectPercentage';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
 import TeammateModal from '../TeammateModal/TeammateModal';
+import ProjectDetailsModal from '../ProjectDetailsModal/ProjectDetailsModal';
+import { isReadOnlyMode } from '@/services/simulation.service';
 import { useProjectTeams } from '@/contexts/useProjectTeams';
 import './CategorySection.scss';
 
@@ -54,6 +56,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 }) => {
 	const [isExpanded, setIsExpanded] = useState(true);
 	const [teammateProject, setTeammateProject] = useState<SimulatorProject | null>(null);
+	const [detailsProject, setDetailsProject] = useState<SimulatorProject | null>(null);
 	const { getTeamInfo } = useProjectTeams();
 
 	const progressPercentage = category.requiredXP > 0
@@ -162,7 +165,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
 								return (
 									<div key={project.id} className="project-card-wrapper">
-										{isGroupProject && (
+										{/* La colonne du bouton « teammates » est TOUJOURS occupée :
+										    rendue seulement sur les projets de groupe, elle décalait
+										    tous les autres projets vers la gauche et la liste devenait
+										    illisible en dents de scie. */}
+										{isGroupProject ? (
 											<button
 												className="teammate-btn"
 												data-tour="teammate-btn"
@@ -175,6 +182,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 											>
 												👥
 											</button>
+										) : (
+											<span className="teammate-btn-placeholder" aria-hidden="true" />
 										)}
 										<ProjectCard
 											project={project}
@@ -190,6 +199,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 											onSaveNote={onSaveNote}
 											hasCoalitionBoost={coalitionBoosts[project.id] || false}
 											onToggleCoalitionBoost={onToggleCoalitionBoost}
+											onOpenDetails={setDetailsProject}
 										/>
 									</div>
 								);
@@ -207,6 +217,28 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 					teamInfo={getTeamInfo(teammateProject)}
 					isSimulated={simulatedProjects.includes(teammateProject.id)}
 					/>
+			)}
+
+			{detailsProject && (
+				<ProjectDetailsModal
+					project={detailsProject}
+					teamInfo={getTeamInfo(detailsProject)}
+					isCompleted={isProjectCompleted(detailsProject.slug || detailsProject.id, completedProjects)}
+					isSimulated={simulatedProjects.includes(detailsProject.id)}
+					percentage={clampProjectPercentage(
+						projectPercentages[detailsProject.id] ?? 100,
+						detailsProject
+					)}
+					hasCoalitionBoost={coalitionBoosts[detailsProject.id] || false}
+					// Sur le profil d'un autre étudiant, rien n'est enregistré : le
+					// panneau doit le dire au lieu de proposer des réglages qui
+					// seront jetés — c'est ce que fait déjà le Holy Graph.
+					readOnly={isReadOnlyMode()}
+					onToggleSimulation={onToggleSimulation}
+					onPercentageChange={onPercentageChange}
+					onToggleCoalitionBoost={onToggleCoalitionBoost}
+					onClose={() => setDetailsProject(null)}
+				/>
 			)}
 		</motion.div>
 	);

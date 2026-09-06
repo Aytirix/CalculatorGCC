@@ -164,6 +164,15 @@
       }
     }
 
+    // Occupe la place du bouton sur les projets solo, pour que les noms de
+    // projets restent alignés d'une ligne à l'autre.
+    .teammate-btn-placeholder {
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      margin-top: 0.4rem;
+    }
+
     .teammate-btn {
       flex-shrink: 0;
       width: 2rem;

@@ -179,6 +179,46 @@
     pointer-events: none;
   }
 
+  // Contrôles présents mais estompés tant que le projet n'est pas simulé : la
+  // ligne garde exactement la même géométrie avant et après le clic.
+  .project-sim-controls.inactive {
+    // 0.35 tombait à 2,11:1 de contraste en thème clair, sous le minimum
+    // lisible — or ce champ affiche une vraie donnée (le pourcentage).
+    opacity: 0.6;
+
+    &:hover,
+    &:focus-within {
+      opacity: 0.8;
+    }
+  }
+
+  // Toujours en bout de ligne, donc toujours à la même abscisse.
+  .project-details-btn {
+    flex-shrink: 0;
+    margin-left: 0.4rem;
+    width: 1.6rem;
+    height: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.5;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+  }
+
   .project-boost-btn {
     background: none;
     border: none;

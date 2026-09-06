@@ -202,7 +202,13 @@ const MyProjects: React.FC = () => {
 		// partagé avec le calcul des compteurs.
 		const filtered = searching
 			? [...inScope]
-			: inScope.filter((row) => filters.statuses.includes(row.status));
+			: inScope.filter(
+					(row) =>
+						filters.statuses.includes(row.status) ||
+						// Un projet peut être en cours (ou validé, ou raté) ET simulé.
+						// Le filtre « Simulé » doit le montrer dans tous ces cas.
+						(filters.statuses.includes('simulated') && row.isSimulated)
+				);
 
 		const sign = filters.direction === 'asc' ? 1 : -1;
 		const statusOrder = ALL_STATUSES;
@@ -230,7 +236,16 @@ const MyProjects: React.FC = () => {
 			simulated: 0,
 			not_started: 0,
 		};
-		for (const row of inScope) out[row.status]++;
+		for (const row of inScope) {
+			out[row.status]++;
+			// Un projet simulé ET commencé compte dans les deux puces, exactement
+			// comme le filtre le retient dans les deux cas. La somme des compteurs
+			// dépasse donc le nombre de lignes, et décocher une puce ne retire pas
+			// toujours autant de lignes qu'elle en annonce : ces projets restent
+			// tant qu'une autre puce les couvre. C'est le prix d'un projet qui est
+			// réellement dans deux états — et leur double étiquette le montre.
+			if (row.isSimulated && row.status !== 'simulated') out.simulated++;
+		}
 		return out;
 	}, [inScope]);
 
@@ -260,7 +275,11 @@ const MyProjects: React.FC = () => {
 							key={status}
 							className={`stat-chip stat-chip--${status}${filters.statuses.includes(status) ? ' active' : ''}`}
 							onClick={() => setFilters((f) => ({ ...f, statuses: toggle(f.statuses, status) }))}
-							title={`Afficher / masquer les projets « ${STATUS_LABELS[status]} »`}
+							title={
+								status === 'simulated'
+									? 'Afficher / masquer les projets de ta simulation, quel que soit leur avancement'
+									: `Afficher / masquer les projets « ${STATUS_LABELS[status]} »`
+							}
 						>
 							<span className="stat-chip__count">{counts[status]}</span>
 							{STATUS_LABELS[status]}
@@ -378,7 +397,7 @@ const MyProjects: React.FC = () => {
 						name: teammateRow.name,
 						slug: teammateRow.slug,
 					})}
-					isSimulated={teammateRow.status === 'simulated'}
+					isSimulated={teammateRow.isSimulated}
 				/>
 			)}
 		</div>
@@ -393,6 +412,12 @@ const ProjectRow: React.FC<{
 }> = ({ row, teamInfo, onFindTeammates }) => (
 	<li className={`project-row project-row--${row.status}`}>
 		<span className={`project-row__status status-${row.status}`}>{STATUS_LABELS[row.status]}</span>
+		{/* Deux états simultanés : on affiche les deux plutôt que d'en cacher un. */}
+		{row.isSimulated && row.status !== 'simulated' && (
+			<span className="project-row__status status-simulated" title="Ce projet est aussi dans ta simulation">
+				{STATUS_LABELS.simulated}
+			</span>
+		)}
 		<div className="project-row__main">
 			<span className="project-row__name">{row.name}</span>
 			{row.rncpNames.length > 0 && (

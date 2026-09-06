@@ -1,7 +1,7 @@
 import type { Project42 } from '@/services/backend-api42.service';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
-import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
+import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
 
 /**
  * Assemblage de TOUT ce que l'utilisateur a comme relation avec un projet :
@@ -34,6 +34,15 @@ export interface MyProjectRow {
 	source: ProjectSource;
 	/** Note finale 42 (projet réellement rendu). */
 	finalMark: number | null;
+	/**
+	 * Le projet est-il dans la simulation ?
+	 *
+	 * ORTHOGONAL à `status` : un projet peut être « en cours » côté 42 ET simulé,
+	 * ou même validé et encore coché dans la simulation. Tant que l'information
+	 * vivait dans `status`, l'état 42 l'écrasait et le projet disparaissait du
+	 * filtre « Simulé » alors qu'il y était bel et bien.
+	 */
+	isSimulated: boolean;
 	/** Pourcentage de validation choisi dans la simulation. */
 	simulatedPercentage: number | null;
 	/** Date de référence : correction pour un projet fait, inscription sinon. */
@@ -137,6 +146,7 @@ export function buildMyProjects({
 					xp: project.xp,
 					status: entry ? statusFromApi(entry) : isSimulated ? 'simulated' : 'not_started',
 					source: 'rncp',
+					isSimulated,
 					finalMark: entry?.final_mark ?? null,
 					simulatedPercentage: isSimulated ? (percentages[project.id] ?? 100) : null,
 					date: entry?.marked_at ?? entry?.created_at ?? null,
@@ -171,6 +181,10 @@ export function buildMyProjects({
 				0,
 			status: statusFromApi(entry),
 			source: 'extra42',
+			// Hors référentiel, la simulation vit sous l'identifiant du Holy Graph
+			// (« 42-<id 42> »). L'ignorer produisait DEUX lignes pour le même
+			// projet : celle-ci, et une ligne « simulé » créée plus bas.
+			isSimulated: simulated.has(graphSimulationId(entry.project.id)),
 			finalMark: entry.final_mark ?? null,
 			simulatedPercentage: null,
 			date: entry.marked_at ?? entry.created_at ?? null,
@@ -192,8 +206,9 @@ export function buildMyProjects({
 			name: project.name,
 			slug: project.slug.replace(/^42cursus-/, ''),
 			xp: project.xp,
-			status: 'not_started',
+			status: simulated.has(graphSimulationId(project.id)) ? 'simulated' : 'not_started',
 			source: 'extra42',
+			isSimulated: simulated.has(graphSimulationId(project.id)),
 			finalMark: null,
 			simulatedPercentage: null,
 			date: null,
@@ -203,8 +218,18 @@ export function buildMyProjects({
 	}
 
 	// 4) Projets personnalisés hérités, et projets simulés depuis le Holy Graph.
+	//    Une simulation du Holy Graph portant sur un projet DÉJÀ listé plus haut
+	//    (parcours 42 ou catalogue du campus) est ignorée ici : la ligne existante
+	//    la porte via son `isSimulated`. Sans ça, le même projet apparaissait deux
+	//    fois — « en cours » d'un côté, « simulé » de l'autre.
+	const idsFromApiOrCatalog = new Set(
+		rows
+			.filter((r) => r.id.startsWith('api-') || r.id.startsWith('catalog-'))
+			.map((r) => `42-${r.id.replace(/^(api|catalog)-/, '')}`)
+	);
 	for (const custom of customProjects) {
 		if (seenIds.has(custom.id)) continue;
+		if (isGraphSimulationId(custom.id) && idsFromApiOrCatalog.has(custom.id)) continue;
 		seenIds.add(custom.id);
 		const isSimulated = simulated.has(custom.id);
 		rows.push({
@@ -214,6 +239,7 @@ export function buildMyProjects({
 			xp: custom.xp,
 			status: isSimulated ? 'simulated' : 'not_started',
 			source: isGraphSimulationId(custom.id) ? 'extra42' : 'custom',
+			isSimulated,
 			finalMark: null,
 			simulatedPercentage: isSimulated ? (percentages[custom.id] ?? 100) : null,
 			date: null,
