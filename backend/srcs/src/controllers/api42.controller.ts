@@ -6,6 +6,7 @@ import { userData42Repository } from '../db/userData42Repository.js';
 import { config } from '../config/config.js';
 import { rncpService } from '../services/rncp.service.js';
 import { statsService } from '../services/stats.service.js';
+import { appToken42Service } from '../services/appToken42.service.js';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -380,7 +381,20 @@ export class API42Controller {
         if (graph === null) {
           API42Service.ensureCursusProjectsFetching(cursusId);
           API42Service.ensureProjectDataFetching();
-          return { id: cursusId, name: cursusName, level: cu.level ?? 0, loading: true, projects: [], edges: [], layers: [] };
+          // Le layout vient de `/v2/project_data`, seul endpoint à exiger le
+          // scope `projects`. Si l'application 42 ne l'a pas, il ne servirait à
+          // rien de faire patienter : on le dit, plutôt que de tourner sans fin.
+          const scopeRefused = appToken42Service.hasProjectsScope() === false;
+          return {
+            id: cursusId,
+            name: cursusName,
+            level: cu.level ?? 0,
+            loading: !scopeRefused,
+            unavailableReason: scopeRefused ? 'MISSING_PROJECTS_SCOPE' : undefined,
+            projects: [],
+            edges: [],
+            layers: [],
+          };
         }
 
         const catalog = API42Service.getCursusProjectsCached(cursusId) ?? [];

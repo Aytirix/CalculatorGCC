@@ -144,6 +144,8 @@ export interface HolyGraphCursus {
   level: number;
   /** true tant que le layout officiel est en cours de récupération côté serveur. */
   loading: boolean;
+  /** Le graphe ne pourra pas être affiché, et pourquoi (scope 42 manquant). */
+  unavailableReason?: 'MISSING_PROJECTS_SCOPE';
   projects: HolyGraphProject[];
   edges: HolyGraphEdge[];
   /** Layers disponibles pour le filtre (vide tant qu'ils ne sont pas récupérés). */

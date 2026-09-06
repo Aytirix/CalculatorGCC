@@ -775,6 +775,14 @@ const HolyGraph: React.FC = () => {
           </div>
         )}
 
+        {!loading && !error && activeCursus?.unavailableReason === 'MISSING_PROJECTS_SCOPE' && (
+          <div className="holy-graph-overlay">
+            Le graphe officiel de 42 n'est pas disponible : l'application 42 de cette instance n'a
+            pas le droit de lire <code>project_data</code> (scope «&nbsp;projects&nbsp;»). Le reste
+            de l'application fonctionne normalement.
+          </div>
+        )}
+
         {!loading && !error && activeCursus?.loading && (
           <div className="holy-graph-overlay">
             Récupération du Holy Graph officiel de 42 pour « {activeCursus.name} »… (une minute la première fois, puis instantané pour tout le monde)
