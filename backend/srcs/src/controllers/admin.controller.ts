@@ -26,7 +26,7 @@ import {
 import { applyApi42Configuration, getApi42ConfigState } from '../services/api42Config.service.js';
 import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
 import { config } from '../config/config.js';
-import { getMirrorApiUrl, normalizeMirrorUrl, setMirrorApiUrl } from '../services/mirror.service.js';
+import { checkMirrorApi, getMirrorApiUrl, normalizeMirrorUrl, setMirrorApiUrl } from '../services/mirror.service.js';
 
 /** Acteur pour l'audit : sujet de la session owner, sinon 'owner'. */
 function actorOf(request: FastifyRequest): string {
@@ -292,6 +292,13 @@ export const adminController = {
     // On refuse de se relayer vers soi-même : boucle infinie garantie.
     if (url.startsWith(config.frontendUrl)) {
       return reply.code(400).send({ error: 'Cette instance ne peut pas se relayer vers elle-même.' });
+    }
+
+    // On vérifie AVANT d'enregistrer : une URL erronée rendrait toute
+    // l'application blanche, y compris la page permettant de la corriger.
+    const check = await checkMirrorApi(url, config.frontendUrl);
+    if (!check.ok) {
+      return reply.code(400).send({ error: `${url} ${check.reason}.` });
     }
 
     await setMirrorApiUrl(url);

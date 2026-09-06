@@ -46,8 +46,18 @@ origines autorisées au moment du retour.
 ### 3. Activer le mode miroir (instance miroir)
 
 Panneau admin du miroir → **Origines autorisées** → renseigner l'API de
-l'instance principale, par exemple `https://theomouty.fr/api`, puis
+l'instance principale, par exemple `https://rncp.theomouty.fr/api`, puis
 **Relayer vers cette API**.
+
+L'URL doit désigner l'**API**, pas le site : `https://rncp.theomouty.fr` tout
+court pointe sur le frontend et ne renvoie que du HTML. Le champ complète le
+`/api` manquant, et refuse d'enregistrer une adresse qui ne répond pas comme un
+backend CalculatorGCC — l'ordre des étapes compte donc : sans l'étape 1,
+l'enregistrement échoue avec « n'autorise pas encore … ».
+
+L'instance principale doit par ailleurs faire tourner une version qui gère le
+retour multi-domaine ; sinon le contrôle répond « tourne une version trop
+ancienne » et il faut la déployer d'abord.
 
 L'effet est immédiat, sans reconstruction ni redémarrage : le backend du miroir
 cesse de servir ses propres données et relaie les routes applicatives
@@ -88,7 +98,10 @@ l'idée de départ, elle est piégeuse :
 
 ## Vérifier que ça marche
 
-1. Ouvrir le miroir, se connecter avec 42 : le retour doit se faire **sur le
-   domaine du miroir**, pas sur celui de l'instance principale.
+1. Ouvrir le miroir, se connecter avec 42. La barre d'adresse doit passer par
+   l'instance principale (`https://rncp.theomouty.fr/api/auth/42?origin=…`),
+   puis par 42, et **revenir sur le domaine du miroir**. Le miroir ne relaie pas
+   cette étape : il redirige le navigateur, ce qui rend le trajet lisible à
+   l'œil en cas de problème.
 2. Révoquer l'origine dans le panneau admin, réessayer : la connexion doit
    revenir sur l'instance principale, et l'API refuser les appels cross-origin.
