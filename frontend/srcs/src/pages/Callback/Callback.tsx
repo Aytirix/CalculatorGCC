@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { backendAuthService } from '@/services/backend-auth.service';
+import {
+  backendAuthService,
+  sessionCheckMessage,
+  sessionMustBeCleared,
+  sessionRetryIsWorthIt,
+} from '@/services/backend-auth.service';
 import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import './Callback.scss';
@@ -43,14 +48,31 @@ const Callback: React.FC = () => {
   // Erreur d'auth 42 explicite : on laisse l'utilisateur lire et réessayer
   // au lieu de le renvoyer en silence vers Login (effet de "boucle").
   const [showRetry, setShowRetry] = useState(false);
+  // « login » repart de l'intra 42 ; « revalidate » se contente de retenter la
+  // vérification, quand le jeton reçu est toujours valable.
+  const [retryMode, setRetryMode] = useState<'login' | 'revalidate'>('login');
+  // Incrémenté par le bouton « Réessayer » : relance l'effet sans recharger la
+  // page — un rechargement réinscrivait le JWT complet dans les journaux du
+  // serveur et le laissait dans la barre d'adresse.
+  const [attempt, setAttempt] = useState(0);
+  // Vrai seulement quand un retour automatique vers l'accueil est réellement
+  // armé : l'annoncer sans l'avoir programmé laissait l'utilisateur attendre
+  // une redirection qui ne venait jamais.
+  const [autoRedirect, setAutoRedirect] = useState(false);
   const { refreshAuth, login } = useAuth();
 
   useEffect(() => {
+    // Les redirections différées doivent mourir avec le composant, sinon elles
+    // happent l'utilisateur qui a navigué ailleurs entre-temps.
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
+
     const processCallback = async () => {
       console.log('[Callback] Processing OAuth callback');
 
-      // Récupérer le token et l'erreur depuis l'URL
-      const token = searchParams.get('token');
+      // Récupérer le token et l'erreur depuis l'URL. Au deuxième essai, l'URL a
+      // déjà été nettoyée : on reprend alors le jeton mis de côté, sinon un
+      // « Token manquant » s'afficherait alors que la session est bien là.
+      const token = searchParams.get('token') ?? backendAuthService.getToken();
       const urlError = searchParams.get('error');
       const reason = searchParams.get('reason');
 
@@ -73,7 +95,8 @@ const Callback: React.FC = () => {
       if (!token) {
         console.error('[Callback] No token in URL');
         setError('Token manquant');
-        setTimeout(() => navigate('/', { replace: true }), 3000);
+        setAutoRedirect(true);
+        redirectTimer = setTimeout(() => navigate('/', { replace: true }), 3000);
         return;
       }
 
@@ -82,54 +105,89 @@ const Callback: React.FC = () => {
         console.log('[Callback] Saving token');
         backendAuthService.saveToken(token);
 
+        // Le jeton est en sécurité : on le retire de la barre d'adresse. Il y
+        // reste sinon indéfiniment — visible, copiable, et déjà inscrit dans
+        // l'historique et les journaux du serveur.
+        window.history.replaceState(null, '', window.location.pathname);
+
         // Valider le token auprès du backend
         console.log('[Callback] Validating token with backend');
-        const me = await backendAuthService.validateToken();
+        const check = await backendAuthService.validateToken();
 
-        if (me) {
+        if (check.status === 'valid') {
           console.log('[Callback] Token valid, refreshing auth context');
           // Rafraîchir le contexte d'authentification et attendre qu'il soit prêt
           await refreshAuth();
-          
+
           console.log('[Callback] Auth refreshed, redirecting to dashboard');
           // Rediriger vers le dashboard
           navigate('/dashboard', { replace: true });
         } else {
-          console.error('[Callback] Token validation failed');
-          setError('Token invalide');
-          backendAuthService.logout();
-          setTimeout(() => navigate('/', { replace: true }), 3000);
+          console.error('[Callback] Session non validée :', check.status);
+          setError(sessionCheckMessage(check));
+
+          // Une panne serveur n'invalide pas la session : on n'efface le jeton
+          // que si le serveur l'a réellement refusé, ou s'il réclame son
+          // assistant de configuration.
+          if (sessionMustBeCleared(check)) {
+            await backendAuthService.logout();
+          }
+
+          // On ne propose « réessayer » que quand cela peut aboutir. Sur une
+          // cause durable (jeton refusé, serveur mal configuré), le bouton ne
+          // ferait que rejouer la même erreur : seul le retour à l'accueil a du
+          // sens, et sans redirection automatique, pour laisser lire le message.
+          setRetryMode('revalidate');
+          setShowRetry(sessionRetryIsWorthIt(check));
         }
       } catch (err) {
         console.error('[Callback] Error processing callback:', err);
         setError('Erreur lors du traitement de l\'authentification');
-        setTimeout(() => navigate('/', { replace: true }), 3000);
+        setAutoRedirect(true);
+        redirectTimer = setTimeout(() => navigate('/', { replace: true }), 3000);
       }
     };
 
     processCallback();
-  }, [navigate, searchParams]);
+    return () => clearTimeout(redirectTimer);
+  }, [navigate, searchParams, attempt]);
 
   return (
     <div className="callback-page">
       <motion.div
         className="callback-card"
+        role="status"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
         {error ? (
           <>
-            <div className="error-icon">❌</div>
+            <div className="error-icon" aria-hidden="true">❌</div>
             <h2>Erreur</h2>
             <p>{error}</p>
-            {showRetry ? (
-              <div className="callback-actions">
-                <Button onClick={login} size="lg">
-                  Réessayer la connexion
+            {/* Une porte de sortie est toujours offerte : sans elle, une erreur
+                durable laissait l'utilisateur bloqué sur cet écran, à cliquer
+                un bouton qui rejouait indéfiniment la même panne. */}
+            <div className="callback-actions">
+              {showRetry && (
+                <Button
+                  onClick={
+                    retryMode === 'revalidate' ? () => setAttempt((n) => n + 1) : login
+                  }
+                  size="lg"
+                  autoFocus
+                >
+                  {retryMode === 'revalidate' ? 'Vérifier à nouveau' : 'Réessayer la connexion'}
                 </Button>
-              </div>
-            ) : (
+              )}
+              {!autoRedirect && (
+                <Button variant="outline" size="lg" onClick={() => navigate('/', { replace: true })}>
+                  Retour à l'accueil
+                </Button>
+              )}
+            </div>
+            {autoRedirect && (
               <p className="redirect-info">Redirection vers la page de connexion...</p>
             )}
           </>

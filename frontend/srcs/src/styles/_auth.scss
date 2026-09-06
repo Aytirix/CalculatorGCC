@@ -51,6 +51,40 @@
 	color: var(--text-muted);
 }
 
+// Carte d'information affichée à la place d'une page protégée quand la session
+// existe mais n'a pas pu être vérifiée. Vit ici, et non dans le SCSS d'une page,
+// parce qu'elle peut s'afficher devant n'importe quelle route.
+.auth-notice {
+	position: relative;
+	max-width: 32rem;
+	padding: 2rem;
+	border-radius: 16px;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	text-align: center;
+
+	h2 {
+		margin: 0 0 0.75rem;
+		font-size: 1.15rem;
+		color: var(--text-primary);
+	}
+
+	p {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.55;
+		color: var(--text-muted);
+	}
+
+	&__actions {
+		margin-top: 1.5rem;
+		display: flex;
+		justify-content: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+}
+
 // Bouton principal : celui qui fait entrer.
 .auth-cta {
 	display: inline-flex;

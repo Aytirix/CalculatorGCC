@@ -49,6 +49,9 @@
     margin-top: $spacing-lg;
     display: flex;
     justify-content: center;
+    // Deux boutons peuvent cohabiter (réessayer + porte de sortie).
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 }
 
