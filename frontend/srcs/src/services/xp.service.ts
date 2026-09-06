@@ -115,7 +115,21 @@ export const xpService = {
 		projectPercentages?: Record<string, number>,
 		completedProjectsPercentages?: Record<string, number>,
 		coalitionBoosts?: Record<string, boolean>,
-		simulatedSubProjects?: Record<string, string[]>
+		simulatedSubProjects?: Record<string, string[]>,
+		/**
+		 * Ce qui est REELLEMENT acquis, a distinguer des parametres ci-dessus qui
+		 * portent tous la projection. Sans ces valeurs, « reel » et « projete »
+		 * finissent par designer la meme chose, et l'interface annonce comme acquis
+		 * ce qui n'est qu'une intention.
+		 */
+		real?: {
+			/** Niveau effectivement atteint (et non le niveau projete). */
+			level: number;
+			/** Experiences professionnelles reellement terminees. */
+			professionalExp: number;
+			/** Sous-projets reellement valides sur 42 (piscines). */
+			subProjects?: Record<string, string[]>;
+		}
 	): RNCPValidation => {
 		const allValidatedProjects = [...completedProjects, ...simulatedProjects];
 
@@ -129,8 +143,12 @@ export const xpService = {
 		const isProfessionalExperienceValid = userProfessionalExp >= rncp.requiredProfessionalExperience;
 
 		// Valider chaque catégorie
+		// Deux passes par catégorie : la PROJECTION (ce que l'utilisateur simule) et
+		// le RÉEL (ce qu'il a effectivement validé sur 42). Sans la seconde,
+		// impossible de distinguer à l'écran un acquis d'une intention — la barre
+		// verdissait et la catégorie s'annonçait « validée » sur du simulé.
 		const categoriesValidation: CategoryValidation[] = rncp.categories.map((category) => {
-			return xpService.validateCategory(
+			const projected = xpService.validateCategory(
 				category,
 				allValidatedProjects,
 				projectPercentages,
@@ -138,6 +156,26 @@ export const xpService = {
 				coalitionBoosts,
 				simulatedSubProjects
 			);
+			// La passe reelle ne recoit QUE des sources factuelles :
+			//  - les sous-projets reellement valides (et non ceux simplement coches),
+			//    sans quoi l'XP d'une piscine reellement terminee disparaissait ;
+			//  - les pourcentages issus des notes 42, sans les pourcentages ni les
+			//    boosts de simulation, prioritaires dans le calcul et qui
+			//    fausseraient donc l'acquis.
+			const realCategory = xpService.validateCategory(
+				category,
+				completedProjects,
+				undefined,
+				completedProjectsPercentages,
+				undefined,
+				real?.subProjects
+			);
+			return {
+				...projected,
+				realCount: realCategory.currentCount,
+				realXP: realCategory.currentXP,
+				isRealValid: realCategory.isValid,
+			};
 		});
 
 		// Le RNCP est valide si toutes les conditions sont remplies
@@ -147,6 +185,21 @@ export const xpService = {
 			isProfessionalExperienceValid &&
 			categoriesValidation.every((cv) => cv.isValid);
 
+		// Ce qui est REELLEMENT acquis. Le niveau et l'experience professionnelle
+		// recus plus haut sont ceux de la PROJECTION : les reutiliser ici declarait
+		// « reel » un RNCP qu'on n'a pas. Sans valeurs reelles fournies, on ne
+		// declare rien d'acquis sur ces deux criteres plutot que de supposer.
+		const isRealLevelValid = real ? real.level >= rncp.level : false;
+		const isRealProfExpValid = real
+			? real.professionalExp >= rncp.requiredProfessionalExperience
+			: false;
+
+		const overallRealValid =
+			isRealLevelValid &&
+			isEventsValid &&
+			isRealProfExpValid &&
+			categoriesValidation.every((cv) => cv.isRealValid);
+
 		return {
 			rncpId: rncp.id,
 			isLevelValid,
@@ -154,6 +207,7 @@ export const xpService = {
 			isProfessionalExperienceValid,
 			categoriesValidation,
 			overallValid,
+			overallRealValid,
 		};
 	},
 
@@ -213,6 +267,12 @@ export const xpService = {
 			currentXP,
 			isValid,
 			validatedProjects: categoryValidatedProjects.map((p) => p.id),
+			// Valeurs par défaut : sur un appel isolé, ce qui est compté EST le
+			// réel. `validateRNCP` les remplace par le résultat de sa passe sans
+			// simulation.
+			realCount: currentCount,
+			realXP: currentXP,
+			isRealValid: isValid,
 		};
 	},
 };

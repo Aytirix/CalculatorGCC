@@ -59,9 +59,21 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 	const [detailsProject, setDetailsProject] = useState<SimulatorProject | null>(null);
 	const { getTeamInfo } = useProjectTeams();
 
-	const progressPercentage = category.requiredXP > 0
+	// Deux parts distinctes dans une seule barre : ce qui est ACQUIS et ce qui
+	// n'est que SIMULÉ. Une barre unique nourrie par le total annonçait comme
+	// acquis ce qui ne l'était pas — elle virait au vert sur de la simulation.
+	const realPercentage = category.requiredXP > 0
+		? Math.min((validation.realXP / category.requiredXP) * 100, 100)
+		: 100;
+	const projectedPercentage = category.requiredXP > 0
 		? Math.min((validation.currentXP / category.requiredXP) * 100, 100)
 		: 100;
+	// Le segment simulé se pose SUR le réel, il n'en reprend pas la longueur.
+	const simulatedPercentage = Math.max(0, projectedPercentage - realPercentage);
+	// La projection n'est annoncée que si elle DIFFÈRE à l'affichage : les deux
+	// nombres étant arrondis, un écart minime donnait « 58% → 58% », soit
+	// exactement le doublon inutile qu'on veut éviter.
+	const showProjection = Math.round(projectedPercentage) !== Math.round(realPercentage);
 
 	return (
 		<motion.div
@@ -77,7 +89,13 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 				<div className="category-title">
 					<span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
 					<h3>{category.name}</h3>
-					{validation.isValid && <span className="validation-badge">✓ Validé</span>}
+					{/* « Validé » n'est dit que d'un acquis réel. Une catégorie
+					    satisfaite par la simulation est annoncée comme telle. */}
+					{validation.isRealValid ? (
+						<span className="validation-badge">✓ Validé</span>
+					) : validation.isValid ? (
+						<span className="validation-badge validation-badge--simulated">Simulé</span>
+					) : null}
 				</div>
 
 				<div className="category-stats">
@@ -102,15 +120,39 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
 			{category.requiredXP > 0 && (
 				<div className="progress-bar-container">
-					<div className="progress-bar-bg">
+					<div
+						className="progress-bar-bg"
+						role="img"
+						aria-label={
+							showProjection
+								? `${Math.round(realPercentage)} % acquis, ${Math.round(projectedPercentage)} % en comptant la simulation`
+								: `${Math.round(realPercentage)} % acquis`
+						}
+					>
 						<motion.div
-							className={`progress-bar-fill ${validation.isValid ? 'completed' : ''}`}
+							className="progress-bar-fill"
+
 							initial={{ width: 0 }}
-							animate={{ width: `${progressPercentage}%` }}
+							animate={{ width: `${realPercentage}%` }}
 							transition={{ duration: 0.5, ease: 'easeOut' }}
 						/>
+						{simulatedPercentage > 0 && (
+							<motion.div
+								className="progress-bar-fill simulated"
+								initial={{ width: 0 }}
+								animate={{ width: `${simulatedPercentage}%` }}
+								transition={{ duration: 0.5, ease: 'easeOut' }}
+							/>
+						)}
 					</div>
-					<span className="progress-percentage">{Math.round(progressPercentage)}%</span>
+					<span className="progress-percentage">
+						{Math.round(realPercentage)}%
+						{showProjection && (
+							<span className="progress-percentage__simulated">
+								{' '}→ {Math.round(projectedPercentage)}%
+							</span>
+						)}
+					</span>
 				</div>
 			)}
 

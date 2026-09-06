@@ -71,17 +71,34 @@ export interface RNCPValidation {
   isEventsValid: boolean;
   isProfessionalExperienceValid: boolean;
   categoriesValidation: CategoryValidation[];
+  /** Toutes les conditions remplies, SIMULATION COMPRISE. */
   overallValid: boolean;
+  /** Toutes les conditions réellement acquises, sans la simulation. */
+  overallRealValid: boolean;
 }
 
 export interface CategoryValidation {
   categoryId: string;
   requiredCount: number;
+  /** Projets comptés, SIMULATION COMPRISE (c'est la projection). */
   currentCount: number;
   requiredXP: number;
+  /** XP compté, SIMULATION COMPRISE. */
   currentXP: number;
+  /** Vrai si la projection satisfait la catégorie — pas forcément acquis. */
   isValid: boolean;
   validatedProjects: string[];
+
+  // --- Ce qui est réellement ACQUIS, sans aucune simulation ---
+  // Une barre de progression et un libellé « validé » qui comptent le simulé
+  // annoncent comme acquis ce qui ne l'est pas : ces trois champs permettent de
+  // distinguer les deux à l'affichage.
+  /** Projets réellement validés sur 42. */
+  realCount: number;
+  /** XP réellement acquis. */
+  realXP: number;
+  /** La catégorie est-elle validée SANS compter la simulation ? */
+  isRealValid: boolean;
 }
 
 // Type pour les données de l'API 42 - Cursus User

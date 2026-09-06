@@ -861,7 +861,12 @@ const Dashboard: React.FC = () => {
 		rncpData.forEach(rncp => {
 			rncp.categories.forEach(category => {
 				category.projects.forEach(project => {
-					if (simulatedProjects.includes(project.slug || project.id)) {
+					// Par IDENTIFIANT : c'est sous cette clé que la simulation est
+					// enregistrée partout ailleurs. Tester le slug en priorité écartait
+					// silencieusement les projets dont les deux diffèrent — ils
+					// restaient affichés comme non cochés tout en comptant dans le
+					// total, ce qui est incompréhensible à l'écran.
+					if (simulatedProjects.includes(project.id)) {
 						projects.push(project);
 					}
 				});
@@ -912,6 +917,12 @@ const Dashboard: React.FC = () => {
 		simulatedManualProfExpCount +
 		apiEnCoursProfExpCount;
 
+	// Le même décompte, sans rien de simulé ni d'en cours : c'est ce qui est
+	// réellement acquis, et c'est ce qui doit décider d'un « validé ».
+	const realProfExp =
+		(userProgress?.professionalExperience ?? 0) +
+		professionalExperienceMath.realCount(manualExperiences);
+
 	// Mémoriser les validations RNCP et les recalculer quand les dépendances changent
 	const rncpValidations = useMemo((): RNCPValidation[] => {
 		if (!userProgress) return [];
@@ -951,10 +962,16 @@ const Dashboard: React.FC = () => {
 				projectPercentages,
 				completedProjectsPercentages,
 				coalitionBoosts,
-				mergedSubProjects
+				mergedSubProjects,
+				{
+					// Sources factuelles, distinctes de la projection passée plus haut.
+					level: userProgress.currentLevel,
+					professionalExp: realProfExp,
+					subProjects: completedSubProjects,
+				}
 			);
 		});
-	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
+	}, [userProgress, projectedLevel, projectedProfExp, realProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
 
 	// Le référentiel n'a pas pu être construit : on le dit, au lieu d'afficher un
 	// simulateur vide ou de tourner indéfiniment sur l'écran de chargement.
@@ -1232,12 +1249,26 @@ const Dashboard: React.FC = () => {
 						return (
 							<button
 								key={rncp.id}
-								className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallValid ? 'validated' : ''}`}
+								// La coche verte marque un diplôme RÉELLEMENT obtenu. Elle
+								// suivait la projection : simuler quelques projets suffisait à
+								// afficher « ✓ » sur un RNCP qu'on n'a pas.
+								className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallRealValid ? 'validated' : ''}${!validation.overallRealValid && validation.overallValid ? ' projected' : ''}`}
 								onClick={() => setSelectedRNCPIndex(index)}
+								title={
+									validation.overallRealValid
+										? 'Certification validée'
+										: validation.overallValid
+											? 'Certification atteignable avec ta simulation'
+											: undefined
+								}
 								{...(rncp.id === 'rncp-global' ? { 'data-tour': 'rncp-global-tab' } : {})}
 							>
 								<div className="rncp-tab__content">
-									{validation.overallValid && <span className="rncp-tab__check">✓</span>}
+									{validation.overallRealValid ? (
+										<span className="rncp-tab__check">✓</span>
+									) : validation.overallValid ? (
+										<span className="rncp-tab__check rncp-tab__check--projected">◆</span>
+									) : null}
 									<div className="rncp-tab__info">
 										<h3 className="rncp-tab__title">{rncp.name}</h3>
 									</div>

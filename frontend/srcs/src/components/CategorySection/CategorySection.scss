@@ -58,6 +58,13 @@
       padding: 4px 12px;
       border-radius: $radius-md;
       box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
+
+      // Catégorie satisfaite par la SIMULATION : bleu, et le mot le dit. Le
+      // vert est réservé à ce qui est réellement acquis.
+      &--simulated {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+      }
     }
   }
 
@@ -100,9 +107,11 @@
     gap: $spacing-md;
     margin-bottom: $spacing-lg;
 
+    // Deux segments côte à côte : l'acquis puis le simulé par-dessus.
     .progress-bar-bg {
       flex: 1;
       height: 12px;
+      display: flex;
       background-color: var(--bg-accent);
       border-radius: $radius-md;
       overflow: hidden;
@@ -110,8 +119,16 @@
 
       .progress-bar-fill {
         height: 100%;
-        background: linear-gradient(90deg, #3b82f6, #2563eb);
-        border-radius: $radius-md;
+        // Part ACQUISE : verte dès qu'il y a de l'XP réel — c'est du fait
+        // accompli, pas une intention. Aucun arrondi ici : la piste a déjà les
+        // siens et `overflow: hidden` rogne les segments. Les poser sur chaque
+        // segment laissait l'extrémité droite carrée dès qu'il n'y avait pas de
+        // part simulée — l'état par défaut de l'application.
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+        border-radius: 0;
+        // Une largeur exprimée en pourcentage ne doit pas être rabotée par le
+        // partage flex.
+        flex-shrink: 0;
         position: relative;
 
         &::after {
@@ -130,8 +147,10 @@
           animation: shimmer 2s infinite;
         }
 
-        &.completed {
-          background: linear-gradient(90deg, #22c55e, #16a34a);
+        // Part SIMULÉE, dans le bleu du thème : ce que l'utilisateur PRÉVOIT de
+        // faire, visuellement distinct de ce qu'il a déjà.
+        &.simulated {
+          background: var(--color-primary);
         }
       }
     }
@@ -142,6 +161,14 @@
       color: var(--text-primary);
       min-width: 45px;
       text-align: right;
+      white-space: nowrap;
+
+      // La projection est annoncée dans la couleur de la simulation, pour qu'on
+      // ne la confonde pas avec l'acquis affiché juste avant.
+      &__simulated {
+        color: var(--color-primary);
+        font-weight: 600;
+      }
     }
   }
 

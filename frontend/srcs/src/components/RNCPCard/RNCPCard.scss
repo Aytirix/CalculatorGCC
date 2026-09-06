@@ -35,6 +35,8 @@
   &__validation-progress-bar {
     width: 100%;
     height: 12px;
+    // Deux segments côte à côte : acquis, puis simulé.
+    display: flex;
     background: rgba(var(--text-rgb), 0.1);
     border-radius: 6px;
     overflow: hidden;
@@ -43,10 +45,25 @@
 
   &__validation-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
-    border-radius: 6px;
+    // Part ACQUISE : verte. Elle ne parle que de ce qui est déjà validé.
+    background: linear-gradient(90deg, #22c55e, #16a34a);
     transition: width 0.5s ease;
-    box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.4);
+
+    // Arrondis portés par la piste elle-même (`overflow: hidden`) : les poser
+    // sur les segments laissait une extrémité carrée dès que la part simulée
+    // était absente, c'est-à-dire par défaut.
+    border-radius: 0;
+
+    // Part SIMULÉE, dans le bleu du thème (et non un bleu codé en dur, qui
+    // jurait à côté des autres éléments primaires et ne s'adaptait pas au
+    // thème sombre).
+    &--simulated {
+      background: var(--color-primary);
+    }
+  }
+
+  &__validation-progress-value--simulated {
+    color: var(--color-primary);
   }
 
   &__validation-progress-text {
@@ -66,10 +83,11 @@
   &__validation-progress-value {
     font-size: 1.25rem;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    // Pas de texte peint par un dégradé ici : `-webkit-text-fill-color` est
+    // HÉRITÉ, il rendait toute coloration d'un enfant impossible — l'acquis
+    // prenait la couleur du début du dégradé et la part simulée finissait en
+    // gris, soit précisément l'inverse du code couleur voulu.
+    color: var(--text-primary);
   }
 
   &__requirements {

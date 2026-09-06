@@ -50,15 +50,19 @@ const RNCPCard = ({
   coalitionBoosts = {},
   onToggleCoalitionBoost
 }: RNCPCardProps) => {
-  const isFullyValidated = validation.overallValid;
   // Utiliser le niveau réel pour la validation, pas le niveau projeté
   const hasLevelRequirement = userProgress.currentLevel >= rncp.level;
   const hasEventsRequirement = validation.isEventsValid;
   const hasProfessionalExperience = validation.isProfessionalExperienceValid;
 
-  // Convertir les projets en slugs pour CategorySection
+  // `completedProjects` se compare par SLUG (c'est ce que renvoie l'API 42),
+  // mais la simulation est indexée par IDENTIFIANT partout ailleurs
+  // (`onToggleSimulation(project.id)`, `projectPercentages[project.id]`…).
+  // Les convertir en slugs ici rendait `simulatedProjects.includes(project.id)`
+  // toujours faux dès que les deux diffèrent : le projet restait affiché comme
+  // non coché, sans bordure bleue, alors qu'il comptait bien dans le total.
   const completedProjectSlugs = completedProjects.map(p => p.slug || p.id);
-  const simulatedProjectSlugs = simulatedProjects.map(p => p.slug || p.id);
+  const simulatedProjectIds = simulatedProjects.map(p => p.id);
 
   // Calculer le pourcentage de validation basé sur les résultats de validateRNCP
   const calculateValidationPercentage = (): number => {
@@ -89,24 +93,76 @@ const RNCPCard = ({
     return totalCriteria > 0 ? Math.round((validatedCriteria / totalCriteria) * 100) : 0;
   };
 
+  /** Même décompte, mais SANS la simulation : ce qui est réellement acquis. */
+  const calculateRealValidationPercentage = (): number => {
+    let totalCriteria = 0;
+    let validatedCriteria = 0;
+
+    totalCriteria++;
+    if (validation.isLevelValid) validatedCriteria++;
+    totalCriteria++;
+    if (validation.isEventsValid) validatedCriteria++;
+    totalCriteria++;
+    if (validation.isProfessionalExperienceValid) validatedCriteria++;
+
+    validation.categoriesValidation.forEach((catValidation: CategoryValidation) => {
+      totalCriteria++;
+      if (catValidation.realCount >= catValidation.requiredCount) validatedCriteria++;
+      totalCriteria++;
+      if (catValidation.realXP >= catValidation.requiredXP) validatedCriteria++;
+    });
+
+    return totalCriteria > 0 ? Math.round((validatedCriteria / totalCriteria) * 100) : 0;
+  };
+
   const validationPercentage = calculateValidationPercentage();
+  const realValidationPercentage = calculateRealValidationPercentage();
+  // Le segment simulé se pose SUR l'acquis, il n'en reprend pas la longueur.
+  const simulatedValidationPercentage = Math.max(
+    0,
+    validationPercentage - realValidationPercentage
+  );
+  // Ne pas annoncer une projection identique à l'acquis une fois arrondie.
+  const showProjection = validationPercentage !== realValidationPercentage;
   const isGlobalRNCP = rncp.id === 'rncp-global';
 
+  // « Validé » ne se dit que d'un acquis : la carte ne prend son habit vert que
+  // si le RNCP est réellement obtenu, pas seulement projeté.
   return (
-    <div className={`rncp-card ${isFullyValidated ? 'rncp-card--validated' : ''}`}>
+    <div className={`rncp-card ${validation.overallRealValid ? 'rncp-card--validated' : ''}`}>
       {/* Pourcentage de validation global - Ne pas afficher pour RNCP Global */}
       {!isGlobalRNCP && (
         <div className="rncp-card__validation-progress">
-          <div className="rncp-card__validation-progress-bar">
-            <div 
-              className="rncp-card__validation-progress-fill" 
-              style={{ width: `${validationPercentage}%` }}
+          {/* Vert : ce qui est acquis. Bleu : ce que la simulation ajouterait. */}
+          <div
+            className="rncp-card__validation-progress-bar"
+            role="img"
+            aria-label={
+              showProjection
+                ? `${realValidationPercentage} % acquis, ${validationPercentage} % en comptant la simulation`
+                : `${realValidationPercentage} % acquis`
+            }
+          >
+            <div
+              className="rncp-card__validation-progress-fill"
+              style={{ width: `${realValidationPercentage}%` }}
             ></div>
+            {simulatedValidationPercentage > 0 && (
+              <div
+                className="rncp-card__validation-progress-fill rncp-card__validation-progress-fill--simulated"
+                style={{ width: `${simulatedValidationPercentage}%` }}
+              ></div>
+            )}
           </div>
           <div className="rncp-card__validation-progress-text">
             <span className="rncp-card__validation-progress-label">Validation</span>
             <span className="rncp-card__validation-progress-value">
-              {validationPercentage}%
+              {realValidationPercentage}%
+              {showProjection && (
+                <span className="rncp-card__validation-progress-value--simulated">
+                  {' '}→ {validationPercentage}%
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -174,7 +230,7 @@ const RNCPCard = ({
               category={category}
               validation={categoryValidation}
               completedProjects={completedProjectSlugs}
-              simulatedProjects={simulatedProjectSlugs}
+              simulatedProjects={simulatedProjectIds}
               onToggleSimulation={onToggleSimulation}
               completedSubProjects={completedSubProjects}
               simulatedSubProjects={simulatedSubProjects}

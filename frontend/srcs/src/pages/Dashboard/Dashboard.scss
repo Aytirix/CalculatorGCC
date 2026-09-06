@@ -302,12 +302,32 @@
     }
   }
 
+  // Vert : certification RÉELLEMENT obtenue.
   &.validated {
     border-color: var(--success);
-    
+
     &:not(.active) {
       background: linear-gradient(135deg, rgba(var(--success-rgb), 0.05) 0%, var(--bg-secondary) 100%);
     }
+  }
+
+  // Bleu : certification seulement ATTEIGNABLE avec la simulation en cours.
+  // Le vert restait allumé sur du simulé, ce qui laissait croire à un diplôme
+  // acquis.
+  &.projected {
+    border-color: var(--color-primary);
+
+    &:not(.active) {
+      background: linear-gradient(
+        135deg,
+        rgba(var(--color-primary-rgb), 0.05) 0%,
+        var(--bg-secondary) 100%
+      );
+    }
+  }
+
+  &__check--projected {
+    color: var(--color-primary);
   }
 
   &__content {
