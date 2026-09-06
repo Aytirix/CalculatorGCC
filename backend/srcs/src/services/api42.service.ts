@@ -161,6 +161,31 @@ class API42RateLimiter {
 
 const rateLimiter = new API42RateLimiter();
 
+// ---------------------------------------------------------------------------
+// Anti-martèlement des récupérations de fond
+//
+// Ces récupérations sont relancées à chaque requête HTTP tant que le cache est
+// vide, et le front repolle toutes les 3 s en attendant. Sans délai après un
+// échec, une panne durable (scope refusé, API 42 en carafe) se transforme en
+// boucle de retry qui frappe l'API 42 en continu — constaté en production.
+// ---------------------------------------------------------------------------
+const FETCH_RETRY_COOLDOWN_MS = 60_000;
+const lastFailureAt = new Map<string, number>();
+
+/** Trop tôt pour retenter cette récupération après son dernier échec ? */
+function isCoolingDown(key: string): boolean {
+	const at = lastFailureAt.get(key);
+	return at !== undefined && Date.now() - at < FETCH_RETRY_COOLDOWN_MS;
+}
+
+function noteFailure(key: string): void {
+	lastFailureAt.set(key, Date.now());
+}
+
+function noteSuccess(key: string): void {
+	lastFailureAt.delete(key);
+}
+
 // Cache du catalogue "cursus -> projets" (Holy Graph). Partagé entre tous les
 // utilisateurs (le contenu d'un cursus ne dépend de personne) et persisté en
 // base : un redémarrage du backend ne doit pas relancer des dizaines d'appels
@@ -511,6 +536,7 @@ export class API42Service {
 	static ensureCursusProjectsFetching(cursusId: number): void {
 		if (this.getCursusProjectsCached(cursusId) !== null) return;
 		if (cursusProjectsInFlight.has(cursusId)) return;
+		if (isCoolingDown(`cursus_projects:${cursusId}`)) return;
 
 		const promise = (async () => {
 			// La base d'abord : après un redémarrage, le cache mémoire est vide
@@ -541,9 +567,11 @@ export class API42Service {
 			const slim = slimCursusProjects(all);
 			cursusProjectsCache.set(cursusId, { data: slim, at: Date.now() });
 			await api42CacheRepository.set(cacheKey, slim);
+			noteSuccess(cacheKey);
 			console.log(`[API42] Catalogue cursus ${cursusId} récupéré : ${slim.length} projets`);
 		})()
 			.catch((error) => {
+				noteFailure(`cursus_projects:${cursusId}`);
 				console.error(`[API42] Échec du fetch du catalogue cursus ${cursusId}:`, error?.message || error);
 			})
 			.finally(() => {
@@ -567,6 +595,7 @@ export class API42Service {
 	static ensureProjectDataFetching(): void {
 		if (this.getProjectDataCached() !== null) return;
 		if (projectDataInFlight) return;
+		if (isCoolingDown('project_data')) return;
 
 		projectDataInFlight = (async () => {
 			// La base d'abord (cf. catalogue) : 61 pages d'API évitées à chaque
@@ -596,6 +625,7 @@ export class API42Service {
 			console.log(`[API42] Layout officiel du Holy Graph récupéré : ${slim.length} nœuds placés`);
 		})()
 			.catch((error) => {
+				noteFailure('project_data');
 				console.error('[API42] Échec du fetch du layout officiel (project_data):', error?.message || error);
 			})
 			.finally(() => {
@@ -730,6 +760,7 @@ export class API42Service {
 		const cacheKey = cacheKeyProjectSessions(cursusId, campusId);
 		if (this.getProjectSessionsCached(cursusId, campusId) !== null) return;
 		if (projectSessionsInFlight.has(cacheKey)) return;
+		if (isCoolingDown(cacheKey)) return;
 
 		const promise = (async () => {
 			const persisted = await api42CacheRepository.getFresh<SlimProjectSession[]>(cacheKey);
@@ -762,6 +793,7 @@ export class API42Service {
 			);
 		})()
 			.catch((error) => {
+				noteFailure(cacheKey);
 				console.error('[API42] Échec du fetch du détail des sessions :', error?.message || error);
 			})
 			.finally(() => {
@@ -877,6 +909,7 @@ export class API42Service {
 		const cacheKey = cacheKeyProjectSkills(cursusId, campusId);
 		if (this.getProjectSkillsCached(cursusId, campusId) !== null) return;
 		if (projectSkillsInFlight.has(cacheKey)) return;
+		if (isCoolingDown(cacheKey)) return;
 
 		// Sans le catalogue on ne sait pas quelles sessions interroger : on
 		// réessaiera au prochain passage, une fois le catalogue en cache.
@@ -939,6 +972,7 @@ export class API42Service {
 			);
 		})()
 			.catch((error) => {
+				noteFailure(cacheKey);
 				console.error('[API42] Échec du fetch des compétences (layers) :', error?.message || error);
 			})
 			.finally(() => {

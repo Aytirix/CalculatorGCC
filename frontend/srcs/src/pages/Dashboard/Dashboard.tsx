@@ -106,7 +106,7 @@ const Dashboard: React.FC = () => {
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
 	const { isViewingOther } = useViewingUser();
 	const { login } = useAuth();
-	const { rncpData, loading: rncpLoading } = useRncpData();
+	const { rncpData, loading: rncpLoading, error: rncpError } = useRncpData();
 	// Session 42 réellement expirée (refresh_token mort) : filet de sécurité pour
 	// couper la boucle de synchro et proposer une reconnexion, au lieu de retenter à l'infini.
 	const [authExpired, setAuthExpired] = useState(false);
@@ -955,6 +955,28 @@ const Dashboard: React.FC = () => {
 			);
 		});
 	}, [userProgress, projectedLevel, projectedProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
+
+	// Le référentiel n'a pas pu être construit : on le dit, au lieu d'afficher un
+	// simulateur vide ou de tourner indéfiniment sur l'écran de chargement.
+	if (rncpError && rncpData.length === 0) {
+		return (
+			<div className="dashboard-page">
+				<Header />
+				<div className="dashboard-container">
+					<div className="error-state">
+						<h2>Référentiel indisponible</h2>
+						<p>
+							Le serveur n'a pas pu récupérer le catalogue des projets depuis l'API 42.
+							Les données arriveront dès qu'elle répondra de nouveau.
+						</p>
+						<button className="fetch-btn" onClick={() => window.location.reload()}>
+							Réessayer
+						</button>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	if (loading || rncpLoading) {
 		return (

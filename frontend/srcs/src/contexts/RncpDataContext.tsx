@@ -35,12 +35,25 @@ export const RncpDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 		let cancelled = false;
 		let timer: ReturnType<typeof setTimeout> | null = null;
 
+		// Le serveur récupère le catalogue en tâche de fond ; on repolle en
+		// attendant. Mais pas indéfiniment : si la récupération échoue durablement
+		// (scope 42 refusé, API injoignable), l'application restait bloquée sur son
+		// écran de chargement sans jamais dire pourquoi. Au bout d'une minute, on
+		// abandonne et on affiche l'erreur.
+		const MAX_ATTEMPTS = 20;
+		let attempts = 0;
+
 		const poll = async () => {
 			try {
 				const res = await BackendAPI42Service.getRncp();
 				if (cancelled) return;
 				if (res.loading) {
-					// Le catalogue du cursus se récupère en tâche de fond côté serveur.
+					attempts += 1;
+					if (attempts >= MAX_ATTEMPTS) {
+						setError(true);
+						setLoading(false);
+						return;
+					}
 					timer = setTimeout(poll, 3000);
 					return;
 				}
