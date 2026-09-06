@@ -59,7 +59,7 @@ const Callback: React.FC = () => {
   // armé : l'annoncer sans l'avoir programmé laissait l'utilisateur attendre
   // une redirection qui ne venait jamais.
   const [autoRedirect, setAutoRedirect] = useState(false);
-  const { refreshAuth, login } = useAuth();
+  const { adoptSession, login } = useAuth();
 
   useEffect(() => {
     // Les redirections différées doivent mourir avec le composant, sinon elles
@@ -115,12 +115,13 @@ const Callback: React.FC = () => {
         const check = await backendAuthService.validateToken();
 
         if (check.status === 'valid') {
-          console.log('[Callback] Token valid, refreshing auth context');
-          // Rafraîchir le contexte d'authentification et attendre qu'il soit prêt
-          await refreshAuth();
+          console.log('[Callback] Token valid, ouverture de la session');
+          // On installe la session avec la réponse qu'on vient d'obtenir, au
+          // lieu de redemander /auth/me : cet appel en double pouvait échouer
+          // (quota, réseau) et faire rater une connexion déjà réussie.
+          adoptSession(check.me);
 
-          console.log('[Callback] Auth refreshed, redirecting to dashboard');
-          // Rediriger vers le dashboard
+          console.log('[Callback] Session ouverte, redirection vers le dashboard');
           navigate('/dashboard', { replace: true });
         } else {
           console.error('[Callback] Session non validée :', check.status);
@@ -150,7 +151,7 @@ const Callback: React.FC = () => {
 
     processCallback();
     return () => clearTimeout(redirectTimer);
-  }, [navigate, searchParams, attempt]);
+  }, [navigate, searchParams, attempt, adoptSession]);
 
   return (
     <div className="callback-page">

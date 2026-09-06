@@ -1,8 +1,9 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
   backendAuthService,
   sessionMustBeCleared,
+  type MeResponse,
   type SessionCheck,
   type User,
 } from '@/services/backend-auth.service';
@@ -22,8 +23,9 @@ interface AuthContextType {
   setIsPublic: (value: boolean | null) => void;
   login: () => void;
   logout: () => Promise<void>;
-  getApiToken: () => string | null;
   refreshAuth: () => Promise<void>;
+  /** Ouvre la session depuis une réponse /auth/me déjà en main. */
+  adoptSession: (me: MeResponse) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +46,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
+  /**
+   * Installe la session à partir d'une réponse /auth/me déjà obtenue.
+   *
+   * Référence STABLE (`useCallback`) : `adoptSession` figure dans les
+   * dépendances de l'effet du callback OAuth. Une référence recréée à chaque
+   * rendu y relancerait l'effet en boucle, puisqu'il pose lui-même des états.
+   */
+  const applyMe = useCallback((me: MeResponse) => {
+    const userInfo = backendAuthService.getUser();
+    if (userInfo) {
+      userInfo.is_public = me.is_public;
+      userInfo.is_admin = me.is_admin;
+      userInfo.credentials_invalid = me.credentials_invalid;
+      userInfo.next_secret_missing = me.next_secret_missing;
+      if (userInfo.image_url) {
+        userInfo.image = { link: userInfo.image_url };
+      }
+    }
+    setUser(userInfo);
+    setIsPublic(me.is_public);
+    setSessionIssue(null);
+    setIsLoading(false);
+  }, []);
+
+  /**
+   * Ouvre la session avec une réponse /auth/me que l'appelant vient d'obtenir.
+   *
+   * Évite le second appel que faisait le callback OAuth juste après avoir
+   * validé le jeton : cette requête en trop pouvait échouer (quota, réseau) et
+   * faire rater une connexion pourtant déjà réussie.
+   */
+  const adoptSession = applyMe;
+
   const initializeAuth = async () => {
     try {
       const isAuth = backendAuthService.isAuthenticated();
@@ -52,20 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const check = await backendAuthService.validateToken();
 
         if (check.status === 'valid') {
-          const me = check.me;
-          const userInfo = backendAuthService.getUser();
-          if (userInfo) {
-            userInfo.is_public = me.is_public;
-            userInfo.is_admin = me.is_admin;
-            userInfo.credentials_invalid = me.credentials_invalid;
-            userInfo.next_secret_missing = me.next_secret_missing;
-            if (userInfo.image_url) {
-              userInfo.image = { link: userInfo.image_url };
-            }
-          }
-          setUser(userInfo);
-          setIsPublic(me.is_public);
-          setSessionIssue(null);
+          applyMe(check.me);
         } else if (sessionMustBeCleared(check)) {
           // Jeton refusé, ou serveur à reconfigurer : dans les deux cas il faut
           // l'effacer. Le garder sur un « not-configured » bloquerait à jamais
@@ -100,10 +122,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
   };
 
-  const getApiToken = () => {
-    return backendAuthService.getApiToken();
-  };
-
   const refreshAuth = async () => {
     setIsLoading(true);
     await initializeAuth();
@@ -118,8 +136,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsPublic,
     login,
     logout,
-    getApiToken,
     refreshAuth,
+    adoptSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

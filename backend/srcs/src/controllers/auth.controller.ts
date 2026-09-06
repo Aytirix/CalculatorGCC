@@ -136,10 +136,19 @@ export class AuthController {
         });
       }
 
-      // Générer un JWT contenant le token de l'API 42 et les infos utilisateur
+      // Générer un JWT contenant le token de l'API 42 et les infos utilisateur.
+      //
+      // Le refresh_token 42, lui, n'y figure PLUS : il vient d'être enregistré
+      // chiffré côté serveur (voir plus haut), et rien ne le lit depuis le JWT
+      // pour une session ouverte après ce store. L'y laisser envoyait dans le
+      // navigateur — en clair, un JWT n'est que du base64 — le seul secret qui
+      // permet de régénérer des accès 42 indéfiniment, alors que l'access_token
+      // ci-dessous expire en ~2 h.
+      //
+      // `token42Service.ensureStored` continue d'accepter les anciens JWT qui le
+      // portent encore : à retirer une fois toutes ces sessions expirées (7 j).
       const payload = {
         api_token: access_token,
-        refresh_token: refresh_token,
         token_expires_at: expires_in ? Date.now() + expires_in * 1000 : undefined,
         user_id_42: userData.id,
         login: userData.login,

@@ -7,7 +7,9 @@ const JWT_STORAGE_KEY = 'gcc_jwt_token';
 
 export interface JWTPayload {
   api_token: string;
-  refresh_token?: string;
+  // Le refresh_token 42 ne circule plus dans le JWT : il vit chiffré côté
+  // serveur. Un JWT n'est que du base64 — l'y laisser exposait le secret qui
+  // régénère des accès 42 sans limite.
   token_expires_at?: number;
   user_id_42: number;
   login: string;
