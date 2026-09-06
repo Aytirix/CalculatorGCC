@@ -30,11 +30,20 @@ export const professionalExperienceMath = {
       .reduce((sum, exp) => sum + (exp.type === 'stage' ? exp.duration : exp.duration * 12), 0);
   },
 
-  /** Nombre d'expériences réelles — une alternance de 2 ans en vaut 2. */
+  /**
+   * Nombre d'expériences réelles : une alternance compte pour son nombre
+   * d'ANNÉES, un stage pour une expérience.
+   *
+   * C'est la règle appliquée aux expériences venues de l'API 42 (`Dashboard`
+   * extrait « N an(s) » du nom et ajoute N). Le formulaire ne propose
+   * aujourd'hui que 1 ou 2 ans, donc les deux formulations coïncident — mais
+   * les écrire différemment de part et d'autre garantissait qu'elles finiraient
+   * par diverger.
+   */
   realCount(experiences: ProfessionalExperience[]): number {
     return experiences
       .filter(exp => !exp.isSimulation)
-      .reduce((count, exp) => count + (exp.type === 'alternance' && exp.duration === 2 ? 2 : 1), 0);
+      .reduce((count, exp) => count + (exp.type === 'alternance' ? exp.duration : 1), 0);
   },
 };
 

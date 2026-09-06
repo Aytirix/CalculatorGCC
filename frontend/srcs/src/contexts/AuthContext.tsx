@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * dépendances de l'effet du callback OAuth. Une référence recréée à chaque
    * rendu y relancerait l'effet en boucle, puisqu'il pose lui-même des états.
    */
-  const applyMe = useCallback((me: MeResponse) => {
+  const adoptSession = useCallback((me: MeResponse) => {
     const userInfo = backendAuthService.getUser();
     if (userInfo) {
       userInfo.is_public = me.is_public;
@@ -70,15 +70,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  /**
-   * Ouvre la session avec une réponse /auth/me que l'appelant vient d'obtenir.
-   *
-   * Évite le second appel que faisait le callback OAuth juste après avoir
-   * validé le jeton : cette requête en trop pouvait échouer (quota, réseau) et
-   * faire rater une connexion pourtant déjà réussie.
-   */
-  const adoptSession = applyMe;
-
   const initializeAuth = async () => {
     try {
       const isAuth = backendAuthService.isAuthenticated();
@@ -87,13 +78,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const check = await backendAuthService.validateToken();
 
         if (check.status === 'valid') {
-          applyMe(check.me);
+          adoptSession(check.me);
         } else if (sessionMustBeCleared(check)) {
           // Jeton refusé, ou serveur à reconfigurer : dans les deux cas il faut
           // l'effacer. Le garder sur un « not-configured » bloquerait à jamais
           // la redirection vers l'assistant de configuration, puisque le reste
           // de l'application déduit « jeton présent donc instance configurée ».
           await backendAuthService.logout();
+          // Le jeton vient d'être effacé : l'utilisateur ne peut plus être
+          // considéré comme connecté. Sans cette remise à zéro, une réponse
+          // tardive arrivant après une session ouverte par `adoptSession`
+          // laissait l'application « authentifiée » sans jeton — dashboard
+          // affiché, et toutes les requêtes en 401.
+          setUser(null);
           setSessionIssue(null);
         } else {
           // Serveur injoignable ou saturé : on GARDE le jeton — l'effacer

@@ -161,14 +161,6 @@ export const backendAuthService = {
   },
 
   /**
-   * Récupère le token de l'API 42 depuis le JWT
-   */
-  getApiToken: (): string | null => {
-    const payload = backendAuthService.getPayload();
-    return payload?.api_token || null;
-  },
-
-  /**
    * Vérifie si l'utilisateur est connecté
    */
   isAuthenticated: (): boolean => {

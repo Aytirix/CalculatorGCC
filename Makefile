@@ -36,9 +36,17 @@ build-dev: ## Rebuild les images en mode développement
 	@echo "$(GREEN)🔨 Reconstruction des images de développement...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
 
+test: ## Lancer les tests unitaires du frontend
+	@echo "$(BLUE)🧪 Tests frontend...$(RESET)"
+	@docker exec calculatorGCC_frontend_dev npm test
+
+# ATTENTION : le typecheck du frontend DOIT passer par « tsc -b ».
+# « tsc --noEmit » ne vérifie strictement RIEN ici (tsconfig racine avec
+# files: [] + project references) : il sortait 0 quoi qu'il arrive, et ce
+# check affichait « Frontend : OK » sur du code qui ne compilait pas.
 check: ## Vérifier les erreurs TypeScript dans les conteneurs déjà lancés (rapide)
 	@echo "$(BLUE)🔍 [1/2] TypeScript frontend...$(RESET)"; \
-	docker exec calculatorGCC_frontend_dev npx tsc --noEmit 2>&1 && FRONTEND_OK=1 || FRONTEND_OK=0; \
+	docker exec calculatorGCC_frontend_dev npx tsc -b --force 2>&1 && FRONTEND_OK=1 || FRONTEND_OK=0; \
 	echo "$(BLUE)🔍 [2/2] TypeScript backend...$(RESET)"; \
 	docker exec calculatorGCC_backend_dev npx tsc --noEmit 2>&1 && BACKEND_OK=1 || BACKEND_OK=0; \
 	echo ""; \

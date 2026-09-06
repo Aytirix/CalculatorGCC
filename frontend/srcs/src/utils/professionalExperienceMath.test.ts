@@ -49,12 +49,20 @@ describe('professionalExperienceMath', () => {
     expect(professionalExperienceMath.realMonths(list)).toBe(6 + 24);
   });
 
-  it('compte une alternance de deux ans comme deux expériences', () => {
-    // Règle du référentiel RNCP : deux ans d'alternance valent deux
-    // expériences professionnelles, pas une seule.
-    expect(professionalExperienceMath.realCount([exp({ type: 'alternance', duration: 2 })])).toBe(2);
+  it("compte une alternance pour son nombre d'années", () => {
+    // Règle du référentiel RNCP, et celle appliquée aux expériences venues de
+    // l'API 42 : N années d'alternance valent N expériences professionnelles.
     expect(professionalExperienceMath.realCount([exp({ type: 'alternance', duration: 1 })])).toBe(1);
+    expect(professionalExperienceMath.realCount([exp({ type: 'alternance', duration: 2 })])).toBe(2);
+    // Le formulaire ne propose que 1 ou 2 ans aujourd'hui, mais la règle est
+    // générale : la tester au-delà empêche de la réécrire en « 2 ou 1 », qui
+    // coïnciderait sur le domaine actuel et divergerait au premier élargissement.
+    expect(professionalExperienceMath.realCount([exp({ type: 'alternance', duration: 3 })])).toBe(3);
+  });
+
+  it("compte un stage pour une expérience, quelle que soit sa durée", () => {
     expect(professionalExperienceMath.realCount([exp({ type: 'stage', duration: 6 })])).toBe(1);
+    expect(professionalExperienceMath.realCount([exp({ type: 'stage', duration: 4 })])).toBe(1);
   });
 
   it('exclut les simulations des mois et du compte réels', () => {

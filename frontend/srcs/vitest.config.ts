@@ -20,6 +20,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // `.tsx` inclus : sans lui, un test de composant serait ignoré EN SILENCE
+    // — sortie verte, code de sortie 0, et personne ne voit qu'il ne tourne pas.
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });
