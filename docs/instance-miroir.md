@@ -66,7 +66,9 @@ cesse de servir ses propres données et relaie les routes applicatives
 Vider le champ remet l'instance sur sa propre base.
 
 Pour un déploiement automatisé, `MIRROR_API_URL` dans l'environnement sert de
-valeur de départ ; le réglage enregistré depuis le panneau a la priorité.
+valeur de départ — elle n'est lue que tant que rien n'a été réglé depuis le
+panneau. Dès qu'on y touche, c'est le panneau qui fait foi, y compris pour
+revenir à la base locale : inutile de redéployer pour désactiver le miroir.
 
 ### 4. Ce qui reste local sur le miroir
 

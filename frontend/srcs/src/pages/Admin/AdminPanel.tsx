@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -14,16 +14,36 @@ import './Admin.scss';
 import './AdminLogin.scss';
 
 
-/** Onglets du panneau : chacun n'affiche qu'une chose, au lieu de tout empiler. */
+/**
+ * Onglets du panneau : chacun n'affiche qu'une chose, au lieu de tout empiler.
+ *
+ * `mirrored: true` marque les réglages qui ne s'appliquent PLUS quand cette
+ * instance relaie une autre : les credentials 42, les délégués qui les
+ * renouvellent et le refresh des données partagées vivent alors sur l'instance
+ * principale. Les afficher ici laisserait croire qu'on agit dessus alors qu'ils
+ * ne servent à rien — on les masque. Restent les passkeys (l'accès à ce panneau)
+ * et les origines, qui portent le réglage du miroir lui-même : sans elles, on ne
+ * pourrait plus revenir en arrière.
+ */
 const TABS = [
-  { id: 'secrets', label: 'Secrets API 42', icon: '🔑' },
-  { id: 'passkeys', label: 'Passkeys', icon: '🛡️' },
-  { id: 'delegates', label: 'Délégués', icon: '👥' },
-  { id: 'origins', label: 'Origines autorisées', icon: '🌐' },
-  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄' },
+  { id: 'secrets', label: 'Secrets API 42', icon: '🔑', mirrored: true },
+  { id: 'passkeys', label: 'Passkeys', icon: '🛡️', mirrored: false },
+  { id: 'delegates', label: 'Délégués', icon: '👥', mirrored: true },
+  { id: 'origins', label: 'Origines autorisées', icon: '🌐', mirrored: false },
+  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄', mirrored: true },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
+
+/**
+ * « Secrets API 42, Délégués et Données 42 partagées » — les libellés des
+ * onglets masqués, repris tels quels pour qu'on retrouve les noms de la sidebar.
+ */
+const MIRRORED_LABELS = (() => {
+  const labels = TABS.filter((entry) => entry.mirrored).map((entry) => entry.label);
+  const last = labels[labels.length - 1];
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} et ${last}` : (last ?? '');
+})();
 
 const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
@@ -46,6 +66,21 @@ const AdminPanel: React.FC = () => {
   const [newOrigin, setNewOrigin] = useState('');
   const [newOriginLabel, setNewOriginLabel] = useState('');
 
+  // En mode miroir, on ne garde que les onglets qui pilotent encore quelque
+  // chose ici.
+  const visibleTabs = useMemo(
+    () => TABS.filter((entry) => !mirrorUrl || !entry.mirrored),
+    [mirrorUrl]
+  );
+
+  // Onglet réellement affiché : DÉRIVÉ, pas corrigé après coup par un effet.
+  // Avec un effet, le rendu qui découvre le mode miroir affichait encore la
+  // section « Secrets API 42 » — précisément celle qu'on veut masquer — le temps
+  // d'un commit, sans onglet correspondant dans la sidebar.
+  const activeTab: TabId = visibleTabs.some((entry) => entry.id === tab)
+    ? tab
+    : (visibleTabs[0]?.id ?? 'origins');
+
   // Session admin expirée/invalide → on repart proprement vers l'écran d'auth.
   const onAuthError = useCallback((e: any): boolean => {
     if (e?.response?.status === 401) {
@@ -56,31 +91,65 @@ const AdminPanel: React.FC = () => {
     return false;
   }, [navigate]);
 
+  /**
+   * Recharge le panneau section par section.
+   *
+   * Chaque appel est appliqué INDÉPENDAMMENT des autres. Avec un `Promise.all`,
+   * une seule route en panne faisait échouer le lot entier : aucun `setState`
+   * n'était appliqué et l'écran affichait un état par défaut faux — champ miroir
+   * vide, « base de données locale », liste d'origines vide — impossible à
+   * distinguer d'une instance réellement non configurée. C'est ce mécanisme, et
+   * pas seulement la route absente qui l'a déclenché, qui rendait le réglage du
+   * miroir invisible après une sauvegarde pourtant réussie.
+   *
+   * Renvoie `true` si tout est passé.
+   */
   const reload = useCallback(async () => {
-    try {
-      const [cfg, pk, dl, gr, og, mi] = await Promise.all([
-        adminService.getConfig(),
-        adminService.listPasskeys(),
-        adminService.listDelegates(),
-        adminService.getGlobalRefresh(),
-        adminService.listOrigins(),
-        adminService.getMirror(),
-      ]);
-      setConfig(cfg);
-      setPasskeys(pk);
-      setDelegates(dl);
-      setRefresh(gr);
-      setOrigins(og.origins);
-      setOriginsSelf(og.self);
-      setOriginsSelfAllowed(og.self_allowed);
-      setMirrorUrl(mi.mirror_api_url);
-      setMirrorInput(mi.mirror_api_url ?? '');
-      setSecretForm((f) => ({ ...f, client_id: cfg.client_id || f.client_id }));
-    } catch (e) {
-      if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Chargement impossible.' });
-    } finally {
-      setLoading(false);
+    const failures: string[] = [];
+    let stale = false;
+
+    /** Applique le résultat d'une section, ou retient son échec sans bloquer les autres. */
+    const section = async <T,>(label: string, load: () => Promise<T>, apply: (value: T) => void) => {
+      try {
+        apply(await load());
+      } catch (e) {
+        if (onAuthError(e)) return;
+        // Un 404 ici ne veut pas dire « introuvable » : aucun handler admin n'en
+        // renvoie. C'est le backend qui n'expose pas (encore) la route.
+        if ((e as { response?: { status?: number } })?.response?.status === 404) stale = true;
+        failures.push(label);
+      }
+    };
+
+    await Promise.all([
+      section('secrets 42', () => adminService.getConfig(), (cfg) => {
+        setConfig(cfg);
+        setSecretForm((f) => ({ ...f, client_id: cfg.client_id || f.client_id }));
+      }),
+      section('passkeys', () => adminService.listPasskeys(), setPasskeys),
+      section('délégués', () => adminService.listDelegates(), setDelegates),
+      section('données 42 partagées', () => adminService.getGlobalRefresh(), setRefresh),
+      section('origines autorisées', () => adminService.listOrigins(), (og) => {
+        setOrigins(og.origins);
+        setOriginsSelf(og.self);
+        setOriginsSelfAllowed(og.self_allowed);
+      }),
+      section('mode miroir', () => adminService.getMirror(), (mi) => {
+        setMirrorUrl(mi.mirror_api_url);
+        setMirrorInput(mi.mirror_api_url ?? '');
+      }),
+    ]);
+
+    setLoading(false);
+    if (failures.length > 0) {
+      setMsg({
+        kind: 'err',
+        text: stale
+          ? `Ce backend n'expose pas encore : ${failures.join(', ')}. Il tourne une version trop ancienne — redémarre-le ou mets-le à jour.`
+          : `Sections non chargées : ${failures.join(', ')}. Le reste de l'écran est à jour.`,
+      });
     }
+    return failures.length === 0;
   }, [onAuthError]);
 
   useEffect(() => {
@@ -109,16 +178,30 @@ const AdminPanel: React.FC = () => {
     setMsg(null);
     setBusy(true);
     try {
-      await adminService.setMirror(url);
-      await reload();
+      // On affiche ce que le backend a RÉELLEMENT enregistré, sans attendre le
+      // rechargement : si celui-ci échoue, l'écran doit quand même dire vrai.
+      const saved = await adminService.setMirror(url);
+      setMirrorUrl(saved);
+      setMirrorInput(saved ?? '');
       setMsg({
         kind: 'ok',
-        text: url ? `Cette instance relaie désormais ${url}.` : 'Cette instance sert de nouveau ses propres données.',
+        text: saved
+          ? `Cette instance relaie désormais ${saved}.`
+          : 'Cette instance sert de nouveau ses propres données.',
       });
+      // Le reste de l'écran ensuite : s'il échoue, il pose son propre message.
+      await reload();
     } catch (e: unknown) {
       if (!onAuthError(e)) {
-        const detail = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        setMsg({ kind: 'err', text: detail || 'Réglage impossible.' });
+        const response = (e as { response?: { status?: number; data?: { error?: string } } })?.response;
+        // Un 404 ici ne veut pas dire « URL introuvable » mais « ce backend ne
+        // connaît pas encore ce réglage » : sans cette précision, l'écran donne
+        // l'impression que la sauvegarde a été ignorée sans raison.
+        const text =
+          response?.status === 404
+            ? "Ce backend n'expose pas le réglage du miroir : il tourne une version trop ancienne, redémarre-le ou mets-le à jour."
+            : response?.data?.error || 'Réglage impossible.';
+        setMsg({ kind: 'err', text });
       }
     } finally {
       setBusy(false);
@@ -283,14 +366,22 @@ const AdminPanel: React.FC = () => {
             <h1>CalculatorGCC</h1>
           </div>
 
+          {mirrorUrl && (
+            <p className="admin-sidebar__note" role="status">
+              {/* Les libellés sont dérivés de TABS : réécrits à la main, ils
+                  mentiraient dès qu'un drapeau `mirrored` change. */}
+              Mode miroir actif : {MIRRORED_LABELS} sont gérés sur l'instance relayée.
+            </p>
+          )}
+
           <nav className="admin-sidebar__nav">
-            {TABS.map((entry) => (
+            {visibleTabs.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
-                className={`admin-tab${tab === entry.id ? ' admin-tab--active' : ''}`}
+                className={`admin-tab${activeTab === entry.id ? ' admin-tab--active' : ''}`}
                 onClick={() => setTab(entry.id)}
-                aria-current={tab === entry.id ? 'page' : undefined}
+                aria-current={activeTab === entry.id ? 'page' : undefined}
               >
                 <span className="admin-tab__icon" aria-hidden="true">{entry.icon}</span>
                 {entry.label}
@@ -305,14 +396,16 @@ const AdminPanel: React.FC = () => {
 
         <main className="admin-main">
 
+        {/* `role="status"` : sans lui, succès comme erreurs passaient inaperçus
+            des lecteurs d'écran — or c'est tout l'objet de ce bandeau. */}
         {msg && (
-          <div className={msg.kind === 'ok' ? 'admin-ok' : 'admin-error'}>
+          <div className={msg.kind === 'ok' ? 'admin-ok' : 'admin-error'} role="status">
             <p>{msg.text}</p>
           </div>
         )}
 
         {/* ===== Secrets API 42 ===== */}
-        {tab === 'secrets' && (
+        {activeTab === 'secrets' && (
         <section className="admin-section">
           <h2>Secrets API 42</h2>
           {config && (
@@ -371,7 +464,7 @@ const AdminPanel: React.FC = () => {
         )}
 
         {/* ===== Passkeys ===== */}
-        {tab === 'passkeys' && (
+        {activeTab === 'passkeys' && (
         <section className="admin-section">
           <h2>Passkeys ({passkeys.length})</h2>
           <ul className="admin-list">
@@ -404,7 +497,7 @@ const AdminPanel: React.FC = () => {
         )}
 
         {/* ===== Admins délégués ===== */}
-        {tab === 'delegates' && (
+        {activeTab === 'delegates' && (
         <section className="admin-section">
           <h2>Admins délégués ({delegates.length})</h2>
           <p className="muted">Ces logins 42 peuvent éditer les secrets 42 — rien d'autre.</p>
@@ -433,7 +526,7 @@ const AdminPanel: React.FC = () => {
         )}
 
         {/* ===== Refresh global des données 42 ===== */}
-        {tab === 'origins' && (
+        {activeTab === 'origins' && (
         <section className="admin-section">
           <h2>Origines autorisées</h2>
           <p className="muted">
@@ -516,7 +609,7 @@ const AdminPanel: React.FC = () => {
         </section>
         )}
 
-        {tab === 'refresh' && (
+        {activeTab === 'refresh' && (
         <section className="admin-section">
           <h2>Données 42 partagées</h2>
           <p className="muted">

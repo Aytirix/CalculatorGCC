@@ -177,6 +177,19 @@
     gap: 2px;
   }
 
+  // Explique l'absence des onglets masqués en mode miroir : sans ce mot, la
+  // sidebar semble simplement incomplète.
+  &__note {
+    margin: 0;
+    padding: 0.6rem 0.7rem;
+    border-radius: 9px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.45;
+  }
+
   &__logout {
     margin-top: auto;
     align-self: flex-start;

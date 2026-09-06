@@ -172,15 +172,23 @@ export const adminService = {
     await api.post('/admin/origins', { origin, label }, { headers: authHeader() });
   },
   async removeOrigin(origin: string): Promise<void> {
-    await api.delete(`/admin/origins/${encodeURIComponent(origin)}`, { headers: authHeader() });
+    // L'origine passe en query : dans le chemin, ses `/` sont décodés avant le
+    // routage et la requête n'atteint jamais la route (404).
+    await api.delete('/admin/origins', { params: { origin }, headers: authHeader() });
   },
 
   // ----- Mode miroir (relais vers une autre instance) -----
   async getMirror(): Promise<{ mirror_api_url: string | null }> {
     return (await api.get<{ mirror_api_url: string | null }>('/admin/mirror', { headers: authHeader() })).data;
   },
-  async setMirror(url: string | null): Promise<void> {
-    await api.put('/admin/mirror', { mirror_api_url: url }, { headers: authHeader() });
+  /** Renvoie l'URL réellement enregistrée : le backend la normalise (`/api` ajouté). */
+  async setMirror(url: string | null): Promise<string | null> {
+    const { data } = await api.put<{ mirror_api_url: string | null }>(
+      '/admin/mirror',
+      { mirror_api_url: url },
+      { headers: authHeader() }
+    );
+    return data.mirror_api_url;
   },
 
   // ----- Refresh global des données 42 -----

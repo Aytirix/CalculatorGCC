@@ -32,8 +32,9 @@ services:
       APP_DOMAIN: ${APP_DOMAIN:-http://localhost:3000}
       ENABLE_SSL: ${ENABLE_SSL:-false}
       DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
-      # Instance MIROIR : API d'une autre instance à relayer (valeur de départ ;
-      # le réglage enregistré depuis /admin a la priorité). Vide = base locale.
+      # Instance MIROIR : API d'une autre instance à relayer. Valeur de DÉPART,
+      # utilisée tant que rien n'a été réglé depuis /admin ; ensuite le panneau
+      # prime, y compris pour revenir à la base locale. Vide = base locale.
       MIRROR_API_URL: ${MIRROR_API_URL:-}
       CLIENT_ID_42: ${CLIENT_ID_42:-${API42_CLIENT_ID:-}}
       CLIENT_SECRET_42: ${CLIENT_SECRET_42:-${API42_CLIENT_SECRET:-}}

@@ -73,8 +73,9 @@ services:
       # Credentials 42 : accepte CLIENT_ID_42/CLIENT_SECRET_42 ou les alias
       # API42_CLIENT_ID/API42_CLIENT_SECRET. Si définis ici, ils overrident la
       # config en DB (utile pour la pre-prod qui clone la DB de prod).
-      # Instance MIROIR : API d'une autre instance à relayer (valeur de départ ;
-      # le réglage enregistré depuis /admin a la priorité). Vide = base locale.
+      # Instance MIROIR : API d'une autre instance à relayer. Valeur de DÉPART,
+      # utilisée tant que rien n'a été réglé depuis /admin ; ensuite le panneau
+      # prime, y compris pour revenir à la base locale. Vide = base locale.
       MIRROR_API_URL: ${MIRROR_API_URL:-}
       CLIENT_ID_42: ${CLIENT_ID_42:-${API42_CLIENT_ID:-}}
       CLIENT_SECRET_42: ${CLIENT_SECRET_42:-${API42_CLIENT_SECRET:-}}

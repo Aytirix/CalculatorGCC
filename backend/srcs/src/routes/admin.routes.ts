@@ -106,7 +106,7 @@ export async function adminRoutes(server: FastifyInstance) {
   }, async (request, reply) => {
     return adminController.addOriginHandler(request, reply);
   });
-  server.delete('/admin/origins/:origin', {
+  server.delete('/admin/origins', {
     preHandler: [requireOwner],
   }, async (request, reply) => {
     return adminController.removeOriginHandler(request, reply);

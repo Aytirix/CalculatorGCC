@@ -257,13 +257,30 @@ export const adminController = {
     return reply.send({ ok: true, origin });
   },
 
+  /**
+   * L'origine arrive en QUERY, pas dans le chemin : nginx décode et normalise
+   * l'URI avant de la transmettre, si bien que
+   * `DELETE /admin/origins/https%3A%2F%2Fex.fr` arrivait ici en
+   * `/admin/origins/https:/ex.fr` — trois segments, aucune route, 404. Le
+   * bouton « Révoquer » ne fonctionnait donc jamais.
+   */
   async removeOriginHandler(request: FastifyRequest, reply: FastifyReply) {
-    const raw = String((request.params as any).origin ?? '');
-    const origin = normalizeOrigin(decodeURIComponent(raw));
+    // Un paramètre répété (`?origin=a&origin=b`) arrive en tableau : le laisser
+    // passer par `String()` révoquerait une origine « a,b » qui n'existe pas.
+    const raw = (request.query as { origin?: unknown }).origin;
+    if (typeof raw !== 'string') {
+      return reply.code(400).send({ error: 'Origine invalide' });
+    }
+    const origin = normalizeOrigin(raw);
     if (!origin) {
       return reply.code(400).send({ error: 'Origine invalide' });
     }
-    await allowedOriginRepository.remove(origin);
+    // Ne journaliser que ce qui a réellement été supprimé : sinon le journal
+    // d'audit enregistre des révocations qui n'ont jamais eu lieu.
+    const removed = await allowedOriginRepository.remove(origin);
+    if (!removed) {
+      return reply.code(404).send({ error: "Cette origine n'est pas autorisée" });
+    }
     await logAdminEvent(actorOf(request), 'origin_removed', origin);
     return reply.send({ ok: true });
   },

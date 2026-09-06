@@ -24,8 +24,15 @@ import { prisma } from '../db/connection.js';
  * l'environnement sert de valeur de départ pour un déploiement automatisé.
  */
 
-/** Préfixes qui restent servis localement, quoi qu'il arrive. */
-const LOCAL_PREFIXES = ['/admin', '/setup', '/health'];
+/**
+ * Préfixes qui restent servis localement, quoi qu'il arrive.
+ *
+ * Les formes préfixées `/api/…` y figurent aussi : nginx retire le `/api` avant
+ * de transmettre, mais `setup.middleware.ts` gère déjà les deux formes et un
+ * déploiement qui ne strippe pas enverrait tout le panneau admin — jeton de
+ * session compris — vers l'instance relayée. On préfère la ceinture.
+ */
+const LOCAL_PREFIXES = ['/admin', '/setup', '/health', '/api/admin', '/api/setup', '/api/health'];
 
 /** Le mode miroir est-il actif ? Raccourci synchrone sur le cache. */
 export function isMirrorActiveCached(): boolean {
@@ -35,21 +42,44 @@ export function isMirrorActiveCached(): boolean {
 let cached: { url: string | null; at: number } | null = null;
 const CACHE_MS = 5_000;
 
-/** URL de l'API relayée, ou `null` si cette instance sert ses propres données. */
+/**
+ * URL de l'API relayée, ou `null` si cette instance sert ses propres données.
+ *
+ * Trois états, et pas deux — la nuance est ce qui rend le réglage réversible :
+ *  - colonne `NULL` : personne n'a jamais tranché ici, `MIRROR_API_URL` sert de
+ *    valeur d'amorçage pour un déploiement automatisé ;
+ *  - colonne `''`   : quelqu'un a explicitement demandé la base locale depuis
+ *    /admin — ce choix prime sur l'environnement ;
+ *  - colonne remplie : c'est elle qui fait foi.
+ *
+ * Sans le troisième état, « Revenir à la base locale » écrivait `NULL` et
+ * l'environnement reprenait aussitôt la main : le panneau annonçait la base
+ * locale pendant que l'instance continuait de relayer, sans aucun moyen d'en
+ * sortir autrement qu'en redéployant.
+ */
 export async function getMirrorApiUrl(): Promise<string | null> {
 	if (cached && Date.now() - cached.at < CACHE_MS) return cached.url;
 	const row = await prisma.configuration.findUnique({
 		where: { id: 1 },
 		select: { mirrorApiUrl: true },
 	});
-	const url = row?.mirrorApiUrl?.trim() || process.env.MIRROR_API_URL?.trim() || null;
-	cached = { url: url || null, at: Date.now() };
+	const stored = row?.mirrorApiUrl;
+	const url =
+		stored === null || stored === undefined
+			? process.env.MIRROR_API_URL?.trim() || null
+			: stored.trim() || null;
+	cached = { url, at: Date.now() };
 	return cached.url;
 }
 
-/** Enregistre (ou efface) l'API relayée. `null` remet l'instance en mode normal. */
+/**
+ * Enregistre (ou efface) l'API relayée. `null` remet l'instance en mode normal.
+ *
+ * On écrit `''` et non `NULL` pour effacer : c'est la marque d'un choix humain,
+ * que `getMirrorApiUrl` respecte au lieu de retomber sur l'environnement.
+ */
 export async function setMirrorApiUrl(url: string | null): Promise<void> {
-	await prisma.configuration.update({ where: { id: 1 }, data: { mirrorApiUrl: url } });
+	await prisma.configuration.update({ where: { id: 1 }, data: { mirrorApiUrl: url ?? '' } });
 	cached = null;
 }
 
@@ -153,8 +183,16 @@ async function checkReturnOrigin(
 	}
 }
 
+/**
+ * Comparaison insensible à la casse : le hook tourne aussi sur les 404, et
+ * `/ADMIN/status` — que Fastify ne route pas — partait sinon au relais avec tous
+ * les en-têtes recopiés, dont le jeton de session admin.
+ */
 function isLocalRoute(path: string): boolean {
-	return LOCAL_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+	const normalized = path.toLowerCase();
+	return LOCAL_PREFIXES.some(
+		(prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)
+	);
 }
 
 /**
