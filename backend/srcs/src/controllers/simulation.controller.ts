@@ -19,6 +19,7 @@ export const SimulationController = {
 				manualExperiences: [],
 				apiExpPercentages: {},
 				hasSeenTour: false,
+				seenTourSteps: [],
 			});
 		}
 
@@ -110,6 +111,7 @@ export const SimulationController = {
 				manualExperiences: [],
 				apiExpPercentages: {},
 				hasSeenTour: false,
+				seenTourSteps: [],
 			});
 		}
 
@@ -198,10 +200,27 @@ export const SimulationController = {
 	 */
 	async saveTourSeen(request: FastifyRequest, reply: FastifyReply) {
 		const { user_id_42, login, image_url, first_name, last_name } = request.user;
-		const body = request.body as { hasSeenTour?: unknown } | undefined;
+		const body = request.body as
+			| { hasSeenTour?: unknown; seenSteps?: unknown }
+			| undefined;
 
 		if (!body || typeof body.hasSeenTour !== 'boolean') {
 			return reply.code(400).send({ error: 'hasSeenTour must be a boolean' });
+		}
+
+		// Les identifiants d'étapes vues sont facultatifs (anciens clients) mais
+		// doivent être des chaînes courtes : ils finissent concaténés en base.
+		let seenSteps: string[] | undefined;
+		if (body.seenSteps !== undefined) {
+			if (
+				!Array.isArray(body.seenSteps) ||
+				body.seenSteps.some((s) => typeof s !== 'string' || s.length > 64)
+			) {
+				return reply
+					.code(400)
+					.send({ error: 'seenSteps must be an array of short strings' });
+			}
+			seenSteps = body.seenSteps as string[];
 		}
 
 		const hasSeenTour = await simulationRepository.saveTourSeen(
@@ -210,7 +229,8 @@ export const SimulationController = {
 			image_url ?? null,
 			body.hasSeenTour,
 			first_name,
-			last_name
+			last_name,
+			seenSteps
 		);
 
 		return reply.send({ hasSeenTour });

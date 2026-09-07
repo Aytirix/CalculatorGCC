@@ -27,6 +27,12 @@ export interface SimulationData {
 	manualExperiences: unknown[];
 	apiExpPercentages: Record<string, number>;
 	hasSeenTour: boolean;
+	/**
+	 * Étapes du guide déjà vues (permet de ne proposer que les nouvelles).
+	 * Optionnel : la sauvegarde générale de la simulation ne le porte pas, il a
+	 * son propre point d'entrée.
+	 */
+	seenTourSteps?: string[];
 }
 
 function coerceBooleanFlag(value: unknown): boolean {
@@ -211,6 +217,7 @@ export const simulationRepository = {
 			manualExperiences: (userSim.manualExperiences as unknown[]) ?? [],
 			apiExpPercentages: (userSim.apiExpPercentages as Record<string, number>) ?? {},
 			hasSeenTour: await getTourSeenFlag(userId42),
+			seenTourSteps: await simulationRepository.getSeenTourSteps(userId42),
 		};
 	},
 
@@ -308,7 +315,7 @@ export const simulationRepository = {
 	/**
 	 * Met à jour uniquement l'état "guide vu" de l'utilisateur.
 	 */
-	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean, firstName?: string | null, lastName?: string | null): Promise<boolean> {
+	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean, firstName?: string | null, lastName?: string | null, seenSteps?: string[]): Promise<boolean> {
 		await prisma.userSimulation.upsert({
 			where: { userId42 },
 			create: {
@@ -328,11 +335,29 @@ export const simulationRepository = {
 
 		await prisma.$executeRaw`
 			UPDATE user_simulation
-			SET hasSeenTour = ${hasSeenTour ? 1 : 0}
+			SET hasSeenTour = ${hasSeenTour ? 1 : 0},
+			    seenTourSteps = ${seenSteps === undefined ? null : seenSteps.join(',')}
 			WHERE userId42 = ${userId42}
 		`;
 
 		return hasSeenTour;
+	},
+
+	/**
+	 * Étapes du guide déjà vues par l'utilisateur.
+	 *
+	 * Permet de ne proposer QUE les étapes ajoutées depuis son dernier passage,
+	 * au lieu de rejouer tout le parcours ou de ne rien montrer du tout.
+	 */
+	async getSeenTourSteps(userId42: number): Promise<string[]> {
+		const rows = await prisma.$queryRaw<Array<{ seenTourSteps: string | null }>>`
+			SELECT seenTourSteps
+			FROM user_simulation
+			WHERE userId42 = ${userId42}
+			LIMIT 1
+		`;
+		const raw = rows[0]?.seenTourSteps;
+		return raw ? raw.split(',').filter(Boolean) : [];
 	},
 
 	/** Version du dernier changelog acquitté par l'utilisateur (null = jamais vu). */

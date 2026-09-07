@@ -50,6 +50,10 @@ model UserSimulation {
   // l'app sur une journée, une semaine…) : rien de nominatif n'en sort.
   lastSeenAt            DateTime?
   hasSeenTour           Boolean  @default(false)
+  // Identifiants des étapes du guide déjà vues, séparés par des virgules.
+  // Un simple booléen ne suffit pas : quand le guide gagne de nouvelles étapes,
+  // il faut savoir lesquelles montrer sans rejouer tout le parcours.
+  seenTourSteps         String?  @db.Text
   lastSeenChangelog     String?  @db.VarChar(32) // version du dernier changelog acquitté (null = jamais)
   simulatedSubProjects  Json?    // Record<string, string[]>
   customProjects        Json?    // SimulatorProject[]

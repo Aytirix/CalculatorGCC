@@ -223,13 +223,24 @@ export const xpService = {
 		// Trouver les projets validés de cette catégorie
 		const categoryValidatedProjects = category.projects.filter((project) => {
 			const projectSlug = project.slug || project.id;
-			if (isProjectCompleted(projectSlug, validatedProjects)) return true;
-			// Piscine : compter comme validé si tous les sous-projets sont cochés
-			if (project.subProjects && simulatedSubProjects?.[project.id]) {
-				const checkedSubs = simulatedSubProjects[project.id];
-				return project.subProjects.every(sub => checkedSubs.includes(sub.id));
+
+			// Une piscine n'est validée QUE si tous ses modules le sont.
+			//
+			// Le rapprochement des projets est volontairement permissif (il compare
+			// des noms normalisés), or le slug d'une piscine est souvent un préfixe
+			// de celui de ses modules — « mobile » contre « mobile-0-basic… ». Un
+			// seul module validé faisait donc passer la piscine entière pour
+			// acquise, avec son XP complet.
+			if (project.subProjects && project.subProjects.length > 0) {
+				const checkedSubs = simulatedSubProjects?.[project.id] ?? [];
+				return project.subProjects.every(
+					(sub) =>
+						checkedSubs.includes(sub.id) ||
+						isProjectCompleted(sub.slug || sub.id, validatedProjects)
+				);
 			}
-			return false;
+
+			return isProjectCompleted(projectSlug, validatedProjects);
 		});
 
 		const currentCount = categoryValidatedProjects.length;

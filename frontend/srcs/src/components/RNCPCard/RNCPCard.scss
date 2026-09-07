@@ -132,10 +132,17 @@
     transition: all 0.3s ease;
     flex-shrink: 0;
 
+    // Vert : critère réellement acquis.
     &.validated {
       border-color: var(--success);
       background: var(--success);
       color: white;
+    }
+
+    // Bleu : critère atteint uniquement grâce à la simulation.
+    &.projected {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
     }
 
     @media (max-width: 768px) {
@@ -143,6 +150,12 @@
       height: 1.25rem;
       font-size: 0.7rem;
     }
+  }
+
+  // Même convention que les barres : la projection en bleu, derrière une flèche.
+  &__requirement-projected {
+    color: var(--color-primary);
+    font-weight: 600;
   }
 
   &__requirement-label {

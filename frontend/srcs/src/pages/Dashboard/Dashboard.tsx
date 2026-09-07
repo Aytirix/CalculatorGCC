@@ -102,7 +102,7 @@ const Dashboard: React.FC = () => {
 	const [manualExpVersion, setManualExpVersion] = useState(0);
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
 
-	const { startTour, hasSeenTour, syncTourSeen } = useTour();
+	const { startTour, hasPendingSteps, syncTourSeen } = useTour();
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
 	const { isViewingOther } = useViewingUser();
 	const { login } = useAuth();
@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
 					professionalExperienceStorage.saveAll(remoteExperiences);
 					setManualExperiences(professionalExperienceStorage.getAll());
 				}
-				syncTourSeen(data.hasSeenTour === true);
+				syncTourSeen(data.hasSeenTour === true, data.seenTourSteps);
 				console.log('[Dashboard] Simulation chargée depuis le backend');
 				// Sync localStorage aussi — JAMAIS avec les données d'un autre profil :
 				// le localStorage est mon cache de repli, y écrire la simulation d'un
@@ -303,7 +303,7 @@ const Dashboard: React.FC = () => {
 					customProjects,
 					manualExperiences: professionalExperienceStorage.getAll(),
 					apiExpPercentages,
-					hasSeenTour: hasSeenTour(),
+					hasSeenTour: localStorage.getItem('gcc_tour_seen_v1') === 'true',
 				};
 				await simulationService.save(data);
 				console.log('[Dashboard] Simulation sauvegardée vers le backend');
@@ -311,7 +311,7 @@ const Dashboard: React.FC = () => {
 				console.warn('[Dashboard] Erreur sauvegarde backend:', err);
 			}
 		}, 2000);
-	}, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages, hasSeenTour]);
+	}, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages]);
 
 	useEffect(() => {
 		saveToBackend();
@@ -520,13 +520,15 @@ const Dashboard: React.FC = () => {
 		}
 	};
 
-	// Démarrage automatique du guide à la première visite (après le chargement des données)
+	// Démarrage automatique du guide dès qu'il reste quelque chose à montrer :
+	// tout le parcours à la première visite, et par la suite les seules étapes
+	// ajoutées depuis le dernier passage.
 	useEffect(() => {
-		if (!loading && tourStatusLoaded && !hasSeenTour()) {
+		if (!loading && tourStatusLoaded && hasPendingSteps()) {
 			const timer = setTimeout(() => startTour(), 600);
 			return () => clearTimeout(timer);
 		}
-	}, [loading, tourStatusLoaded, hasSeenTour, startTour]);
+	}, [loading, tourStatusLoaded, hasPendingSteps, startTour]);
 
 	useEffect(() => {
 		loadUserData();
@@ -1344,6 +1346,7 @@ const Dashboard: React.FC = () => {
 							currentLevel: userProgress.currentLevel,
 							events: userProgress.events,
 							professionalExperience: projectedProfExp,
+							realProfessionalExperience: realProfExp,
 						}}
 						completedProjects={completedProjects}
 						simulatedProjects={simulatedProjectsDetails}

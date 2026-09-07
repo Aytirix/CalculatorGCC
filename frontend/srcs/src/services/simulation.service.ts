@@ -28,6 +28,11 @@ export interface SimulationData {
 	manualExperiences: unknown[];
 	apiExpPercentages: Record<string, number>;
 	hasSeenTour: boolean;
+	/**
+	 * Étapes du guide déjà vues. Renvoyé par le serveur au chargement ; la
+	 * sauvegarde générale ne le porte pas (il a son propre point d'entrée).
+	 */
+	seenTourSteps?: string[];
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -140,10 +145,18 @@ export const simulationService = {
 	/**
 	 * Sauvegarde uniquement l'état "guide vu"
 	 */
-	async saveTourSeen(hasSeenTour: boolean): Promise<{ hasSeenTour: boolean }> {
+	/**
+	 * `seenSteps` : identifiants des étapes du guide déjà vues. Les mémoriser
+	 * permet de ne proposer que celles ajoutées depuis le dernier passage, au
+	 * lieu de tout rejouer ou de ne plus rien montrer.
+	 */
+	async saveTourSeen(
+		hasSeenTour: boolean,
+		seenSteps?: string[]
+	): Promise<{ hasSeenTour: boolean }> {
 		return request<{ hasSeenTour: boolean }>('/simulation/tour-seen', {
 			method: 'PUT',
-			body: JSON.stringify({ hasSeenTour }),
+			body: JSON.stringify({ hasSeenTour, ...(seenSteps ? { seenSteps } : {}) }),
 		});
 	},
 

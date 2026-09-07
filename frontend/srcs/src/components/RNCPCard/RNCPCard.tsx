@@ -8,7 +8,10 @@ interface RNCPCardProps {
   userProgress: {
     currentLevel: number;
     events: number;
+    /** Expériences comptées SIMULATION COMPRISE (stages prévus, en cours). */
     professionalExperience: number;
+    /** Expériences réellement terminées. */
+    realProfessionalExperience: number;
   };
   completedProjects: SimulatorProject[];
   simulatedProjects: SimulatorProject[];
@@ -53,6 +56,9 @@ const RNCPCard = ({
   // Utiliser le niveau réel pour la validation, pas le niveau projeté
   const hasLevelRequirement = userProgress.currentLevel >= rncp.level;
   const hasEventsRequirement = validation.isEventsValid;
+  // Le ✓ vert ne marque que l'acquis ; la projection s'affiche à part, en bleu.
+  const hasRealProfessionalExperience =
+    userProgress.realProfessionalExperience >= rncp.requiredProfessionalExperience;
   const hasProfessionalExperience = validation.isProfessionalExperienceValid;
 
   // `completedProjects` se compare par SLUG (c'est ce que renvoie l'API 42),
@@ -200,16 +206,25 @@ const RNCPCard = ({
         </div>
 
         <div className="rncp-card__requirement-item">
-          <span className={`rncp-card__requirement-icon ${hasProfessionalExperience ? 'validated' : ''}`}>
-            {hasProfessionalExperience ? '✓' : '○'}
+          <span
+            className={`rncp-card__requirement-icon ${hasRealProfessionalExperience ? 'validated' : ''}${!hasRealProfessionalExperience && hasProfessionalExperience ? ' projected' : ''}`}
+          >
+            {hasRealProfessionalExperience ? '✓' : hasProfessionalExperience ? '◆' : '○'}
           </span>
           <span className="rncp-card__requirement-label">Exp. pro</span>
           <span className="rncp-card__requirement-value">
-            <span className={hasProfessionalExperience ? 'validated' : ''}>
-              {userProgress.professionalExperience}
+            <span className={hasRealProfessionalExperience ? 'validated' : ''}>
+              {userProgress.realProfessionalExperience}
             </span>
             {' / '}
             {rncp.requiredProfessionalExperience}
+            {/* Ce que la simulation ajouterait : stages prévus ou en cours, qui
+                ne sont pas encore des expériences acquises. */}
+            {userProgress.professionalExperience !== userProgress.realProfessionalExperience && (
+              <span className="rncp-card__requirement-projected">
+                {' '}→ {userProgress.professionalExperience}
+              </span>
+            )}
           </span>
         </div>
       </div>

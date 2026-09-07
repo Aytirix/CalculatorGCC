@@ -98,21 +98,35 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 					) : null}
 				</div>
 
+				{/* Même convention que la barre : l'acquis, puis la projection en bleu
+				    derrière une flèche. Le vert ne marque que ce qui est réellement
+				    validé — un compteur vert nourri par la simulation annonçait
+				    comme acquis ce qui ne l'était pas. */}
 				<div className="category-stats">
 					{category.requiredCount > 0 && (
 						<div className="stat">
 							<span className="stat-label">Projets:</span>
-							<span className={`stat-value ${validation.currentCount >= category.requiredCount ? 'valid' : ''}`}>
-								{validation.currentCount} / {category.requiredCount}
+							<span className={`stat-value ${validation.realCount >= category.requiredCount ? 'valid' : ''}`}>
+								{validation.realCount} / {category.requiredCount}
 							</span>
+							{validation.currentCount !== validation.realCount && (
+								<span className="stat-value stat-value--simulated">
+									→ {validation.currentCount}
+								</span>
+							)}
 						</div>
 					)}
 					{category.requiredXP > 0 && (
 						<div className="stat">
 							<span className="stat-label">XP:</span>
-							<span className={`stat-value ${validation.currentXP >= category.requiredXP ? 'valid' : ''}`}>
-								{validation.currentXP.toLocaleString()} / {category.requiredXP.toLocaleString()}
+							<span className={`stat-value ${validation.realXP >= category.requiredXP ? 'valid' : ''}`}>
+								{validation.realXP.toLocaleString()} / {category.requiredXP.toLocaleString()}
 							</span>
+							{validation.currentXP !== validation.realXP && (
+								<span className="stat-value stat-value--simulated">
+									→ {validation.currentXP.toLocaleString()}
+								</span>
+							)}
 						</div>
 					)}
 				</div>

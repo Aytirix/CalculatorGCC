@@ -6,18 +6,50 @@ import { TOUR_STEPS } from '@/config/tourSteps';
 import type { TourStepDef } from '@/config/tourSteps';
 import { simulationService } from '@/services/simulation.service';
 
-// ATTENTION : incrémenter ce suffixe ne suffit PAS à rejouer le guide pour les
-// utilisateurs existants. L'état « déjà vu » est un booléen miroité en base, et
-// `Dashboard` réécrit cette clé depuis le serveur à chaque chargement
-// (`syncTourSeen(data.hasSeenTour)`). Rejouer le guide après une refonte
-// demande donc de remettre `hasSeenTour` à false côté serveur — c'est une
-// décision produit, pas un détail de stockage.
 const TOUR_SEEN_KEY = 'gcc_tour_seen_v1';
+
+/**
+ * Étapes du guide déjà vues, par identifiant.
+ *
+ * Un simple « a déjà vu le guide » ne permet rien : quand le parcours gagne des
+ * étapes, soit on ne montre rien, soit on rejoue tout. En mémorisant les étapes
+ * vues, on ne présente que ce qui a été ajouté depuis le dernier passage —
+ * l'utilisateur reprend là où le guide s'est enrichi.
+ *
+ * Passer ou fermer le guide vaut « vu jusqu'au bout » : on marque alors TOUTES
+ * les étapes du parcours courant, faute de quoi il se relancerait sans fin.
+ */
+const TOUR_STEPS_SEEN_KEY = 'gcc_tour_steps_seen';
+
+function readSeenSteps(): string[] {
+  try {
+    const raw = localStorage.getItem(TOUR_STEPS_SEEN_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSeenSteps(ids: string[]): void {
+  try {
+    localStorage.setItem(TOUR_STEPS_SEEN_KEY, JSON.stringify(ids));
+  } catch {
+    /* stockage indisponible : le guide se rejouera, sans gravité */
+  }
+}
+
+/** Étapes jamais vues, dans l'ordre du parcours. */
+function pendingSteps(): TourStepDef[] {
+  const seen = new Set(readSeenSteps());
+  return TOUR_STEPS.filter((step) => !seen.has(step.id));
+}
 
 interface TourContextValue {
   startTour: () => void;
   hasSeenTour: () => boolean;
-  syncTourSeen: (seen: boolean) => void;
+  syncTourSeen: (seen: boolean, seenSteps?: string[]) => void;
+  /** Reste-t-il des étapes jamais vues (guide neuf, ou enrichi depuis) ? */
+  hasPendingSteps: () => boolean;
 }
 
 const TourContext = createContext<TourContextValue | null>(null);
@@ -122,13 +154,24 @@ const waitForElement = async (selector: string, timeoutMs: number = TARGET_WAIT_
 export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const tourRef = useRef<ShepherdTour | null>(null);
 
-  const syncTourSeen = useCallback((seen: boolean) => {
+  const syncTourSeen = useCallback((seen: boolean, seenSteps?: string[]) => {
     if (seen) {
       localStorage.setItem(TOUR_SEEN_KEY, 'true');
     } else {
       localStorage.removeItem(TOUR_SEEN_KEY);
     }
+    // La liste vient du serveur : elle fait autorité sur ce que cet utilisateur
+    // a déjà vu, quel que soit l'appareil.
+    if (seenSteps) writeSeenSteps(seenSteps);
   }, []);
+
+  /**
+   * Reste-t-il quelque chose à montrer ?
+   *
+   * Remplace le « a déjà vu le guide » : un utilisateur qui a tout vu n'a rien
+   * en attente, mais il en aura de nouveau dès qu'une étape sera ajoutée.
+   */
+  const hasPendingSteps = useCallback((): boolean => pendingSteps().length > 0, []);
 
   const buildTour = useCallback((): ShepherdTour => {
     if (tourRef.current) {
@@ -190,9 +233,13 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Table des parents élevés par step (pour restauration dans hide)
     const elevatedByStep = new Map<string, ElevatedNode[]>();
 
-    TOUR_STEPS.forEach((stepDef: TourStepDef, index: number) => {
+    // Uniquement ce que l'utilisateur n'a jamais vu : à la première visite c'est
+    // le parcours entier, ensuite ce sont les étapes ajoutées depuis.
+    const steps = pendingSteps();
+
+    steps.forEach((stepDef: TourStepDef, index: number) => {
       const isFirst = index === 0;
-      const isLast = index === TOUR_STEPS.length - 1;
+      const isLast = index === steps.length - 1;
       const targetSelector = stepDef.target ? `[data-tour="${stepDef.target}"]` : null;
 
       const isBlocking = stepDef.preventSkip || stepDef.blocking;
@@ -332,8 +379,14 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Restaurer tous les parents encore élevés
       elevatedByStep.forEach(elevated => restoreParents(elevated));
       elevatedByStep.clear();
-      syncTourSeen(true);
-      void simulationService.saveTourSeen(true).catch((error) => {
+      // Terminé OU passé : dans les deux cas l'utilisateur en a fini avec CES
+      // étapes. On les marque toutes, sinon le guide se relancerait sans fin ;
+      // et on ne marque que celles-ci, pour que de futures étapes lui soient
+      // bien proposées.
+      const seen = [...new Set([...readSeenSteps(), ...steps.map((s) => s.id)])];
+      writeSeenSteps(seen);
+      syncTourSeen(true, seen);
+      void simulationService.saveTourSeen(true, seen).catch((error) => {
         console.warn('[Tour] Impossible de sauvegarder l\'état du guide en base:', error);
       });
     };
@@ -354,7 +407,7 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <TourContext.Provider value={{ startTour, hasSeenTour, syncTourSeen }}>
+    <TourContext.Provider value={{ startTour, hasSeenTour, syncTourSeen, hasPendingSteps }}>
       {children}
     </TourContext.Provider>
   );

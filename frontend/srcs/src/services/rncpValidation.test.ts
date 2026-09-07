@@ -238,3 +238,61 @@ describe('le niveau et l’expérience « réels » ne viennent pas de la projec
     expect(v.overallRealValid).toBe(false);
   });
 });
+
+describe('une piscine ne vaut que si tous ses modules sont validés', () => {
+  const piscineRncp = {
+    id: 'rncp-test',
+    name: 'RNCP test',
+    level: 0,
+    requiredEvents: 0,
+    requiredProfessionalExperience: 0,
+    categories: [
+      {
+        id: 'cat',
+        name: 'Catégorie',
+        requiredCount: 1,
+        requiredXP: 1_000,
+        projects: [
+          {
+            // Le slug de la piscine est un PRÉFIXE de celui de ses modules,
+            // exactement comme « mobile » et « mobile-0-… » dans le référentiel.
+            id: 'piscine-mobile',
+            name: 'Piscine Mobile',
+            slug: 'mobile',
+            xp: 12_000,
+            subProjects: [
+              { id: 'mobile-0', name: 'Module 0', slug: 'mobile-0-basic', xp: 4_000 },
+              { id: 'mobile-1', name: 'Module 1', slug: 'mobile-1-basic', xp: 4_000 },
+              { id: 'mobile-2', name: 'Module 2', slug: 'mobile-2-basic', xp: 4_000 },
+            ],
+          },
+        ],
+      },
+    ],
+  } as unknown as RNCP;
+
+  const run = (completed: string[], subs: Record<string, string[]>) =>
+    xpService.validateRNCP(
+      piscineRncp, 0, 0, 0, completed, [], undefined, undefined, undefined, subs,
+      { level: 0, professionalExp: 0, subProjects: subs }
+    ).categoriesValidation[0];
+
+  it("ne compte que le module validé, pas la piscine entière", () => {
+    // Le rapprochement permissif faisait matcher « mobile » avec
+    // « mobile-0-basic » : la piscine passait pour acquise avec ses 12 000 XP.
+    // Un module validé vaut bien son XP — mais lui seul.
+    const cat = run(['mobile-0-basic'], { 'piscine-mobile': ['mobile-0'] });
+    expect(cat.realXP).toBe(4_000);
+    expect(cat.realCount).toBe(0); // la piscine n'est pas un projet acquis
+    expect(cat.isRealValid).toBe(false);
+  });
+
+  it('compte la piscine quand tous ses modules sont validés', () => {
+    const cat = run(
+      ['mobile-0-basic', 'mobile-1-basic', 'mobile-2-basic'],
+      { 'piscine-mobile': ['mobile-0', 'mobile-1', 'mobile-2'] }
+    );
+    expect(cat.realXP).toBe(12_000);
+    expect(cat.isRealValid).toBe(true);
+  });
+});

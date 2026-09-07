@@ -93,9 +93,16 @@
         background-color: var(--bg-accent);
         border-radius: $radius-sm;
 
+        // Vert : le seuil est atteint par de l'XP RÉEL.
         &.valid {
           background-color: rgba(34, 197, 94, 0.1);
           color: #16a34a;
+        }
+
+        // Bleu : ce que la simulation ajouterait, même convention que la barre.
+        &--simulated {
+          background-color: rgba(var(--color-primary-rgb), 0.1);
+          color: var(--color-primary);
         }
       }
     }
