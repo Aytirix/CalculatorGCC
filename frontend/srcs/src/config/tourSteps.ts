@@ -122,14 +122,13 @@ export const TOUR_STEPS: TourStepDef[] = [
 	{
 		id: 'step-select-project',
 		target: 'calendar-test-project',
-		title: 'Coche un projet',
-		text: "Clique sur un projet que tu comptes faire : son XP part aussitôt dans ton niveau projeté. Reclique pour le retirer.",
+		title: 'Cocher un projet',
+		text: "Un clic sur un projet que tu comptes faire envoie aussitôt son XP dans ton niveau projeté. Un second clic le retire.",
 		position: 'right',
-		validation: 'click',
-		// Volontairement PAS `preventSkip` : une étape sans bouton « Passer » ni
-		// croix enferme l'utilisateur dès que sa cible n'est pas là — et celle-ci
-		// n'existe que sur le tableau de bord, qu'on peut quitter en un clic
-		// depuis la barre de navigation mise en avant deux étapes plus tôt.
+		// Le guide MONTRE, il n'impose pas. Exiger un clic sur un projet précis
+		// bloquait l'utilisateur qui voulait simplement lire, et enfermait
+		// carrément celui dont la cible n'était pas à l'écran.
+		validation: 'button',
 	},
 
 	{
@@ -155,23 +154,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		validation: 'button',
 	},
 
-	{
-		id: 'step-my-projects',
-		target: 'nav-my-projects',
-		title: 'Ton parcours en une liste',
-		text: "Tout ce que tu as validé, raté, commencé ou simulé — avec filtres et tris, et des compteurs qui suivent le RNCP choisi.",
-		position: 'bottom',
-		validation: 'button',
-	},
 
-	{
-		id: 'step-holy-graph',
-		target: 'nav-holy-graph',
-		title: 'Le Holy Graph',
-		text: "Le graphe officiel de 42, avec ton avancement. Clique un projet pour voir ses prérequis et le simuler directement.",
-		position: 'bottom',
-		validation: 'button',
-	},
 
 	{
 		id: 'step-end',
