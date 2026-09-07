@@ -58,16 +58,19 @@
     }
   }
 
+  // Bleu du THÈME : c'est la couleur qui signale la simulation dans toute
+  // l'application (barres, compteurs, badges). Un bleu codé en dur jurait à côté
+  // et ne suivait pas le mode sombre.
   &.simulated {
-    border-color: #3b82f6;
-    background-color: rgba(59, 130, 246, 0.05);
+    border-color: var(--color-primary);
+    background-color: rgba(var(--color-primary-rgb), 0.05);
 
     &::before {
-      background: linear-gradient(to bottom, #3b82f6, #2563eb);
+      background: var(--color-primary);
     }
 
     .project-name {
-      color: #2563eb;
+      color: var(--color-primary);
     }
 
     &:hover {
@@ -79,7 +82,7 @@
   &.available {
     &:hover {
       border-color: var(--color-primary);
-      background-color: rgba(59, 130, 246, 0.03);
+      background-color: rgba(var(--color-primary-rgb), 0.03);
       box-shadow: 0 4px 12px var(--shadow-color);
 
       &::before {
@@ -264,7 +267,7 @@
     font-size: 0.72rem;
     font-weight: 600;
     color: var(--color-primary);
-    background-color: rgba(59, 130, 246, 0.1);
+    background-color: rgba(var(--color-primary-rgb), 0.1);
     padding: 2px 5px;
     border-radius: $radius-sm;
     white-space: nowrap;
@@ -384,11 +387,11 @@
     }
 
     &.simulated {
-      background-color: rgba(59, 130, 246, 0.05);
-      border-color: rgba(59, 130, 246, 0.2);
+      background-color: rgba(var(--color-primary-rgb), 0.05);
+      border-color: rgba(var(--color-primary-rgb), 0.2);
 
       .sub-project-name {
-        color: #2563eb;
+        color: var(--color-primary);
         font-weight: 500;
       }
     }
@@ -410,7 +413,7 @@
     font-size: 0.75rem;
     color: var(--color-primary);
     font-weight: 600;
-    background-color: rgba(59, 130, 246, 0.1);
+    background-color: rgba(var(--color-primary-rgb), 0.1);
     padding: 2px 6px;
     border-radius: $radius-sm;
     flex-shrink: 0;

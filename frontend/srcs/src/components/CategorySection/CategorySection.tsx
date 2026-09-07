@@ -103,30 +103,35 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 				    validé — un compteur vert nourri par la simulation annonçait
 				    comme acquis ce qui ne l'était pas. */}
 				<div className="category-stats">
+					{/* La projection s'insère AVANT le slash : le seuil à atteindre
+					    reste le dernier nombre lu, sinon « 5 / 2 → 7 » se lit comme si
+					    le seuil valait 7. */}
 					{category.requiredCount > 0 && (
 						<div className="stat">
 							<span className="stat-label">Projets:</span>
 							<span className={`stat-value ${validation.realCount >= category.requiredCount ? 'valid' : ''}`}>
-								{validation.realCount} / {category.requiredCount}
+								{validation.realCount}
+								{validation.currentCount !== validation.realCount && (
+									<span className="stat-value__projected"> → {validation.currentCount}</span>
+								)}
+								{' / '}
+								{category.requiredCount}
 							</span>
-							{validation.currentCount !== validation.realCount && (
-								<span className="stat-value stat-value--simulated">
-									→ {validation.currentCount}
-								</span>
-							)}
 						</div>
 					)}
 					{category.requiredXP > 0 && (
 						<div className="stat">
 							<span className="stat-label">XP:</span>
 							<span className={`stat-value ${validation.realXP >= category.requiredXP ? 'valid' : ''}`}>
-								{validation.realXP.toLocaleString()} / {category.requiredXP.toLocaleString()}
+								{validation.realXP.toLocaleString()}
+								{validation.currentXP !== validation.realXP && (
+									<span className="stat-value__projected">
+										{' '}→ {validation.currentXP.toLocaleString()}
+									</span>
+								)}
+								{' / '}
+								{category.requiredXP.toLocaleString()}
 							</span>
-							{validation.currentXP !== validation.realXP && (
-								<span className="stat-value stat-value--simulated">
-									→ {validation.currentXP.toLocaleString()}
-								</span>
-							)}
 						</div>
 					)}
 				</div>
@@ -143,19 +148,15 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 								: `${Math.round(realPercentage)} % acquis`
 						}
 					>
-						<motion.div
-							className="progress-bar-fill"
-
-							initial={{ width: 0 }}
-							animate={{ width: `${realPercentage}%` }}
-							transition={{ duration: 0.5, ease: 'easeOut' }}
-						/>
+						{/* Largeur posée directement, animée en CSS : framer-motion
+						    n'interpole pas d'un nombre (`0`) vers un pourcentage
+						    (`'42%'`), il laissait la barre à zéro alors que le texte
+						    annonçait le bon pourcentage. */}
+						<div className="progress-bar-fill" style={{ width: `${realPercentage}%` }} />
 						{simulatedPercentage > 0 && (
-							<motion.div
+							<div
 								className="progress-bar-fill simulated"
-								initial={{ width: 0 }}
-								animate={{ width: `${simulatedPercentage}%` }}
-								transition={{ duration: 0.5, ease: 'easeOut' }}
+								style={{ width: `${simulatedPercentage}%` }}
 							/>
 						)}
 					</div>

@@ -216,15 +216,16 @@ const RNCPCard = ({
             <span className={hasRealProfessionalExperience ? 'validated' : ''}>
               {userProgress.realProfessionalExperience}
             </span>
-            {' / '}
-            {rncp.requiredProfessionalExperience}
-            {/* Ce que la simulation ajouterait : stages prévus ou en cours, qui
-                ne sont pas encore des expériences acquises. */}
+            {/* Ce que la simulation ajouterait — stages prévus ou en cours, pas
+                encore acquis — inséré AVANT le slash pour que le seuil à
+                atteindre reste le dernier nombre lu. */}
             {userProgress.professionalExperience !== userProgress.realProfessionalExperience && (
               <span className="rncp-card__requirement-projected">
                 {' '}→ {userProgress.professionalExperience}
               </span>
             )}
+            {' / '}
+            {rncp.requiredProfessionalExperience}
           </span>
         </div>
       </div>

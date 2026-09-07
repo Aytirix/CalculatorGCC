@@ -62,8 +62,8 @@
       // Catégorie satisfaite par la SIMULATION : bleu, et le mot le dit. Le
       // vert est réservé à ce qui est réellement acquis.
       &--simulated {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        background: var(--color-primary);
+        box-shadow: 0 2px 4px rgba(var(--color-primary-rgb), 0.3);
       }
     }
   }
@@ -100,8 +100,9 @@
         }
 
         // Bleu : ce que la simulation ajouterait, même convention que la barre.
-        &--simulated {
-          background-color: rgba(var(--color-primary-rgb), 0.1);
+        // Inséré DANS la pastille, avant le slash, pour que le seuil reste le
+        // dernier nombre lu.
+        &__projected {
           color: var(--color-primary);
         }
       }
@@ -133,6 +134,9 @@
         // part simulée — l'état par défaut de l'application.
         background: linear-gradient(90deg, #22c55e, #16a34a);
         border-radius: 0;
+        // L'animation se fait ici plutôt qu'en JavaScript : une transition CSS
+        // n'a aucun mal à passer d'un pourcentage à un autre.
+        transition: width 0.5s ease-out;
         // Une largeur exprimée en pourcentage ne doit pas être rabotée par le
         // partage flex.
         flex-shrink: 0;
@@ -248,7 +252,7 @@
 
       &:hover {
         border-color: var(--color-primary);
-        background: rgba(59, 130, 246, 0.05);
+        background: rgba(var(--color-primary-rgb), 0.05);
         color: var(--color-primary);
         transform: translateY(-2px);
 
