@@ -410,21 +410,17 @@ const ProjectRow: React.FC<{
 	teamInfo: ProjectTeamInfo | null;
 	onFindTeammates: () => void;
 }> = ({ row, teamInfo, onFindTeammates }) => (
-	<li className={`project-row project-row--${row.status}`}>
-		{/* Un projet peut être dans deux états (en cours ET simulé). Le second se
-		    marque par un point sur le badge, PAS par un badge supplémentaire : la
-		    ligne est une grille à colonnes fixes, un élément de plus décalait tout
-		    le reste. */}
-		<span
-			className={`project-row__status status-${row.status}${
-				row.isSimulated && row.status !== 'simulated' ? ' also-simulated' : ''
-			}`}
-			title={
-				row.isSimulated && row.status !== 'simulated'
-					? `${STATUS_LABELS[row.status]} — et dans ta simulation`
-					: undefined
-			}
-		>
+	<li
+		className={`project-row project-row--${row.status}${
+			row.isSimulated && row.status !== 'simulated' ? ' project-row--simulated-too' : ''
+		}`}
+		title={
+			row.isSimulated && row.status !== 'simulated'
+				? `${STATUS_LABELS[row.status]}, et dans ta simulation`
+				: undefined
+		}
+	>
+		<span className={`project-row__status status-${row.status}`}>
 			{STATUS_LABELS[row.status]}
 		</span>
 		<div className="project-row__main">
