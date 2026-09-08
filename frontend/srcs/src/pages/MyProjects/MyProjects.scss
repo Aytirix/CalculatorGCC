@@ -186,12 +186,15 @@
 	background: var(--bg-card);
 	font-size: 0.85rem;
 
-	// Projet déjà avancé sur 42 et pourtant dans la simulation : la ligne entière
-	// le signale, à la manière d'une carte simulée sur le tableau de bord. Un
-	// badge de plus aurait pris une colonne de la grille et décalé toute la ligne.
-	&--simulated-too {
-		border-left: 3px solid #a78bfa;
-		padding-left: calc(0.85rem - 2px);
+	// Les étiquettes d'état occupent UNE seule cellule de la grille et s'y
+	// empilent. En faire des enfants directs de la grille aurait consommé une
+	// colonne de plus et décalé le reste de la ligne.
+	&__statuses {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.2rem;
+		min-width: 0;
 	}
 
 	&__status {

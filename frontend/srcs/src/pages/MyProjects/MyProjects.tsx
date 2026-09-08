@@ -410,19 +410,20 @@ const ProjectRow: React.FC<{
 	teamInfo: ProjectTeamInfo | null;
 	onFindTeammates: () => void;
 }> = ({ row, teamInfo, onFindTeammates }) => (
-	<li
-		className={`project-row project-row--${row.status}${
-			row.isSimulated && row.status !== 'simulated' ? ' project-row--simulated-too' : ''
-		}`}
-		title={
-			row.isSimulated && row.status !== 'simulated'
-				? `${STATUS_LABELS[row.status]}, et dans ta simulation`
-				: undefined
-		}
-	>
-		<span className={`project-row__status status-${row.status}`}>
-			{STATUS_LABELS[row.status]}
-		</span>
+	<li className={`project-row project-row--${row.status}`}>
+		{/* Deux états simultanés (en cours ET simulé) : les étiquettes s'empilent
+		    DANS la cellule de la grille. Les mettre côte à côte comme enfants
+		    directs en aurait pris une colonne, décalant toute la ligne. */}
+		<div className="project-row__statuses">
+			<span className={`project-row__status status-${row.status}`}>
+				{STATUS_LABELS[row.status]}
+			</span>
+			{row.isSimulated && row.status !== 'simulated' && (
+				<span className="project-row__status status-simulated">
+					{STATUS_LABELS.simulated}
+				</span>
+			)}
+		</div>
 		<div className="project-row__main">
 			<span className="project-row__name">{row.name}</span>
 			{row.rncpNames.length > 0 && (
