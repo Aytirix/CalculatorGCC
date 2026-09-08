@@ -187,12 +187,28 @@
 	font-size: 0.85rem;
 
 	&__status {
+		position: relative;
 		font-size: 0.7rem;
 		text-align: center;
 		padding: 0.15rem 0.4rem;
 		border-radius: 999px;
 		border: 1px solid currentColor;
 		white-space: nowrap;
+
+		// Projet à la fois avancé sur 42 ET dans la simulation : un point, dans le
+		// violet des projets simulés. Un second badge aurait pris une colonne de
+		// la grille et décalé toute la ligne.
+		&.also-simulated::after {
+			content: '';
+			position: absolute;
+			top: -2px;
+			right: -2px;
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: #a78bfa;
+			box-shadow: 0 0 0 2px var(--bg-card);
+		}
 	}
 
 	.status-validated { color: #2dd4bf; }
