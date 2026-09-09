@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { listDelegates } from '../db/adminRepository.js';
 import { simulationRepository } from '../db/simulationRepository.js';
 import { prisma } from '../db/connection.js';
 
@@ -6,6 +7,16 @@ export const SimulationController = {
 	/**
 	 * GET /simulation - Récupère la simulation de l'utilisateur connecté
 	 */
+	/**
+	 * Logins des délégués 42, à contacter en cas d'erreur sur le référentiel.
+	 * Liste vide si personne n'est déclaré : le front n'affiche alors aucune
+	 * invitation à écrire, plutôt qu'une phrase sans destinataire.
+	 */
+	async getReferentialContacts(_request: FastifyRequest, reply: FastifyReply) {
+		const delegates = await listDelegates();
+		return reply.send({ contacts: delegates.map((d) => d.login42) });
+	},
+
 	async get(request: FastifyRequest, reply: FastifyReply) {
 		const { user_id_42 } = request.user;
 
@@ -184,15 +195,18 @@ export const SimulationController = {
 			hasSeenTour: body.hasSeenTour === true,
 		};
 
-		try {
-			const saved = await simulationRepository.save(user_id_42, login, image_url ?? null, data, first_name, last_name);
-			return reply.send(saved);
-		} catch (err: any) {
-			if (err.message?.startsWith('Validation failed')) {
-				return reply.code(400).send({ error: err.message });
-			}
-			throw err;
-		}
+		const { saved, dropped } = await simulationRepository.save(
+			user_id_42,
+			login,
+			image_url ?? null,
+			data,
+			first_name,
+			last_name,
+		);
+		// Une entrée refusée est signalée au client. La sauvegarde a bien eu lieu —
+		// d'où le 200 — mais taire ce qui n'a pas été retenu laisserait l'utilisateur
+		// croire qu'il a enregistré quelque chose qui n'existe nulle part.
+		return reply.send(dropped.length > 0 ? { ...saved, dropped } : saved);
 	},
 
 	/**

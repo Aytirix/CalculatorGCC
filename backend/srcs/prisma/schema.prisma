@@ -140,6 +140,33 @@ model Api42Cache {
   @@map("api42_cache")
 }
 
+// Référentiel RNCP, versionné.
+//
+// Il vivait uniquement dans `src/data/rncpReferential.ts`, donc compilé dans
+// l'image : le panneau admin ne pouvait rien appliquer, et toute correction
+// exigeait un commit et un déploiement. La base devient la source de vérité à
+// l'exécution ; le fichier TS reste la GRAINE, insérée en version 1 au premier
+// démarrage sur une base vide, et sert de repli si la table est illisible.
+//
+// Append-only : chaque application crée une version, jamais une mise à jour en
+// place. Une modification de référentiel change ce que valide le RNCP pour tout
+// le monde d'un coup — pouvoir revenir à la version précédente n'est pas un
+// luxe.
+model RncpReferentialVersion {
+  version   Int      @id @default(autoincrement())
+  // Le référentiel entier, sérialisé. Un schéma relationnel donnerait cinq
+  // tables pour une donnée qu'on lit toujours en bloc et qu'on ne requête
+  // jamais par morceaux.
+  payload   Json
+  // Qui a appliqué, et quoi : « ajout de 3 projets à web » — de quoi relire
+  // l'historique sans diffusion de payloads.
+  createdBy String   @db.VarChar(128)
+  summary   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("rncp_referential_version")
+}
+
 // État du refresh global déclenché par l'admin : sert à interdire un second
 // lancement pendant qu'un est en cours, et à afficher la dernière exécution.
 model GlobalRefresh {

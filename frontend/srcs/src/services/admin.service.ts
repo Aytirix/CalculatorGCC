@@ -63,6 +63,95 @@ export interface GlobalRefreshState {
   cacheEntries: { key: string; fetchedAt: string }[];
 }
 
+/**
+ * Rapport de comparaison entre notre référentiel RNCP et celui de GCC.
+ * Les formes sont celles de `gccReferential.service.ts` côté backend.
+ */
+export interface GccThresholdDiff {
+  label: string;
+  /** `null` : GCC n'a plus de règle pour ce seuil, alors que nous l'exigeons encore. */
+  gcc: number | null;
+  ours: number;
+}
+export interface GccMissingProject {
+  name: string;
+  /** L'identifiant qu'aurait ce projet chez nous — la cible de l'ajout. */
+  projectId: string;
+  slug42: string | null;
+  /** Ligne prête à coller dans `rncpReferential.ts`. */
+  line: string;
+  slugUnknown: boolean;
+}
+export interface GccExtraProject {
+  id: string;
+  retired: boolean;
+  /** Utilisateurs qui l'ont simulé : au-dessus de zéro, le supprimer les bloque. */
+  simulatedBy: number;
+}
+export interface GccCategoryDiff {
+  name: string;
+  categoryId: string;
+  /** L'entrée de référentiel qui porte cette catégorie — la cible des opérations. */
+  ownerId: string;
+  tag: string;
+  thresholds: GccThresholdDiff[];
+  missing: GccMissingProject[];
+  extra: GccExtraProject[];
+}
+export interface GccSectionDiff {
+  title: string;
+  entryId: string | null;
+  subtitle: string | null;
+  thresholds: GccThresholdDiff[];
+  categories: GccCategoryDiff[];
+  warnings: string[];
+}
+export interface GccComparison {
+  rncpCount: number;
+  common: GccSectionDiff | null;
+  rncps: GccSectionDiff[];
+  warnings: string[];
+  anyDiff: boolean;
+}
+
+/** Une modification ciblée du référentiel, telle que le panneau la demande. */
+export type ReferentialOperation =
+  | { kind: 'add'; rncpId: string; categoryId: string; projectId: string; slug42: string | null }
+  | { kind: 'retire'; rncpId: string; categoryId: string; projectId: string }
+  | { kind: 'unretire'; rncpId: string; categoryId: string; projectId: string }
+  | { kind: 'remove'; rncpId: string; categoryId: string; projectId: string };
+
+/**
+ * Ce qu'une version a changé. Le backend sérialise cet objet dans `summary` ;
+ * les versions les plus anciennes y ont du texte libre, d'où le repli à
+ * l'affichage.
+ */
+export interface VersionSummary {
+  added?: string[];
+  retired?: string[];
+  unretired?: string[];
+  removed?: string[];
+  note?: string;
+  total?: number;
+}
+
+export interface ReferentialVersion {
+  version: number;
+  createdBy: string;
+  /** JSON d'un `VersionSummary`, ou texte libre pour les versions historiques. */
+  summary: string;
+  createdAt: string;
+}
+export interface ReferentialState {
+  version: number;
+  versions: ReferentialVersion[];
+}
+export interface ApplyResult {
+  version: number;
+  applied: string[];
+  refused: { operation: ReferentialOperation; reason: string }[];
+}
+
 export interface DelegateInfo {
   login: string;
   created_at: string;
@@ -204,5 +293,39 @@ export const adminService = {
       if (e?.response?.status === 409) return { started: false, state: e.response.data.state };
       throw e;
     }
+  },
+
+  // ----- Référentiel RNCP vs GCC -----
+  /**
+   * Compare notre référentiel à celui de l'école. Le jeton GCC ne fait que
+   * transiter : il n'est ni conservé ici, ni stocké côté serveur.
+   *
+   * L'appel enchaîne cinq requêtes vers GCC — au-delà du timeout par défaut.
+   */
+  async compareGccReferential(token: string): Promise<GccComparison> {
+    const res = await api.post<{ comparison: GccComparison }>(
+      '/admin/gcc-referential',
+      { token },
+      { headers: authHeader(), timeout: 120_000 },
+    );
+    return res.data.comparison;
+  },
+
+  // ----- Référentiel en base -----
+  async getReferentialState(): Promise<ReferentialState> {
+    return (await api.get<ReferentialState>('/admin/referential', { headers: authHeader() })).data;
+  },
+  /**
+   * Applique les modifications cochées. Les opérations refusées ne bloquent pas
+   * les autres : le résultat dit ce qui est passé et ce qui ne l'est pas.
+   */
+  async applyReferential(operations: ReferentialOperation[]): Promise<ApplyResult> {
+    return (await api.post<ApplyResult>('/admin/referential/apply', { operations }, { headers: authHeader() })).data;
+  },
+  async revertReferential(version: number): Promise<number> {
+    return (await api.post<{ version: number }>('/admin/referential/revert', { version }, { headers: authHeader() })).data.version;
+  },
+  async exportReferential(): Promise<{ version: number; typescript: string }> {
+    return (await api.get<{ version: number; typescript: string }>('/admin/referential/export', { headers: authHeader() })).data;
   },
 };

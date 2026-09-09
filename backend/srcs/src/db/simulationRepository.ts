@@ -54,35 +54,133 @@ async function getTourSeenFlag(userId42: number): Promise<boolean> {
 	return coerceBooleanFlag(rows[0]?.hasSeenTour);
 }
 
-/**
- * Valide les données de simulation avant sauvegarde
- */
-function validateSimulationData(data: SimulationData): string[] {
-	const errors: string[] = [];
+/** Bornes d'un pourcentage de validation, identiques à celles du front. */
+const MIN_PERCENTAGE = 0;
+const MAX_PERCENTAGE = 125;
 
-	// Valider les projets simulés
+/** Au-delà, le journal ne sert plus à diagnostiquer, il sert à noyer. */
+const MAX_LOGGED_ISSUES = 20;
+
+/**
+ * Rend un identifiant sûr à journaliser : tronqué, et privé de sauts de ligne.
+ * Il vient du client, donc il peut fabriquer de fausses lignes de journal.
+ */
+function forLog(value: string): string {
+	return value.replace(/[\r\n]+/g, '\u23ce').slice(0, 64);
+}
+
+/**
+ * Ce que `save` rend à l'appelant.
+ *
+ * `dropped` n'est pas décoratif : sans lui, une entrée refusée disparaissait de
+ * la réponse sans le moindre signal, et l'utilisateur croyait avoir enregistré
+ * quelque chose qui n'existait nulle part. Le contrôleur le fait remonter.
+ */
+export interface SaveResult {
+	saved: SimulationData;
+	dropped: string[];
+}
+
+export interface SanitizeResult {
+	clean: SimulationData;
+	/**
+	 * Identifiants de projets présents dans l'entrée mais écartés. Ils doivent
+	 * survivre à la mise à jour différentielle : voir `save`.
+	 */
+	rejectedProjectIds: Set<string>;
+	/**
+	 * Sous-projets écartés, tels que reçus. Même raison : `simulatedSubProjects`
+	 * est un blob JSON réécrit en entier, donc tout ce qui n'y figure pas est
+	 * DÉTRUIT. Protéger la table relationnelle sans protéger le blob ne tiendrait
+	 * la promesse qu'à moitié.
+	 */
+	rejectedSubProjects: Record<string, string[]>;
+	/** Entrées refusées, pour le journal et pour la réponse au client. */
+	dropped: string[];
+	/** Valeurs corrigées sans refus — distinctes des refus, elles sont conservées. */
+	adjusted: string[];
+}
+
+/**
+ * Nettoie les données de simulation avant sauvegarde, sans jamais tout refuser.
+ *
+ * L'ancienne version levait une exception dès qu'une seule entrée clochait, ce
+ * qui faisait perdre la sauvegarde ENTIÈRE : un identifiant devenu inconnu — un
+ * projet sorti du référentiel, par exemple — bloquait définitivement toutes les
+ * sauvegardes de ceux qui l'avaient simulé, y compris leurs autres
+ * modifications. C'est déjà arrivé avec `ft-ssl-md5`.
+ *
+ * On écarte donc l'entrée fautive et on garde le reste. « Écarter » veut dire
+ * NE PAS LA TRAITER — surtout pas l'effacer : `rejectedProjectIds` existe pour
+ * que `save` protège de la suppression la ligne correspondante en base. Une
+ * donnée qu'on ne sait pas relire n'est pas une donnée à détruire.
+ */
+function sanitizeSimulationData(data: SimulationData): SanitizeResult {
+	const dropped: string[] = [];
+	const adjusted: string[] = [];
+	const rejectedProjectIds = new Set<string>();
+
+	const simulatedProjects: SimulatedProjectData[] = [];
 	for (const p of data.simulatedProjects) {
 		if (!isValidProjectId(p.projectId)) {
-			errors.push(`Invalid project ID: ${p.projectId}`);
+			dropped.push(`projet inconnu ${forLog(p.projectId)}`);
+			rejectedProjectIds.add(p.projectId);
+			continue;
 		}
-		if (typeof p.percentage !== 'number' || p.percentage < 0 || p.percentage > 125) {
-			errors.push(`Invalid percentage for ${p.projectId}: ${p.percentage}`);
+		if (typeof p.percentage !== 'number' || !Number.isFinite(p.percentage)) {
+			dropped.push(`pourcentage non numerique pour ${forLog(p.projectId)}`);
+			rejectedProjectIds.add(p.projectId);
+			continue;
 		}
+
+		// Un pourcentage hors bornes est ramene dans les bornes plutot qu'ecarte :
+		// l'intention (avoir simule ce projet) reste lisible, et ce sont exactement
+		// les bornes que le front applique deja.
+		const percentage = Math.min(MAX_PERCENTAGE, Math.max(MIN_PERCENTAGE, p.percentage));
+		if (percentage !== p.percentage) {
+			adjusted.push(`pourcentage ${p.percentage} ramene a ${percentage} pour ${forLog(p.projectId)}`);
+		}
+		// Copie plutot que mutation : `filter` aurait garde les references de
+		// l'appelant, et corriger un pourcentage aurait modifie SON objet.
+		simulatedProjects.push({ ...p, percentage });
 	}
 
-	// Valider les sous-projets simulés
+	const simulatedSubProjects: Record<string, string[]> = {};
+	const rejectedSubProjects: Record<string, string[]> = {};
 	for (const [parentId, subIds] of Object.entries(data.simulatedSubProjects)) {
 		if (!isValidProjectId(parentId)) {
-			errors.push(`Invalid parent project ID in subProjects: ${parentId}`);
+			dropped.push(`piscine inconnue ${forLog(parentId)}`);
+			// Conservée telle quelle : une piscine sortie du référentiel ne doit pas
+			// emporter les modules que l'utilisateur y avait cochés.
+			if (Array.isArray(subIds)) rejectedSubProjects[parentId] = subIds;
+			continue;
 		}
+		// Un client forge ou un stockage local corrompu peut envoyer autre chose
+		// qu'un tableau : sans cette garde, `.filter` leve et la requete part en 500.
+		if (!Array.isArray(subIds)) {
+			dropped.push(`sous-projets non listes pour ${forLog(parentId)}`);
+			continue;
+		}
+		const kept: string[] = [];
+		const rejected: string[] = [];
 		for (const subId of subIds) {
-			if (!isValidSubProjectId(subId)) {
-				errors.push(`Invalid sub-project ID: ${subId}`);
+			if (typeof subId === 'string' && isValidSubProjectId(subId)) kept.push(subId);
+			else {
+				dropped.push(`sous-projet inconnu ${forLog(String(subId))}`);
+				if (typeof subId === 'string') rejected.push(subId);
 			}
 		}
+		simulatedSubProjects[parentId] = kept;
+		if (rejected.length > 0) rejectedSubProjects[parentId] = rejected;
 	}
 
-	return errors;
+	return {
+		clean: { ...data, simulatedProjects, simulatedSubProjects },
+		rejectedProjectIds,
+		rejectedSubProjects,
+		dropped,
+		adjusted,
+	};
 }
 
 export interface UserSearchResult {
@@ -224,10 +322,32 @@ export const simulationRepository = {
 	/**
 	 * Sauvegarde la simulation d'un utilisateur (upsert)
 	 */
-	async save(userId42: number, login: string, imageUrl: string | null, data: SimulationData, firstName?: string | null, lastName?: string | null): Promise<SimulationData> {
-		const errors = validateSimulationData(data);
-		if (errors.length > 0) {
-			throw new Error(`Validation failed: ${errors.join(', ')}`);
+	async save(userId42: number, login: string, imageUrl: string | null, input: SimulationData, firstName?: string | null, lastName?: string | null): Promise<SaveResult> {
+		// Les projets et sous-projets qui suivent ne doivent JAMAIS voir les données
+		// brutes : d'où le paramètre renommé `input`. Les trois autres champs
+		// (`customProjects`, `manualExperiences`, `apiExpPercentages`) traversent en
+		// revanche `sanitize` sans contrôle — la garantie ne porte pas sur eux.
+		const { clean: data, rejectedProjectIds, rejectedSubProjects, dropped, adjusted } =
+			sanitizeSimulationData(input);
+
+		// Le blob JSON est réécrit EN ENTIER à chaque sauvegarde : ce qu'on n'y
+		// remet pas est détruit. On y refusionne donc les entrées écartées, telles
+		// que reçues — même raison que `rejectedProjectIds` pour la table
+		// relationnelle. Une donnée qu'on ne sait pas relire n'est pas une donnée
+		// à détruire, et ça vaut pour les deux moitiés du stockage.
+		const subProjectsToStore: Record<string, string[]> = { ...data.simulatedSubProjects };
+		for (const [parentId, subIds] of Object.entries(rejectedSubProjects)) {
+			subProjectsToStore[parentId] = [...(subProjectsToStore[parentId] ?? []), ...subIds];
+		}
+		if (dropped.length > 0 || adjusted.length > 0) {
+			// Tronqué : un client peut envoyer des milliers d'entrées fautives dans
+			// une seule requête, et une ligne de journal de 600 Ko ne diagnostique
+			// plus rien. Journalisé sans identifier la personne : c'est le
+			// référentiel ou le client qu'on surveille, pas l'utilisateur.
+			const issues = [...dropped, ...adjusted];
+			const shown = issues.slice(0, MAX_LOGGED_ISSUES).join(', ');
+			const rest = issues.length > MAX_LOGGED_ISSUES ? ` (+${issues.length - MAX_LOGGED_ISSUES} autres)` : '';
+			console.warn(`[Simulation] entrées non retenues telles quelles : ${shown}${rest}`);
 		}
 
 		// Upsert user_simulation
@@ -239,7 +359,7 @@ export const simulationRepository = {
 				imageUrl,
 				firstName: firstName ?? null,
 				lastName: lastName ?? null,
-				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
+				simulatedSubProjects: subProjectsToStore as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
 				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
@@ -249,7 +369,7 @@ export const simulationRepository = {
 				imageUrl,
 				...(firstName !== undefined && { firstName }),
 				...(lastName !== undefined && { lastName }),
-				simulatedSubProjects: data.simulatedSubProjects as Prisma.InputJsonValue,
+				simulatedSubProjects: subProjectsToStore as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
 				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
 				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
@@ -274,7 +394,17 @@ export const simulationRepository = {
 			select: { projectId: true, percentage: true, coalitionBoost: true, note: true },
 		});
 		const existingById = new Map(existing.map((row) => [row.projectId, row]));
-		const wanted = new Set(data.simulatedProjects.map((p) => p.projectId));
+		// Les identifiants ÉCARTÉS comptent parmi les voulus.
+		//
+		// Sans eux, `removed` supprimerait de la base les lignes correspondantes :
+		// une entrée qu'on refuse de relire serait donc DÉTRUITE au lieu d'être
+		// laissée tranquille — exactement l'inverse du but. Le cas nominal est un
+		// projet sorti du référentiel : son identifiant devient inconnu, et
+		// l'utilisateur perdrait sa ligne sans rien voir, sans recours.
+		const wanted = new Set([
+			...data.simulatedProjects.map((p) => p.projectId),
+			...rejectedProjectIds,
+		]);
 
 		const removed = existing.filter((row) => !wanted.has(row.projectId)).map((row) => row.projectId);
 		if (removed.length > 0) {
@@ -309,7 +439,9 @@ export const simulationRepository = {
 			});
 		}
 
-		return data;
+		// Tronqué comme le journal : le client n'a pas besoin de dix mille lignes
+		// pour comprendre que sa sauvegarde n'a pas tout retenu.
+		return { saved: data, dropped: dropped.slice(0, MAX_LOGGED_ISSUES) };
 	},
 
 	/**
@@ -397,5 +529,64 @@ export const simulationRepository = {
 		`;
 
 		return version;
+	},
+
+	/**
+	 * Combien d'utilisateurs ont simulé chacun de ces projets.
+	 *
+	 * Sert au rapport de comparaison avec GCC, avant de retirer une ligne du
+	 * référentiel. Depuis `sanitizeSimulationData`, supprimer un projet encore
+	 * simulé ne bloque plus personne : l'identifiant devenu inconnu est écarté,
+	 * la ligne en base est préservée, et le reste de la sauvegarde passe. Mais
+	 * ces personnes voient leur projet cesser de compter dans le RNCP sans
+	 * qu'aucun écran ne l'explique — c'est précisément ce que le drapeau
+	 * `retired` sert à éviter. Ce compte dit donc combien de personnes méritent
+	 * un `retired: true` plutôt qu'une suppression sèche.
+	 *
+	 * Un projet absent du résultat n'est simulé par personne : sa ligne peut
+	 * être supprimée pour de bon.
+	 */
+	async countByProjectIds(projectIds: string[]): Promise<Map<string, number>> {
+		if (projectIds.length === 0) return new Map();
+
+		// Les SOUS-projets simulés ne vivent pas dans `simulated_project` mais dans un
+		// blob JSON de `user_simulation` : `{ identifiant de piscine: [modules] }`.
+		// Compter la seule table relationnelle laissait supprimer une piscine dont
+		// des modules sont cochés, ou un module lui-même — le garde-fou renvoyait
+		// zéro pendant que des gens perdaient leur cochage à la sauvegarde suivante.
+		//
+		// Les CLÉS (piscines) et les VALEURS (modules) comptent toutes les deux :
+		// `revertTo` soumet les deux sortes d'identifiants.
+		const wanted = new Set(projectIds);
+		const blobs = await prisma.userSimulation.findMany({
+			select: { userId42: true, simulatedSubProjects: true },
+		});
+		// On compte des UTILISATEURS, pas des lignes : quelqu'un qui a la piscine en
+		// table ET ses modules dans le blob ne vaut qu'une personne. Sans ce
+		// dédoublonnage, le chiffre affiché dans le panneau — « simulé par N
+		// utilisateurs » — mentait, et il sert à décider d'une suppression.
+		const seen = new Map<string, Set<number>>();
+		const relational = await prisma.simulatedProject.findMany({
+			where: { projectId: { in: projectIds } },
+			select: { projectId: true, userId42: true },
+		});
+		for (const row of relational) {
+			if (!seen.has(row.projectId)) seen.set(row.projectId, new Set());
+			seen.get(row.projectId)!.add(row.userId42);
+		}
+		for (const row of blobs) {
+			const subs = row.simulatedSubProjects as Record<string, unknown> | null;
+			if (!subs || typeof subs !== 'object') continue;
+			for (const [parentId, subIds] of Object.entries(subs)) {
+				if (!Array.isArray(subIds)) continue;
+				for (const id of wanted.has(parentId) ? [parentId, ...subIds] : subIds) {
+					if (typeof id !== 'string' || !wanted.has(id)) continue;
+					if (!seen.has(id)) seen.set(id, new Set());
+					seen.get(id)!.add(row.userId42);
+				}
+			}
+		}
+
+		return new Map([...seen].map(([projectId, users]) => [projectId, users.size]));
 	},
 };

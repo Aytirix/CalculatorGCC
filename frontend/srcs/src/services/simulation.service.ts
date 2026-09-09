@@ -105,6 +105,15 @@ export const simulationService = {
 	},
 
 	/**
+	 * Logins des délégués 42 à contacter au sujet du référentiel. Vide si
+	 * personne n'est déclaré dans le panneau d'administration.
+	 */
+	async getReferentialContacts(): Promise<string[]> {
+		const { contacts } = await request<{ contacts: string[] }>('/simulation/referential-contacts');
+		return contacts;
+	},
+
+	/**
 	 * Recherche des utilisateurs par login/prénom/nom
 	 */
 	async searchUsers(query: string): Promise<UserSearchResult[]> {

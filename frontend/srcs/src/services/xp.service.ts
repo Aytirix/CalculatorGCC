@@ -10,6 +10,37 @@ interface LevelData {
 
 const levels: LevelData[] = levelData as LevelData[];
 
+/**
+ * Les modules d'une piscine que l'école compte encore.
+ *
+ * Cette règle vivait recopiée dans cinq fichiers, et elle a divergé deux fois :
+ * l'écran comptait les modules retirés pendant que le calcul RNCP les ignorait,
+ * dans un sens puis dans l'autre. Une seule définition, importée partout.
+ */
+export function activeSubProjects(project: SimulatorProject): SimulatorProject[] {
+	return (project.subProjects ?? []).filter((sub) => !sub.retired);
+}
+
+/**
+ * Une piscine est acquise quand tous ses modules ACTIFS le sont — et à condition
+ * qu'il en reste au moins un. Sans cette dernière garde, `every` sur une liste
+ * vide rendrait `true` et l'offrirait gratuitement.
+ */
+export function isPoolCovered(project: SimulatorProject, covers: (subId: string) => boolean): boolean {
+	const active = activeSubProjects(project);
+	return active.length > 0 && active.every((sub) => covers(sub.id));
+}
+
+/**
+ * L'XP d'un projet, modules retirés déduits. L'XP d'une piscine est calculé en
+ * amont comme la somme de ses modules : il inclut donc encore les retirés.
+ */
+export function effectiveProjectXP(project: SimulatorProject): number {
+	const retired = (project.subProjects ?? []).filter((sub) => sub.retired);
+	if (retired.length === 0) return project.xp;
+	return project.xp - retired.reduce((sum, sub) => sum + sub.xp, 0);
+}
+
 export const xpService = {
 	// Calculer l'XP total à partir du niveau
 	getXPFromLevel: (level: number): number => {
@@ -85,8 +116,9 @@ export const xpService = {
 			// Si le projet a des sous-projets, on prend l'XP total du projet parent
 			// car dans les données, l'XP est déjà le total
 			if (project.subProjects && project.subProjects.length > 0) {
-				// L'XP du projet parent est déjà la somme
-				projectXP = project.xp;
+				// L'XP du parent est déjà la somme de ses modules — retirés compris,
+				// d'où la déduction.
+				projectXP = effectiveProjectXP(project);
 			}
 
 			// Appliquer le pourcentage du projet (simulé ou complété)
@@ -222,6 +254,11 @@ export const xpService = {
 	): CategoryValidation => {
 		// Trouver les projets validés de cette catégorie
 		const categoryValidatedProjects = category.projects.filter((project) => {
+			// Un projet que l'école ne compte plus ne compte plus, même validé pour
+			// de vrai : le laisser dans le total afficherait une progression que le
+			// jury ne reconnaîtrait pas.
+			if (project.retired) return false;
+
 			const projectSlug = project.slug || project.id;
 
 			// Une piscine n'est validée QUE si tous ses modules le sont.
@@ -233,10 +270,19 @@ export const xpService = {
 			// acquise, avec son XP complet.
 			if (project.subProjects && project.subProjects.length > 0) {
 				const checkedSubs = simulatedSubProjects?.[project.id] ?? [];
-				return project.subProjects.every(
-					(sub) =>
-						checkedSubs.includes(sub.id) ||
-						isProjectCompleted(sub.slug || sub.id, validatedProjects)
+				// Un module que l'école a retiré ne peut plus être validé par
+				// personne : le laisser dans le `every` rendrait la piscine
+				// définitivement invalidable, soit l'inverse exact de ce que le
+				// drapeau cherche à faire.
+				return isPoolCovered(
+					project,
+					(subId) => {
+						const sub = project.subProjects!.find((s) => s.id === subId)!;
+						return (
+							checkedSubs.includes(sub.id) ||
+							isProjectCompleted(sub.slug || sub.id, validatedProjects)
+						);
+					}
 				);
 			}
 
@@ -254,13 +300,17 @@ export const xpService = {
 		// Ajouter l'XP des sous-projets partiellement cochés (projets pas encore comptés comme validés)
 		if (simulatedSubProjects && Object.keys(simulatedSubProjects).length > 0) {
 			for (const project of category.projects) {
+				if (project.retired) continue;
 				if (!project.subProjects) continue;
 				const key = project.id;
 				const checkedSubs = simulatedSubProjects[key];
 				if (categoryValidatedProjects.includes(project)) continue;
 				if (!checkedSubs || checkedSubs.length === 0) continue;
 				const subXP = project.subProjects
-					.filter(sub => checkedSubs.includes(sub.id))
+					// Même raison qu'au-dessus : l'XP d'un module retiré ne compte plus
+					// dans la catégorie, sinon la carte annonce « n'entre pas dans l'XP »
+					// pendant que le total dit le contraire.
+					.filter(sub => !sub.retired && checkedSubs.includes(sub.id))
 					.reduce((sum, sub) => sum + sub.xp, 0);
 				currentXP += subXP;
 			}

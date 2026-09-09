@@ -221,3 +221,287 @@
 }
 
 .muted { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ===== Référentiel RNCP vs GCC =====
+   Le rapport est dense (quatre RNCP, leurs catégories, des blocs de code à
+   copier) : la hiérarchie visuelle porte tout le sens, d'où les liserés de
+   couleur — vert pour ce qu'on peut ajouter sans risque, rouge pour ce dont la
+   suppression casserait des sauvegardes. */
+
+.gcc-howto {
+  margin-bottom: $spacing-md;
+  padding: $spacing-md;
+  border: 1px solid var(--border-color);
+  border-radius: $border-radius-md;
+
+  summary { cursor: pointer; font-weight: 600; }
+  ol { margin: $spacing-sm 0; padding-left: 1.2rem; font-size: 0.9rem; }
+  a { color: var(--color-primary); }
+}
+
+.gcc-token {
+  @include admin-input;
+  width: 100%;
+  /* Un jeton JWT fait plus de 1 000 caractères : en police proportionnelle et
+     avec retour à la ligne, on ne voit pas s'il a été collé en entier. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  resize: vertical;
+}
+
+.gcc-report { margin-top: $spacing-lg; }
+
+/* Un RNCP = un bloc. Sur un rapport de plusieurs écrans, la seule chose qui
+   permet de savoir de quel diplôme on parle, c'est ce bandeau. */
+.gcc-section {
+  margin-bottom: $spacing-lg;
+  border: 1px solid var(--border-color);
+  border-radius: $border-radius-md;
+  overflow: hidden;
+
+  &__title {
+    margin: 0;
+    padding: 0.5rem $spacing-md;
+    background: rgba(var(--color-primary-rgb), 0.12);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.95rem;
+    color: var(--color-primary);
+  }
+
+  /* Tout ce qui suit le bandeau est en retrait : la hiérarchie se lit sans avoir
+     à comparer des tailles de police. Un conteneur dédié plutôt qu'une négation
+     de sélecteur, que Sass juge invalide à juste titre. */
+  &__body {
+    padding: $spacing-sm $spacing-md $spacing-md;
+  }
+}
+
+.gcc-category {
+  margin: $spacing-sm 0 $spacing-md;
+  padding-left: $spacing-md;
+  border-left: 3px solid rgba(var(--color-primary-rgb), 0.35);
+
+  h4 { margin: 0 0 0.35rem; font-size: 0.9rem; }
+}
+
+/* Le signe porte la couleur : vert on ajoute, orange on retire du comptage,
+   rouge on supprime. Il reste lisible pour qui ne distingue pas les teintes. */
+.gcc-sign {
+  display: inline-block;
+  width: 1.1rem;
+  margin-right: 0.3rem;
+  font-weight: 700;
+  text-align: center;
+
+  &--add { color: var(--success); }
+  &--retire { color: #d97706; }
+  &--remove { color: #dc2626; }
+}
+
+.gcc-threshold { margin: 0.2rem 0; font-size: 0.85rem; }
+
+.gcc-missing,
+.gcc-extra {
+  margin: $spacing-sm 0;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $border-radius-md;
+  font-size: 0.85rem;
+
+  p { margin: 0 0 $spacing-sm; }
+  ul { margin: 0; padding-left: 1.2rem; }
+  li { margin-bottom: 0.3rem; }
+}
+
+.gcc-missing {
+  background: rgba(var(--success-rgb), 0.1);
+  border-left: 3px solid rgba(var(--success-rgb), 0.5);
+
+  pre {
+    /* Les lignes gardent leurs tabulations : elles sont faites pour être
+       collées telles quelles dans le référentiel. */
+    margin: 0 0 $spacing-sm;
+    padding: $spacing-sm;
+    overflow-x: auto;
+    background: var(--bg-primary);
+    border-radius: $border-radius-md;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+}
+
+.gcc-extra {
+  /* Pas de jeton d'erreur dans le thème : le rouge est écrit en dur, comme
+     dans `.admin-error` plus haut. */
+  background: rgba(220, 38, 38, 0.1);
+  border-left: 3px solid rgba(220, 38, 38, 0.5);
+}
+
+.gcc-warning {
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+  color: #d97706;
+}
+
+.gcc-danger {
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.gcc-ok {
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+  color: var(--success);
+}
+
+/* Cases à cocher du rapport GCC : chaque ligne est une décision, et les deux
+   décisions possibles sur un projet en trop s'excluent. */
+.gcc-choices {
+  list-style: none;
+  margin: $spacing-sm 0 0;
+  padding: 0;
+
+  li { margin-bottom: 0.25rem; }
+}
+
+.gcc-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  line-height: 1.4;
+
+  input { margin-top: 0.15rem; flex-shrink: 0; }
+  &:hover { color: var(--color-primary); }
+}
+
+/* Suppression impossible tant que quelqu'un simule le projet : la case reste
+   visible pour que la raison soit lisible, mais elle n'est pas actionnable. */
+.gcc-choice--disabled { cursor: not-allowed; opacity: 0.6; }
+.gcc-choice--risky input { accent-color: #d97706; }
+
+/* Barre d'application : collée en haut du panneau, sinon il faut redescendre
+   chercher le bouton après avoir coché en bas d'un rapport de plusieurs écrans. */
+.gcc-apply {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-md;
+  margin: $spacing-md 0;
+  padding: $spacing-sm $spacing-md;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.4);
+  border-radius: $border-radius-md;
+  background: var(--bg-card);
+
+  > div { display: flex; align-items: center; gap: $spacing-md; }
+}
+
+.gcc-history-title {
+  margin: $spacing-lg 0 $spacing-sm;
+  font-size: 1rem;
+}
+
+.gcc-export {
+  margin-top: $spacing-sm;
+
+  pre {
+    max-height: 320px;
+    margin-top: $spacing-sm;
+    padding: $spacing-sm;
+    overflow: auto;
+    background: var(--bg-primary);
+    border-radius: $border-radius-md;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+  }
+}
+
+/* ===== Historique des versions du référentiel =====
+   Un lot de modifications se lit d'abord en diagonale — combien, de quelle
+   nature — et seulement ensuite dans le détail. D'où la ligne de pastilles au
+   premier plan, et le détail replié. */
+
+.version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.version {
+  padding: $spacing-sm 0;
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child { border-bottom: none; }
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: $spacing-md;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+  }
+
+  &__detail {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+
+    summary { cursor: pointer; }
+  }
+
+  &__group {
+    margin: 0.4rem 0 0 $spacing-md;
+
+    ul { margin: 0.15rem 0 0; padding-left: 1.1rem; list-style: none; }
+    li { margin-bottom: 0.1rem; }
+  }
+}
+
+/* Une pastille par nature d'opération : la couleur porte le sens, le signe le
+   redit pour qui ne la distingue pas. */
+.version-chip {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: $border-radius-md;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.version-chip--added {
+  background: rgba(var(--success-rgb), 0.15);
+  color: var(--success);
+}
+.version-chip--retired {
+  background: rgba(217, 119, 6, 0.15);
+  color: #d97706;
+}
+.version-chip--removed {
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+}
+
+/* Versions antérieures au résumé structuré : une phrase par opération. On les
+   sert en liste plutôt qu'en un seul paragraphe — c'est déjà lisible, et ça
+   évite de réécrire des données historiques pour de la mise en forme. */
+.version__legacy {
+  margin: 0.25rem 0 0 $spacing-md;
+  padding-left: 1.1rem;
+  li { margin-bottom: 0.1rem; }
+}
+
+/* Détail d'une version : RNCP, puis catégories en retrait. Même hiérarchie que
+   le rapport GCC juste au-dessus, pour qu'on n'ait pas à réapprendre à lire. */
+.version__rncp {
+  margin: $spacing-sm 0 0 $spacing-md;
+
+  h5 {
+    margin: 0 0 0.2rem;
+    font-size: 0.85rem;
+    color: var(--color-primary);
+  }
+}

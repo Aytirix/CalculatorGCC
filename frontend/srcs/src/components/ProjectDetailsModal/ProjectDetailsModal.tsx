@@ -9,6 +9,8 @@ import {
 } from '@/services/backend-api42.service';
 import type { SimulatorProject } from '@/types/rncp.types';
 import { clampProjectPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
+import { useRncpData } from '@/contexts/useRncpData';
+import { simulationService } from '@/services/simulation.service';
 import './ProjectDetailsModal.scss';
 
 /** Cursus 42 principal : c'est celui sur lequel porte tout le simulateur. */
@@ -32,6 +34,61 @@ interface ProjectDetailsModalProps {
   onToggleCoalitionBoost?: (projectId: string) => void;
   onClose: () => void;
 }
+
+/**
+ * L'avertissement d'un projet sorti du référentiel.
+ *
+ * C'est le seul endroit qui EXPLIQUE. La ligne du projet, elle, a perdu son
+ * pourcentage, son boost et son XP : sans cet encadré, quelqu'un qui a validé ce
+ * projet verrait seulement des contrôles disparaître, sans savoir pourquoi ni
+ * quoi faire.
+ */
+const RetiredNotice: React.FC<{ project: SimulatorProject }> = ({ project }) => {
+  const { rncpData } = useRncpData();
+  const [contacts, setContacts] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    simulationService
+      .getReferentialContacts()
+      .then((list) => !cancelled && setContacts(list))
+      // Silencieux : l'avertissement principal doit s'afficher même si la liste
+      // des délégués est injoignable. C'est un complément, pas le message.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Les RNCP où ce projet est marqué hors référentiel. Nommer le diplôme
+  // concerné évite de laisser croire que le projet ne compte nulle part.
+  const concerned = rncpData
+    .filter((rncp) =>
+      rncp.categories.some((category) =>
+        category.projects.some((p) => p.id === project.id && p.retired)
+      )
+    )
+    .map((rncp) => rncp.name);
+
+  return (
+    <div className="pdm-retired" role="alert">
+      <strong>Ce projet ne compte plus pour le RNCP.</strong>
+      <p>
+        Lors de la dernière synchronisation avec GCC, le référentiel de l'école, il n'a pas été
+        trouvé parmi les projets attendus
+        {concerned.length > 0 ? ' pour ' : ''}
+        {concerned.length > 0 && <strong>{concerned.join(', ')}</strong>}. Son XP compte toujours
+        dans ton niveau, mais plus dans les projets ni l'XP exigés par le diplôme.
+      </p>
+      {contacts.length > 0 && (
+        <p>
+          Si c'est une erreur, préviens {contacts.map((c) => `@${c}`).join(', ')} sur Slack, ou
+          ouvre un ticket sur GitHub.
+        </p>
+      )}
+    </div>
+  );
+};
 
 /** Une ligne « libellé / valeur ». */
 const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -243,6 +300,8 @@ const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
         </header>
 
         <div className="pdm-body">
+          {project.retired && <RetiredNotice project={project} />}
+
           <div className="pdm-facts">
             <Fact label="XP">{xp > 0 ? xp.toLocaleString('fr-FR') : 'Non renseigné'}</Fact>
             {isSimulated && (

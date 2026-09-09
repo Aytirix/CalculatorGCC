@@ -296,3 +296,222 @@ describe('une piscine ne vaut que si tous ses modules sont validés', () => {
     expect(cat.isRealValid).toBe(true);
   });
 });
+
+/**
+ * Projet marqué `retired` : l'école ne le compte plus dans cette catégorie.
+ *
+ * C'est ce qui remplace la SUPPRESSION d'une ligne du référentiel — supprimer
+ * l'identifiant le ferait disparaître des simulations existantes. Le drapeau
+ * doit donc réellement neutraliser le projet dans les totaux, sinon on n'a rien
+ * gagné : on l'affiche autrement mais il continue de valider le RNCP.
+ */
+describe('projets hors référentiel', () => {
+  const withRetired = (retiredId: string): RNCP =>
+    ({
+      id: 'rncp-test',
+      name: 'RNCP test',
+      level: 0,
+      requiredEvents: 0,
+      requiredProfessionalExperience: 0,
+      categories: [
+        {
+          id: 'cat',
+          name: 'Catégorie',
+          requiredCount: 2,
+          requiredXP: 20_000,
+          projects: [
+            { id: 'projet-1', name: 'Projet 1', slug: 'projet-1', xp: 10_000 },
+            {
+              id: 'projet-2',
+              name: 'Projet 2',
+              slug: 'projet-2',
+              xp: 10_000,
+              ...(retiredId === 'projet-2' ? { retired: true } : {}),
+            },
+          ],
+        },
+      ],
+    }) as unknown as RNCP;
+
+  const run = (rncpData: RNCP, completed: string[], simulated: string[]) =>
+    xpService.validateRNCP(
+      rncpData,
+      0, 0, 0,
+      completed,
+      simulated,
+      // pourcentages, pourcentages des acquis, boosts de coalition, sous-projets
+      undefined, undefined, undefined, undefined,
+      { level: 0, professionalExp: 0 }
+    ).categoriesValidation[0];
+
+  it('exclut du comptage un projet retiré, même réellement validé', () => {
+    // Témoin : sans le drapeau, les deux projets valident la catégorie.
+    const sans = run(withRetired('aucun'), ['projet-1', 'projet-2'], []);
+    expect(sans.realCount).toBe(2);
+    expect(sans.realXP).toBe(20_000);
+    expect(sans.isRealValid).toBe(true);
+
+    // Avec le drapeau, le second ne compte plus — et la catégorie n'est plus
+    // validée, ce qui est bien le comportement voulu : le jury ne le compte pas.
+    const avec = run(withRetired('projet-2'), ['projet-1', 'projet-2'], []);
+    expect(avec.realCount).toBe(1);
+    expect(avec.realXP).toBe(10_000);
+    expect(avec.isRealValid).toBe(false);
+  });
+
+  it('exclut aussi un projet retiré qui est simulé', () => {
+    const cat = run(withRetired('projet-2'), [], ['projet-1', 'projet-2']);
+    expect(cat.currentCount).toBe(1);
+    expect(cat.currentXP).toBe(10_000);
+  });
+});
+
+/**
+ * `retired` sur un MODULE de piscine.
+ *
+ * C'est le cas d'usage le plus probable du drapeau — l'école retire un module
+ * d'une piscine — et c'était le trou : la règle « piscine validée si TOUS les
+ * modules le sont » gardait le module retiré dans le `every`, rendant la piscine
+ * définitivement invalidable. Un drapeau censé débloquer qui verrouille.
+ */
+describe('sous-projets hors référentiel', () => {
+  const pool = (retiredIds: string[]): RNCP =>
+    ({
+      id: 'rncp-test',
+      name: 'RNCP test',
+      level: 0,
+      requiredEvents: 0,
+      requiredProfessionalExperience: 0,
+      categories: [
+        {
+          id: 'cat',
+          name: 'Catégorie',
+          requiredCount: 1,
+          requiredXP: 10_000,
+          projects: [
+            {
+              id: 'piscine',
+              name: 'Piscine',
+              slug: 'piscine',
+              xp: 20_000,
+              subProjects: [
+                { id: 'm0', name: 'Module 0', slug: 'm0', xp: 10_000,
+                  ...(retiredIds.includes('m0') ? { retired: true } : {}) },
+                { id: 'm1', name: 'Module 1', slug: 'm1', xp: 10_000,
+                  ...(retiredIds.includes('m1') ? { retired: true } : {}) },
+              ],
+            },
+          ],
+        },
+      ],
+    }) as unknown as RNCP;
+
+  const run = (
+    rncpData: RNCP,
+    completed: string[],
+    subs: Record<string, string[]>
+  ) =>
+    xpService.validateRNCP(
+      rncpData,
+      0, 0, 0,
+      completed,
+      [],
+      undefined, undefined, undefined,
+      subs,
+      { level: 0, professionalExp: 0, subProjects: subs }
+    ).categoriesValidation[0];
+
+  it('valide la piscine quand seul un module retiré manque', () => {
+    // Témoin : sans drapeau, m1 manquant empêche la piscine de compter.
+    const sans = run(pool([]), ['m0'], {});
+    expect(sans.realCount).toBe(0);
+
+    // Avec m1 retiré, m0 seul suffit — l'utilisateur n'a aucun moyen de valider
+    // un module que l'école ne propose plus.
+    const avec = run(pool(['m1']), ['m0'], {});
+    expect(avec.realCount).toBe(1);
+    expect(avec.isRealValid).toBe(true);
+  });
+
+  it('ne valide pas une piscine dont tous les modules sont retirés', () => {
+    // `every` sur une liste vide rend `true` : sans garde explicite, la piscine
+    // serait acquise gratuitement, sans qu'aucun travail existe.
+    const cat = run(pool(['m0', 'm1']), [], {});
+    expect(cat.realCount).toBe(0);
+    expect(cat.isRealValid).toBe(false);
+  });
+
+  it("n'ajoute pas l'XP des modules d'une piscine elle-même retirée", () => {
+    // La piscine retirée est déjà exclue des projets validés, donc elle passe
+    // dans la boucle des sous-projets « partiellement cochés » : sans garde, ses
+    // modules y versaient leur XP à la catégorie qu'elle a justement quittée.
+    const retiredPool = (): RNCP => {
+      const data = pool([]) as any;
+      data.categories[0].projects[0].retired = true;
+      return data as RNCP;
+    };
+    const sans = run(pool([]), [], { piscine: ['m0'] });
+    expect(sans.currentXP).toBe(10_000);
+
+    const avec = run(retiredPool(), [], { piscine: ['m0'] });
+    expect(avec.currentXP).toBe(0);
+  });
+
+  it("n'ajoute pas l'XP d'un module retiré coché en simulation", () => {
+    // Témoin : sans drapeau, cocher m1 seul apporte ses 10 000 XP à la catégorie
+    // (la piscine n'est pas acquise, mais son module partiel compte).
+    const sans = run(pool([]), [], { piscine: ['m1'] });
+    expect(sans.currentXP).toBe(10_000);
+
+    // Avec m1 retiré, plus rien : la carte annonce « n'entre pas dans l'XP »,
+    // le total doit dire la même chose.
+    const avec = run(pool(['m1']), [], { piscine: ['m1'] });
+    expect(avec.currentXP).toBe(0);
+  });
+});
+
+/**
+ * Cohérence des DEUX chemins de calcul d'XP d'une piscine.
+ *
+ * L'XP du parent est la somme de ses modules, calculée en amont : elle inclut
+ * donc encore les modules retirés. La boucle des modules partiellement cochés,
+ * elle, les exclut. Sans retrait explicite, une piscine validée rapportait l'XP
+ * d'un module que l'école ne compte plus — et les deux chemins se contredisaient.
+ */
+describe("XP d'une piscine dont un module est retiré", () => {
+  const pool = (retired: boolean): RNCP =>
+    ({
+      id: 'rncp-test', name: 'RNCP test', level: 0,
+      requiredEvents: 0, requiredProfessionalExperience: 0,
+      categories: [{
+        id: 'cat', name: 'Catégorie', requiredCount: 1, requiredXP: 10_000,
+        projects: [{
+          id: 'piscine', name: 'Piscine', slug: 'piscine', xp: 20_000,
+          subProjects: [
+            { id: 'm0', name: 'Module 0', slug: 'm0', xp: 10_000 },
+            { id: 'm1', name: 'Module 1', slug: 'm1', xp: 10_000,
+              ...(retired ? { retired: true } : {}) },
+          ],
+        }],
+      }],
+    }) as unknown as RNCP;
+
+  const run = (data: RNCP, completed: string[]) =>
+    xpService.validateRNCP(
+      data, 0, 0, 0, completed, [],
+      undefined, undefined, undefined, {},
+      { level: 0, professionalExp: 0, subProjects: {} }
+    ).categoriesValidation[0];
+
+  it("ne compte pas l'XP du module retiré dans une piscine validée", () => {
+    // Témoin : piscine complète, les deux modules comptent.
+    const sans = run(pool(false), ['m0', 'm1']);
+    expect(sans.realCount).toBe(1);
+    expect(sans.realXP).toBe(20_000);
+
+    // m1 retiré, m0 validé : la piscine compte, mais pour 10 000 XP seulement.
+    const avec = run(pool(true), ['m0']);
+    expect(avec.realCount).toBe(1);
+    expect(avec.realXP).toBe(10_000);
+  });
+});

@@ -147,4 +147,44 @@ export async function adminRoutes(server: FastifyInstance) {
   }, async (request, reply) => {
     return adminController.startGlobalRefresh(request, reply);
   });
+
+  // ===== Référentiel RNCP vs GCC (owner uniquement) =====
+  // Chaque comparaison déclenche 5 appels à GCC et, au premier passage, 2 à 3 à
+  // l'API 42 pour le catalogue : rate-limit bas, comme le refresh global.
+  server.post('/admin/gcc-referential', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 5, timeWindow: 60_000 } },
+  }, async (request, reply) => {
+    return adminController.compareGccReferential(request, reply);
+  });
+
+  // ===== Référentiel RNCP en base (owner uniquement) =====
+  // Modifier le référentiel change ce que valide le RNCP pour TOUS les
+  // utilisateurs d'un coup : version courante, historique et retour arrière
+  // sont donc au même endroit que l'application des modifications.
+  server.get('/admin/referential', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.getReferentialState(request, reply);
+  });
+
+  server.post('/admin/referential/apply', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 20, timeWindow: 60_000 } },
+  }, async (request, reply) => {
+    return adminController.applyReferential(request, reply);
+  });
+
+  server.post('/admin/referential/revert', {
+    preHandler: [requireOwner],
+    config: { rateLimit: { max: 10, timeWindow: 60_000 } },
+  }, async (request, reply) => {
+    return adminController.revertReferential(request, reply);
+  });
+
+  server.get('/admin/referential/export', {
+    preHandler: [requireOwner],
+  }, async (request, reply) => {
+    return adminController.exportReferential(request, reply);
+  });
 }

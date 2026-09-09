@@ -285,3 +285,27 @@
 		border-radius: 16px 16px 0 0;
 	}
 }
+
+/**
+ * Projet sorti du référentiel : l'encadré est placé EN TÊTE du corps, avant
+ * l'XP et l'XP simulé, parce qu'il change la façon de lire ces chiffres.
+ * Le rouge est délibéré — c'est la seule explication disponible, la ligne du
+ * projet ayant perdu ses contrôles.
+ */
+.pdm-retired {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-left: 3px solid #dc2626;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08);
+  font-size: 0.88rem;
+  line-height: 1.45;
+
+  strong { color: #dc2626; }
+
+  p {
+    margin: 0.4rem 0 0;
+    color: var(--text-primary);
+  }
+}

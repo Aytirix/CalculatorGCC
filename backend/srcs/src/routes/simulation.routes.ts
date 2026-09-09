@@ -10,6 +10,23 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.get(request, reply);
 	});
 
+	/**
+	 * Qui contacter à propos du référentiel RNCP.
+	 *
+	 * Ce sont les délégués déclarés dans le panneau d'administration. Un projet
+	 * marqué « hors référentiel » affiche leurs logins pour qu'un étudiant qui
+	 * pense à une erreur sache à qui s'adresser — sans eux, la mention n'a aucun
+	 * destinataire et n'est donc pas affichée du tout.
+	 *
+	 * On ne renvoie QUE les logins : ni date d'ajout, ni rien d'autre. Ce sont des
+	 * logins 42, publics sur l'intra, mais la route reste authentifiée.
+	 */
+	fastify.get('/simulation/referential-contacts', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.getReferentialContacts(request, reply);
+	});
+
 	// Rechercher des utilisateurs (par login/prénom/nom)
 	fastify.get('/simulation/search', {
 		preHandler: authenticate,

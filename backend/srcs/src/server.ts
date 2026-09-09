@@ -14,6 +14,7 @@ import { calendarRoutes } from './routes/calendar.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
 import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
+import { loadReferential } from './services/referentialStore.js';
 import { rncpService } from './services/rncp.service.js';
 import { initConsoleToken } from './services/adminAuth.service.js';
 
@@ -109,6 +110,9 @@ await fastify.register(rateLimit, {
 // Gère aussi la promotion d'un éventuel Next Secret expiré (rotation).
 await initConfig();
 await loadOrGenerateJwtSecret();
+// AVANT d'accepter la moindre requête : `validProjects` lit le référentiel en
+// mémoire pour valider les sauvegardes, et refuserait tout tant qu'il est vide.
+await loadReferential();
 
 await fastify.register(jwt, {
 	secret: process.env.JWT_SECRET!,

@@ -6,6 +6,7 @@ import ProjectContextMenu from '@/components/ProjectContextMenu/ProjectContextMe
 import ProjectPercentageModal from '@/components/ProjectPercentageModal/ProjectPercentageModal';
 import ProjectNoteModal from '@/components/ProjectNoteModal/ProjectNoteModal';
 import './ProjectCard.scss';
+import { activeSubProjects, effectiveProjectXP } from '@/services/xp.service';
 
 interface ProjectCardProps {
 	project: SimulatorProject;
@@ -116,14 +117,16 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 		if (!hasSubProjects || isCompleted || !onToggleSubProject) return;
 
-		// Si tous les sous-projets sont déjà cochés, les décocher tous
+		// Sur les modules ACTIFS uniquement, comme `allSubProjectsSimulated` qui
+		// décide de la branche : itérer la liste complète ici ferait COCHER le
+		// module retiré au moment même où l'on demande à tout décocher.
 		if (allSubProjectsSimulated) {
-			project.subProjects!.forEach((sub) => {
+			active.forEach((sub) => {
 				onToggleSubProject(project.id, sub.id);
 			});
 		} else {
 			// Sinon, cocher tous les sous-projets non cochés
-			project.subProjects!.forEach((sub) => {
+			active.forEach((sub) => {
 				if (!simulatedSubProjects.includes(sub.id)) {
 					onToggleSubProject(project.id, sub.id);
 				}
@@ -155,9 +158,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 		onPercentageChange?.(project.id, clampProjectPercentage(parseInt(raw, 10), project));
 	};
 
-	const allSubProjectsSimulated = hasSubProjects
-		? project.subProjects!.every((sub) => simulatedSubProjects.includes(sub.id))
-		: false;
+	/**
+	 * Les modules que l'école compte encore. Un module retiré ne peut plus être
+	 * validé par personne : l'inclure ici rendrait la piscine éternellement
+	 * incomplète à l'écran, alors que le calcul RNCP, lui, l'ignore. Les deux
+	 * doivent dire la même chose.
+	 */
+	const active = hasSubProjects ? activeSubProjects(project) : [];
+
+	const allSubProjectsSimulated =
+		active.length > 0 &&
+		active.every((sub) => simulatedSubProjects.includes(sub.id));
 
 	const getStatus = () => {
 		if (isCompleted) return 'completed';
@@ -173,8 +184,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 	const status = getStatus();
 
-	// Calculer l'XP modifié par le pourcentage et le boost coalition
-	let modifiedXP = Math.round((project.xp * projectPercentage) / 100);
+	// Calculer l'XP modifié par le pourcentage et le boost coalition.
+	// `effectiveProjectXP` déduit les modules retirés : afficher l'XP brut ferait
+	// annoncer par la carte un chiffre que la catégorie ne compte pas.
+	let modifiedXP = Math.round((effectiveProjectXP(project) * projectPercentage) / 100);
 	if (hasCoalitionBoost) {
 		modifiedXP = Math.round(modifiedXP * 1.042); // +4.2%
 	}
@@ -183,7 +196,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
 	return (
 		<>
-			<div className={`project-card ${status}`} onContextMenu={handleContextMenu}>
+			<div
+				className={`project-card ${status}${project.retired ? ' project-card--retired' : ''}`}
+				onContextMenu={handleContextMenu}
+			>
 				<motion.div
 					className="project-main"
 					data-tour={!isCompleted && !hasSubProjects ? 'calendar-test-project' : undefined}
@@ -197,7 +213,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 					<div className="project-header">
 						{isCompleted ? (
 							<div className="project-status-icon">✅</div>
-						) : !hasSubProjects && canUseMaxShortcut ? (
+						) : !hasSubProjects && canUseMaxShortcut && !project.retired ? (
 							<button
 								className={`project-star ${isMaxPercentageApplied ? 'active' : ''}`}
 								data-tour="project-star"
@@ -217,13 +233,30 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 							</div>
 						)}
 						<div className="project-info">
-							<h4 className="project-name">{project.name}</h4>
+							<h4 className="project-name">
+								{project.name}
+								{/* Sans cette mention, quelqu'un qui a validé ce projet verrait
+								    simplement sa progression ne pas bouger, sans explication. */}
+								{project.retired && (
+									<>
+										<span className="project-retired-badge">hors référentiel</span>
+										<span className="project-retired-hint">
+											L'école ne compte plus ce projet dans cette catégorie : il n'entre
+											ni dans les projets requis ni dans l'XP exigé.
+										</span>
+									</>
+								)}
+							</h4>
 						</div>
 						{/* Contrôles toujours présents sur un projet simulable : les
 						    faire apparaître seulement une fois le projet coché faisait
 						    sauter toute la ligne au moindre clic. Ils sont simplement
 						    atténués tant que le projet n'est pas dans la simulation. */}
-						{!hasSubProjects && !isCompleted && (
+						{/* Un projet hors référentiel n'apporte plus rien au RNCP : pourcentage,
+						    boost de coalition et XP n'y ont plus de sens, et laisser ces
+						    contrôles laisserait croire qu'ils changent encore quelque chose.
+						    L'engrenage reste, c'est lui qui porte l'explication. */}
+						{!hasSubProjects && !isCompleted && !project.retired && (
 							<div
 								className={`project-sim-controls${isSimulated ? '' : ' inactive'}`}
 								onClick={(e) => e.stopPropagation()}
@@ -260,9 +293,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								</button>
 							</div>
 						)}
-						<span className={`project-xp ${showPercentage ? 'modified' : ''}`}>
-							{modifiedXP.toLocaleString()} XP
-						</span>
+						{!project.retired && (
+							<span className={`project-xp ${showPercentage ? 'modified' : ''}`}>
+								{modifiedXP.toLocaleString()} XP
+							</span>
+						)}
 						{hasSubProjects && (
 							<div className="expand-icon">
 								{isExpanded ? '▼' : '▶'}
@@ -298,15 +333,25 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 									return (
 										<motion.div
 											key={subProject.id}
-											className={`sub-project-item ${isSubCompleted ? 'completed' : isSubSimulated ? 'simulated' : ''}`}
-											onClick={(e) => !isSubCompleted && handleSubProjectClick(e, subProject.id)}
-											whileHover={!isSubCompleted ? { x: 4 } : {}}
-											whileTap={!isSubCompleted ? { scale: 0.98 } : {}}
+											className={`sub-project-item ${isSubCompleted ? 'completed' : isSubSimulated ? 'simulated' : ''}${subProject.retired ? ' sub-project-item--retired' : ''}`}
+											// Un module retiré ne compte plus : le laisser cochable
+											// affichait un ✅ sans que rien ne bouge, ni le compteur ni l'XP.
+											onClick={(e) =>
+												!isSubCompleted && !subProject.retired &&
+												handleSubProjectClick(e, subProject.id)
+											}
+											whileHover={!isSubCompleted && !subProject.retired ? { x: 4 } : {}}
+											whileTap={!isSubCompleted && !subProject.retired ? { scale: 0.98 } : {}}
 										>
 											<div className="sub-project-checkbox">
 												{isSubCompleted || isSubSimulated ? '✅' : '☐'}
 											</div>
-											<span className="sub-project-name">{subProject.name}</span>
+											<span className="sub-project-name">
+												{subProject.name}
+												{subProject.retired && (
+													<span className="project-retired-badge">hors référentiel</span>
+												)}
+											</span>
 											{subProject.xp > 0 && (
 												<span className="sub-project-xp">{subProject.xp.toLocaleString()} XP</span>
 											)}
@@ -315,9 +360,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 								})}
 							</div>
 							<div className="sub-projects-summary">
+								{/* Dénominateur sur les modules ACTIFS : compter un module retiré
+								    afficherait « 3 / 4 » sur une piscine que le RNCP considère
+								    pourtant comme acquise. */}
 								{isCompleted
-									? `${project.subProjects!.length} / ${project.subProjects!.length} complété - Piscine validée! 🎉`
-									: `${project.subProjects!.filter(s => completedSubProjectIds.includes(s.id) || simulatedSubProjects.includes(s.id)).length} / ${project.subProjects!.length} complété${allSubProjectsSimulated ? ' - Piscine validée! 🎉' : ''}`
+									? `${active.length} / ${active.length} complété - Piscine validée! 🎉`
+									: `${active.filter(s => completedSubProjectIds.includes(s.id) || simulatedSubProjects.includes(s.id)).length} / ${active.length} complété${allSubProjectsSimulated ? ' - Piscine validée! 🎉' : ''}`
 								}
 							</div>
 						</motion.div>

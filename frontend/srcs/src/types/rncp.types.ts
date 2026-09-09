@@ -25,6 +25,12 @@ export interface SimulatorProject {
   slug?: string;
   maxPercentage?: number;
   subProjects?: SimulatorProject[];
+  /**
+   * L'école ne compte plus ce projet dans cette catégorie. Il reste affiché —
+   * grisé — parce que des gens l'ont validé ou simulé et doivent comprendre
+   * pourquoi il ne compte plus, mais il est exclu des totaux de la catégorie.
+   */
+  retired?: boolean;
 }
 
 // Type pour une catégorie de projets

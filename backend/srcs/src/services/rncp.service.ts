@@ -1,10 +1,10 @@
 import { API42Service, SlimProject } from './api42.service.js';
 import { api42CacheRepository } from '../db/api42CacheRepository.js';
 import {
-	RNCP_REFERENTIAL,
 	RncpReferentialProject,
 	RncpReferentialSubProject,
 } from '../data/rncpReferential.js';
+import { getReferential } from './referentialStore.js';
 
 /**
  * Construit le référentiel RNCP complet : notre structure (quel RNCP exige quels
@@ -28,6 +28,8 @@ export interface RncpProject {
 	slug?: string;
 	maxPercentage?: number;
 	subProjects?: RncpProject[];
+	/** Plus compté par l'école : affiché grisé, exclu des totaux de la catégorie. */
+	retired?: boolean;
 }
 
 export interface RncpCategory {
@@ -82,6 +84,7 @@ function buildProject(
 			...('maxPercentage' in entry && entry.maxPercentage !== undefined
 				? { maxPercentage: entry.maxPercentage }
 				: {}),
+			...(entry.retired ? { retired: true } : {}),
 		};
 	}
 
@@ -105,6 +108,9 @@ function buildProject(
 			? { maxPercentage: entry.maxPercentage }
 			: {}),
 		...(subProjects && subProjects.length > 0 ? { subProjects } : {}),
+		// Le drapeau vient du référentiel, pas du catalogue 42 : c'est notre
+		// décision de ne plus le compter, pas une information de l'API.
+		...(entry.retired ? { retired: true } : {}),
 	};
 }
 
@@ -135,7 +141,7 @@ export const rncpService = {
 		const catalog = new Map<string, SlimProject>();
 		for (const project of projects) catalog.set(project.slug, project);
 
-		const data: RncpEntry[] = RNCP_REFERENTIAL.map((rncp) => ({
+		const data: RncpEntry[] = getReferential().map((rncp) => ({
 			id: rncp.id,
 			name: rncp.name,
 			level: rncp.level,
@@ -164,6 +170,20 @@ export const rncpService = {
 	/** Oublie le référentiel construit (refresh global de l'admin). */
 	clearCache(): void {
 		memoryCache = null;
+	},
+
+	/**
+	 * Oublie le référentiel construit, EN MÉMOIRE ET EN BASE.
+	 *
+	 * À utiliser quand le référentiel source a changé. `clearCache()` ne vide que
+	 * la mémoire : au redémarrage suivant, tant que le catalogue 42 n'est pas en
+	 * cache, `build()` se rabat sur la copie persistée — vieille de 30 jours au
+	 * plus — et resservirait donc le référentiel d'AVANT la modification, sans
+	 * que rien ne le signale.
+	 */
+	async invalidate(): Promise<void> {
+		memoryCache = null;
+		await api42CacheRepository.invalidate(CACHE_KEY);
 	},
 
 	/** Amorce la récupération du catalogue si nécessaire. */

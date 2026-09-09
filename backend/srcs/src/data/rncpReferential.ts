@@ -17,10 +17,37 @@
  *                seul endroit où un XP est encore écrit en dur.
  */
 
+/**
+ * `retired` : l'école ne compte plus ce projet dans cette catégorie.
+ *
+ * On garde la ligne au lieu de la supprimer, et ce n'est pas de la timidité :
+ * `validProjects.ts` dérive de ce fichier les identifiants acceptés à la
+ * sauvegarde. Retirer la ligne d'un projet que quelqu'un a simulé ferait
+ * disparaître son identifiant du référentiel, et l'entrée serait alors écartée
+ * de sa simulation sans qu'il comprenne pourquoi. Marqué `retired`, le projet
+ * reste valide, reste visible — grisé — mais ne compte plus ni dans les projets
+ * requis ni dans l'XP de la catégorie. La ligne ne se supprime pour de bon que
+ * lorsque plus personne ne l'a en simulation.
+ *
+ * DEUX PRÉCAUTIONS en le posant :
+ *
+ * 1. Si 42 a aussi sorti le projet de son catalogue, AJOUTER un `fallback` en
+ *    même temps. Sans lui, `rncp.service.ts` ne peut plus construire le projet
+ *    et renvoie `null` : il disparaît de l'écran, la progression baisse, et le
+ *    badge que ce drapeau existe pour afficher n'est jamais vu. Or « 42 l'a
+ *    sorti du catalogue » est justement la raison n°1 de marquer `retired`.
+ *
+ * 2. Un même projet est déclaré dans PLUSIEURS catégories — `darkly` six fois.
+ *    Le marquer ici ne le marque QUE dans cette catégorie. Retirer d'une seule
+ *    catégorie est légitime, mais si l'intention est de le retirer partout, il
+ *    faut le faire partout : `validProjects.ts` avertit au démarrage quand les
+ *    déclarations d'un même identifiant divergent.
+ */
 export interface RncpReferentialSubProject {
 	id: string;
 	slug42: string | null;
 	fallback?: { name: string; xp: number };
+	retired?: boolean;
 }
 
 export interface RncpReferentialProject {
@@ -29,6 +56,7 @@ export interface RncpReferentialProject {
 	maxPercentage?: number;
 	fallback?: { name: string; xp: number };
 	subProjects?: RncpReferentialSubProject[];
+	retired?: boolean;
 }
 
 export interface RncpReferentialCategory {

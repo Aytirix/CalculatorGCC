@@ -6,7 +6,7 @@ import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceMod
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
-import { xpService } from '@/services/xp.service';
+import { xpService, isPoolCovered, effectiveProjectXP } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
@@ -634,14 +634,16 @@ const Dashboard: React.FC = () => {
 				for (const category of rncp.categories) {
 					const project = category.projects.find(p => p.id === projectId);
 					if (project && project.subProjects) {
-						// Vérifier si tous les sous-projets sont validés
-						const allSubProjectsValidated = project.subProjects.every(sub =>
-							subProjectIds.includes(sub.id)
+						// Modules RETIRÉS exclus, comme le calcul RNCP : sans ça, la barre
+						// de niveau et les totaux du RNCP se contredisaient dans les deux
+						// sens — piscine acquise ici et pas là, ou l'inverse.
+						const allSubProjectsValidated = isPoolCovered(project, (subId) =>
+							subProjectIds.includes(subId)
 						);
 
 						if (allSubProjectsValidated) {
 							// Si tous les sous-projets sont validés, ajouter l'XP du projet principal
-							let addedXP = project.xp;
+							let addedXP = effectiveProjectXP(project);
 
 							// Appliquer le pourcentage personnalisé si présent (rare pour les piscines)
 							const percentage = projectPercentages[project.id] ?? 100;
@@ -936,7 +938,7 @@ const Dashboard: React.FC = () => {
 			for (const rncp of rncpData) {
 				for (const category of rncp.categories) {
 					const project = category.projects.find(p => p.id === projectId);
-					if (project?.subProjects && project.subProjects.every(sub => (subIds as string[]).includes(sub.id))) {
+					if (project?.subProjects && isPoolCovered(project, (subId) => (subIds as string[]).includes(subId))) {
 						fullySimulatedParents.push(project.slug || project.id);
 					}
 				}

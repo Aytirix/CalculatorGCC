@@ -6,6 +6,7 @@ import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { parseAlternanceXlsx, type AlternanceLegend } from './alternanceParser';
 import { calendarService } from '@/services/calendar.service';
 import './Calendar.scss';
+import { isPoolCovered } from '@/services/xp.service';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -245,7 +246,7 @@ function getSimulatedProjects(rncpData: RNCP[]): { projects: SimulatorProject[] 
 					return;
 				}
 				if (p.subProjects && simulatedSubProjects[p.id]) {
-					if (p.subProjects.every(sub => simulatedSubProjects[p.id].includes(sub.id))) {
+					if (isPoolCovered(p, (subId) => simulatedSubProjects[p.id].includes(subId))) {
 						seen.add(p.id);
 						projects.push(p);
 					}
