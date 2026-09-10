@@ -15,6 +15,7 @@ import { adminRoutes } from './routes/admin.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
 import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
 import { loadReferential } from './services/referentialStore.js';
+import { migrateProjectIds } from './services/projectIdMigration.service.js';
 import { rncpService } from './services/rncp.service.js';
 import { initConsoleToken } from './services/adminAuth.service.js';
 
@@ -113,6 +114,22 @@ await loadOrGenerateJwtSecret();
 // AVANT d'accepter la moindre requête : `validProjects` lit le référentiel en
 // mémoire pour valider les sauvegardes, et refuserait tout tant qu'il est vide.
 await loadReferential();
+// APRÈS le référentiel, AVANT d'accepter des requêtes : les simulations doivent
+// parler le même langage que lui. Idempotente — un no-op à tous les démarrages
+// suivants.
+//
+// Le `catch` n'est pas décoratif : `await` au niveau module, une rejection tue
+// le module et le serveur ne démarre PAS. Deux instances qui démarrent ensemble
+// se heurtent sur la transaction (« Record has changed since last read »), et
+// Prisma ne met aucun `code` sur cette erreur — impossible de la filtrer. Or une
+// migration ratée n'empêche personne de se servir de l'application : les lignes
+// gardent leur ancien identifiant, la traduction à la sauvegarde les rattrape,
+// et le prochain démarrage réessaiera.
+try {
+	await migrateProjectIds(true);
+} catch (error) {
+	console.error('[Migration] échec, réessai au prochain démarrage :', error);
+}
 
 await fastify.register(jwt, {
 	secret: process.env.JWT_SECRET!,

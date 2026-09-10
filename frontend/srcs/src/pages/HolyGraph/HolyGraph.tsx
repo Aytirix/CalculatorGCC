@@ -344,6 +344,16 @@ const HolyGraph: React.FC = () => {
    * font alors foi).
    */
   const simulationTargetOf = useCallback((project: HolyGraphProject) => {
+    // L'identifiant du RÉFÉRENTIEL prime quand il en existe un.
+    //
+    // J'avais simplifié en pensant que les deux branches donnaient désormais le
+    // même résultat, le référentiel utilisant lui aussi `42-<id>`. C'est faux :
+    // `findRncpProject` rapproche par NOM normalisé, et 42 publie 37 noms portés
+    // par plusieurs projets dans le seul cursus 21. Mesuré : le nœud
+    // « doom_nukem » porte l'identifiant 42-1853 alors que le référentiel connaît
+    // ce projet sous 42-1458. Simuler depuis le graphe l'enregistrait donc sous
+    // un identifiant que le RNCP ne comptait jamais — et le même projet pouvait
+    // être simulé deux fois, son XP compté deux fois dans le niveau projeté.
     const rncp = findRncpProject(project);
     return { id: rncp?.id ?? graphSimulationId(project.id), rncp };
   }, []);

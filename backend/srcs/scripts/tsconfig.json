@@ -1,0 +1,8 @@
+{
+	// Le tsconfig racine est cadré sur `src` : sans ce fichier, l'éditeur ne
+	// rattache `scripts/` à aucun projet et perd les types Node. Ce projet-ci ne
+	// compile rien, il ne sert qu'à typer les scripts lancés par `tsx`.
+	"extends": "../tsconfig.json",
+	"compilerOptions": { "noEmit": true, "rootDir": ".." },
+	"include": [".", "../src"]
+}

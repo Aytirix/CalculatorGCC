@@ -1,6 +1,7 @@
 import { prisma } from './connection.js';
 import type { Prisma } from '@prisma/client';
 import { isValidProjectId, isValidSubProjectId } from '../data/validProjects.js';
+import { toCurrentProjectId } from '../data/legacyProjectIds.js';
 
 export interface SimulatedProjectData {
 	projectId: string;
@@ -121,7 +122,20 @@ function sanitizeSimulationData(data: SimulationData): SanitizeResult {
 	const rejectedProjectIds = new Set<string>();
 
 	const simulatedProjects: SimulatedProjectData[] = [];
-	for (const p of data.simulatedProjects) {
+	/**
+	 * Un projet ne peut apparaître qu'une fois. La traduction peut faire
+	 * converger deux entrées : un onglet à moitié rafraîchi envoie `zappy` ET
+	 * `42-1463`, qui désignent le même projet. Sans ce garde, `createMany` levait
+	 * sur la contrainte d'unicité APRÈS que `deleteMany` ait déjà commité — trois
+	 * projets détruits pour un doublon, avec un 500 en réponse.
+	 */
+	const vus = new Map<string, number>();
+	for (const raw of data.simulatedProjects) {
+		// Un onglet resté ouvert depuis avant la bascule vers les identifiants 42
+		// envoie encore les anciens. Sans cette traduction, ses projets seraient
+		// écartés ET les lignes migrées supprimées — la sauvegarde étant un
+		// remplacement, ce que le client n'envoie pas est effacé.
+		const p = { ...raw, projectId: toCurrentProjectId(raw.projectId) };
 		if (!isValidProjectId(p.projectId)) {
 			dropped.push(`projet inconnu ${forLog(p.projectId)}`);
 			rejectedProjectIds.add(p.projectId);
@@ -140,14 +154,31 @@ function sanitizeSimulationData(data: SimulationData): SanitizeResult {
 		if (percentage !== p.percentage) {
 			adjusted.push(`pourcentage ${p.percentage} ramene a ${percentage} pour ${forLog(p.projectId)}`);
 		}
+		// La DERNIÈRE gagne. Les deux entrées portent des pourcentages, notes et
+		// boosts différents : celle que l'utilisateur voit à l'écran est celle du
+		// nouvel identifiant, envoyée après l'ancienne. Garder la première lui
+		// rendait silencieusement une valeur qu'il ne voyait plus nulle part.
+		const dejaVu = vus.get(p.projectId);
+		if (dejaVu !== undefined) {
+			dropped.push(`doublon apres traduction : ${forLog(p.projectId)}`);
+			simulatedProjects[dejaVu] = { ...p, percentage };
+			continue;
+		}
+		vus.set(p.projectId, simulatedProjects.length);
+
 		// Copie plutot que mutation : `filter` aurait garde les references de
 		// l'appelant, et corriger un pourcentage aurait modifie SON objet.
 		simulatedProjects.push({ ...p, percentage });
 	}
 
-	const simulatedSubProjects: Record<string, string[]> = {};
-	const rejectedSubProjects: Record<string, string[]> = {};
-	for (const [parentId, subIds] of Object.entries(data.simulatedSubProjects)) {
+	// `Object.create(null)` sur les deux : leurs clés viennent du client. Le
+	// premier n'accepte que des piscines valides, mais le second reçoit justement
+	// celles qu'on n'a pas reconnues — `toString` comprise.
+	const simulatedSubProjects: Record<string, string[]> = Object.create(null);
+	const rejectedSubProjects: Record<string, string[]> = Object.create(null);
+	for (const [rawParentId, subIds] of Object.entries(data.simulatedSubProjects)) {
+		// Même traduction sur les piscines et, plus bas, sur leurs modules.
+		const parentId = toCurrentProjectId(rawParentId);
 		if (!isValidProjectId(parentId)) {
 			dropped.push(`piscine inconnue ${forLog(parentId)}`);
 			// Conservée telle quelle : une piscine sortie du référentiel ne doit pas
@@ -163,15 +194,25 @@ function sanitizeSimulationData(data: SimulationData): SanitizeResult {
 		}
 		const kept: string[] = [];
 		const rejected: string[] = [];
-		for (const subId of subIds) {
+		for (const rawSubId of subIds) {
+			const subId = typeof rawSubId === 'string' ? toCurrentProjectId(rawSubId) : rawSubId;
 			if (typeof subId === 'string' && isValidSubProjectId(subId)) kept.push(subId);
 			else {
 				dropped.push(`sous-projet inconnu ${forLog(String(subId))}`);
 				if (typeof subId === 'string') rejected.push(subId);
 			}
 		}
-		simulatedSubProjects[parentId] = kept;
-		if (rejected.length > 0) rejectedSubProjects[parentId] = rejected;
+		// FUSION, pas affectation : deux clés brutes peuvent converger après
+		// traduction (`piscine-django` et `42-2189`). Une affectation écrasait la
+		// première et ses modules disparaissaient sans un mot.
+		simulatedSubProjects[parentId] = [
+			...new Set([...(simulatedSubProjects[parentId] ?? []), ...kept]),
+		];
+		if (rejected.length > 0) {
+			rejectedSubProjects[parentId] = [
+				...new Set([...(rejectedSubProjects[parentId] ?? []), ...rejected]),
+			];
+		}
 	}
 
 	return {
@@ -335,7 +376,13 @@ export const simulationRepository = {
 		// que reçues — même raison que `rejectedProjectIds` pour la table
 		// relationnelle. Une donnée qu'on ne sait pas relire n'est pas une donnée
 		// à détruire, et ça vaut pour les deux moitiés du stockage.
-		const subProjectsToStore: Record<string, string[]> = { ...data.simulatedSubProjects };
+		// `Object.create(null)` : sur un littéral d'objet, `['toString']` rend une
+		// fonction héritée du prototype, et le spread qui suit levait —
+		// 500, sauvegarde entière perdue, pour une clé qu'un client peut envoyer.
+		const subProjectsToStore: Record<string, string[]> = Object.assign(
+			Object.create(null) as Record<string, string[]>,
+			data.simulatedSubProjects
+		);
 		for (const [parentId, subIds] of Object.entries(rejectedSubProjects)) {
 			subProjectsToStore[parentId] = [...(subProjectsToStore[parentId] ?? []), ...subIds];
 		}
@@ -407,23 +454,32 @@ export const simulationRepository = {
 		]);
 
 		const removed = existing.filter((row) => !wanted.has(row.projectId)).map((row) => row.projectId);
-		if (removed.length > 0) {
-			await prisma.simulatedProject.deleteMany({
-				where: { userId42, projectId: { in: removed } },
-			});
-		}
-
 		const added = data.simulatedProjects.filter((p) => !existingById.has(p.projectId));
-		if (added.length > 0) {
-			await prisma.simulatedProject.createMany({
-				data: added.map((p) => ({
-					userId42,
-					projectId: p.projectId,
-					percentage: p.percentage,
-					coalitionBoost: p.coalitionBoost,
-					note: p.note ?? null,
-				})),
-			});
+
+		// Suppression et création dans UNE transaction. Séparées, un `createMany`
+		// qui lève — doublon, contrainte, connexion coupée — laissait le
+		// `deleteMany` déjà commité : l'utilisateur perdait des projets qu'il
+		// n'avait pas décochés, et recevait une erreur. Reproduit : trois projets
+		// réduits à un.
+		if (removed.length > 0 || added.length > 0) {
+			await prisma.$transaction([
+				...(removed.length > 0
+					? [prisma.simulatedProject.deleteMany({ where: { userId42, projectId: { in: removed } } })]
+					: []),
+				...(added.length > 0
+					? [
+							prisma.simulatedProject.createMany({
+								data: added.map((p) => ({
+									userId42,
+									projectId: p.projectId,
+									percentage: p.percentage,
+									coalitionBoost: p.coalitionBoost,
+									note: p.note ?? null,
+								})),
+							}),
+						]
+					: []),
+			]);
 		}
 
 		for (const p of data.simulatedProjects) {

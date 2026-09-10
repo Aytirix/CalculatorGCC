@@ -80,7 +80,12 @@ function buildProject(
 			id: entry.id,
 			name: entry.fallback.name,
 			xp: entry.fallback.xp,
-			slug: entry.id,
+			// Le nom du repli, pas l'identifiant. Depuis la bascule vers les
+			// identifiants 42, `entry.id` vaut `42-2071` : tout le front rapproche
+			// sur `project.slug || project.id`, et un numéro ne correspond à aucun
+			// projet validé. Un projet réellement fait cessait donc d'être compté
+			// dès que 42 le sortait de son catalogue — le cas d'usage même du repli.
+			slug: entry.fallback.name,
 			...('maxPercentage' in entry && entry.maxPercentage !== undefined
 				? { maxPercentage: entry.maxPercentage }
 				: {}),

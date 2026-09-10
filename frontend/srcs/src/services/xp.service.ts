@@ -11,6 +11,54 @@ interface LevelData {
 const levels: LevelData[] = levelData as LevelData[];
 
 /**
+ * Un projet est-il dans la liste, qu'elle le désigne par son identifiant ou par
+ * son slug ?
+ *
+ * Les deux coexistent et c'est irréductible : les projets VALIDÉS viennent de
+ * l'API 42, qui ne connaît que des slugs ; les projets SIMULÉS viennent de nos
+ * écrans, qui manipulent des identifiants. Tant que l'identifiant du référentiel
+ * valait son slug (`zappy`/`zappy`), les confondre marchait par accident. Depuis
+ * la bascule vers les identifiants 42 (`42-1854` pour `42sh`), ne comparer que
+ * le slug faisait que PLUS AUCUN projet simulé ne comptait dans sa catégorie —
+ * mesuré : 0 sur 108.
+ */
+export function matchesIdOrSlug(project: { id: string; slug?: string }, liste: string[]): boolean {
+	if (liste.includes(project.id)) return true;
+	return isProjectCompleted(project.slug || project.id, liste);
+}
+
+/**
+ * Ce projet est-il acquis, piscines comprises ?
+ *
+ * C'est la SEULE façon correcte de répondre, et elle doit être partagée. Le slug
+ * d'une piscine est un préfixe de celui de ses modules (`mobile` contre
+ * `mobile-0-basic…`) et le rapprochement est volontairement permissif : appeler
+ * `isProjectCompleted` directement sur une piscine la fait passer pour acquise
+ * dès qu'UN seul module l'est. Le calcul RNCP s'en protégeait ; les quatre autres
+ * endroits qui posaient la même question ne s'en protégeaient pas, et affichaient
+ * des piscines validées à tort — l'un d'eux allait jusqu'à purger les modules que
+ * l'utilisateur avait cochés.
+ */
+export function isProjectAcquired(
+	project: { id: string; slug?: string; subProjects?: SimulatorProject[] },
+	valides: string[],
+	/**
+	 * Modules cochés en SIMULATION, qui comptent au même titre qu'un module
+	 * validé. Le calcul RNCP en a besoin, l'affichage des projets acquis non —
+	 * d'où le paramètre optionnel plutôt que deux fonctions qui redivergeraient.
+	 */
+	cochesEnSimulation: string[] = []
+): boolean {
+	if (project.subProjects && project.subProjects.length > 0) {
+		return isPoolCovered(project as SimulatorProject, (subId) => {
+			const sub = project.subProjects!.find((s) => s.id === subId)!;
+			return cochesEnSimulation.includes(sub.id) || matchesIdOrSlug(sub, valides);
+		});
+	}
+	return matchesIdOrSlug(project, valides);
+}
+
+/**
  * Les modules d'une piscine que l'école compte encore.
  *
  * Cette règle vivait recopiée dans cinq fichiers, et elle a divergé deux fois :
@@ -259,34 +307,15 @@ export const xpService = {
 			// jury ne reconnaîtrait pas.
 			if (project.retired) return false;
 
-			const projectSlug = project.slug || project.id;
-
-			// Une piscine n'est validée QUE si tous ses modules le sont.
-			//
-			// Le rapprochement des projets est volontairement permissif (il compare
-			// des noms normalisés), or le slug d'une piscine est souvent un préfixe
-			// de celui de ses modules — « mobile » contre « mobile-0-basic… ». Un
-			// seul module validé faisait donc passer la piscine entière pour
-			// acquise, avec son XP complet.
-			if (project.subProjects && project.subProjects.length > 0) {
-				const checkedSubs = simulatedSubProjects?.[project.id] ?? [];
-				// Un module que l'école a retiré ne peut plus être validé par
-				// personne : le laisser dans le `every` rendrait la piscine
-				// définitivement invalidable, soit l'inverse exact de ce que le
-				// drapeau cherche à faire.
-				return isPoolCovered(
-					project,
-					(subId) => {
-						const sub = project.subProjects!.find((s) => s.id === subId)!;
-						return (
-							checkedSubs.includes(sub.id) ||
-							isProjectCompleted(sub.slug || sub.id, validatedProjects)
-						);
-					}
-				);
-			}
-
-			return isProjectCompleted(projectSlug, validatedProjects);
+			// Une seule implémentation de la règle, piscines comprises.
+			// `validateCategory` en gardait une copie : deux versions de la même règle
+			// finissent toujours par diverger, et c'est exactement ce qui s'était produit
+			// sur les quatre autres endroits qui la posaient.
+			return isProjectAcquired(
+				project,
+				validatedProjects,
+				simulatedSubProjects?.[project.id] ?? []
+			);
 		});
 
 		const currentCount = categoryValidatedProjects.length;

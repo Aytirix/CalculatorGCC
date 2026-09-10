@@ -6,7 +6,7 @@ import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceMod
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
-import { xpService, isPoolCovered, effectiveProjectXP } from '@/services/xp.service';
+import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
@@ -348,7 +348,11 @@ const Dashboard: React.FC = () => {
 			for (const rncp of rncpData) {
 				for (const cat of rncp.categories) {
 					const project = cat.projects.find(p => p.slug === simId || p.id === simId);
-					if (project) return isProjectCompleted(project.slug || project.id, completed);
+					// `isProjectAcquired` et pas `isProjectCompleted` : cette fonction
+					// SUPPRIME les clés qu'elle juge validées. Sans la garde des piscines,
+					// un seul module validé sur 42 faisait purger TOUS les modules cochés
+					// de cette piscine, et l'enregistrement automatique persistait la perte.
+					if (project) return isProjectAcquired(project, completed);
 				}
 			}
 			// Projet simulé depuis le Holy Graph : il n'est pas dans le référentiel RNCP, mais
@@ -425,7 +429,13 @@ const Dashboard: React.FC = () => {
 
 	// Calcule quels sous-projets sont validés individuellement via l'API
 	const computeCompletedSubProjects = (completedProjectSlugs: string[]): Record<string, string[]> => {
-		const result: Record<string, string[]> = {};
+		// `Object.create(null)` : les clés viennent des identifiants du référentiel,
+		// qui est désormais MODIFIABLE depuis le panneau admin — et sa regex accepte
+		// `constructor`. Ce résultat est passé à `validateRNCP`, où un
+		// `simulatedSubProjects?.['constructor'] ?? []` rendrait la fonction héritée
+		// et ferait lever `.includes` DANS un `useMemo` : page blanche. Cinquième et
+		// dernier site de cette classe.
+		const result: Record<string, string[]> = Object.create(null);
 		rncpData.forEach(rncp => {
 			rncp.categories.forEach(cat => {
 				cat.projects.forEach(p => {
@@ -825,8 +835,10 @@ const Dashboard: React.FC = () => {
 				category.projects.forEach(project => {
 					const projectSlug = project.slug || project.id;
 
-					// Vérifier si le projet parent est directement validé
-					if (isProjectCompleted(projectSlug, apiSlugs)) {
+					// Vérifier si le projet parent est validé — garde des piscines comprise,
+					// sinon ce `return` court-circuite la branche « tous les sous-projets »
+					// juste en dessous et pousse une piscine à peine entamée.
+					if (isProjectAcquired(project, apiSlugs)) {
 						projects.push(project);
 						apiSlugs.forEach((apiSlug: string) => {
 							if (matchesProject(projectSlug, apiSlug)) matchedApiSlugs.add(apiSlug);
@@ -947,7 +959,13 @@ const Dashboard: React.FC = () => {
 		const simulatedProjectsWithSubs = [...simulatedProjects, ...fullySimulatedParents];
 
 		// Fusionner completedSubProjects (validés par l'API) avec simulatedSubProjects pour le calcul XP
-		const mergedSubProjects: Record<string, string[]> = {};
+		// `Object.create(null)` : la clé vient du blob servi par le backend, qu'un
+		// client a pu remplir. Sur `toString`, `mergedSubProjects[id]` rendait une
+		// fonction héritée du prototype, `|| []` ne se déclenchait pas, et le spread
+		// levait DANS un `useMemo` — page blanche, aucun ErrorBoundary. Et comme le
+		// blob d'un profil public est servi tel quel, ça cassait le Dashboard de
+		// quiconque consultait ce profil.
+		const mergedSubProjects: Record<string, string[]> = Object.create(null);
 		for (const [id, subs] of Object.entries(completedSubProjects) as [string, string[]][]) {
 			mergedSubProjects[id] = [...subs];
 		}

@@ -463,7 +463,12 @@ function ourProjects(entry: RncpReferentialEntry, categoryId: string): OurProjec
  * sortent en `null`) mais ne doit pas empêcher de voir les écarts, qui sont
  * l'essentiel.
  */
-function loadCatalog42(): { catalog: Map<string, string>; error: string | null } {
+interface Catalog42Entry {
+	slug: string;
+	id42: number;
+}
+
+function loadCatalog42(): { catalog: Map<string, Catalog42Entry>; error: string | null } {
 	const projects = API42Service.getCursusProjectsCached(RNCP_CURSUS_ID);
 	if (!projects) {
 		// Comme `rncp.service`, on relance le remplissage en tâche de fond : la
@@ -476,8 +481,34 @@ function loadCatalog42(): { catalog: Map<string, string>; error: string | null }
 		};
 	}
 
-	const catalog = new Map<string, string>();
-	for (const project of projects) catalog.set(normalize(project.name), project.slug);
+	// Plusieurs projets 42 portent le même nom une fois normalisé — `minishell` et
+	// `minishell-d972f7c4…`, `42cursus-push_swap` et `42next-push_swap`, 37 cas
+	// mesurés sur le catalogue réel. Retenir « le dernier gagne » ferait proposer
+	// un identifiant tiré au sort par l'ordre de pagination de l'API 42, opaque
+	// (`42-2687` contre `42-1471`) et persisté dans les simulations de tout le
+	// monde. On écarte donc les noms ambigus : mieux vaut ne rien proposer.
+	const parNom = new Map<string, Catalog42Entry[]>();
+	for (const project of projects) {
+		const key = normalize(project.name);
+		if (!parNom.has(key)) parNom.set(key, []);
+		parNom.get(key)!.push({ slug: project.slug, id42: project.id });
+	}
+
+	const catalog = new Map<string, Catalog42Entry>();
+	let ambigus = 0;
+	for (const [key, entrees] of parNom) {
+		if (entrees.length > 1) {
+			ambigus++;
+			continue;
+		}
+		catalog.set(key, entrees[0]!);
+	}
+	if (ambigus > 0) {
+		console.warn(
+			`[GCC] ${ambigus} nom(s) du catalogue 42 désignent plusieurs projets : ils ne seront pas ` +
+				'proposés à l\'ajout, faute de pouvoir choisir un identifiant sans se tromper.'
+		);
+	}
 	if (catalog.size === 0) return { catalog, error: 'catalogue du cursus vide' };
 	return { catalog, error: null };
 }
@@ -486,13 +517,6 @@ function loadCatalog42(): { catalog: Map<string, string>; error: string | null }
  * Identifiant à donner à un projet que nous ne connaissons pas encore, dans le
  * style du référentiel : minuscules, séparateurs réduits à des tirets.
  */
-function toId(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '');
-}
-
 /**
  * Le nom, rendu sûr dans un commentaire de la ligne générée : un nom GCC
  * contenant un saut de ligne couperait la ligne en deux et produirait du
@@ -514,9 +538,11 @@ const INDENT = '\t'.repeat(4);
  * visiblement, il ferait juste silencieusement échouer la correspondance avec
  * l'API 42. Faute de mieux on écrit `null`, qui est explicite.
  */
-function referentialLine(gccName: string, catalog42: Map<string, string>): MissingProject {
+function referentialLine(gccName: string, catalog42: Map<string, Catalog42Entry>): MissingProject {
 	const key = normalize(gccName);
 
+	// Déjà connu de notre référentiel : on reprend sa ligne telle quelle, sans
+	// rien réinventer.
 	const known = knownProjects().get(key);
 	if (known) {
 		const slug = known.slug42 === null ? 'null' : `'${known.slug42}'`;
@@ -529,36 +555,27 @@ function referentialLine(gccName: string, catalog42: Map<string, string>): Missi
 		};
 	}
 
-	// Un identifiant vide produirait une ligne `{ id: '' }` collable telle quelle,
-	// et donc une entrée fantôme persistée dans les simulations. `toId` vide tout
-	// ce qui n'est pas alphanumérique : un nom entièrement non-latin y suffit.
-	const id = toId(gccName);
-	if (!id) {
+	// Sinon l'identifiant vient du catalogue 42, jamais du nom : c'est 42 qui
+	// fait autorité, et un projet qu'elle ne connaît pas n'a rien à faire dans le
+	// référentiel — l'application ne saurait ni l'afficher ni le rapprocher.
+	const entry = catalog42.get(key);
+	if (!entry) {
 		return {
 			name: gccName,
 			projectId: '',
 			slug42: null,
-			line: `${INDENT}// « ${forComment(gccName)} » : aucun identifiant dérivable de ce nom, à écrire à la main`,
+			line: `${INDENT}// « ${forComment(gccName)} » : absent du catalogue 42, aucun identifiant possible`,
 			slugUnknown: true,
 		};
 	}
 
-	const slug = catalog42.get(key) ?? null;
-	if (slug) {
-		return {
-			name: gccName,
-			projectId: id,
-			slug42: slug,
-			line: `${INDENT}{ id: '${id}', slug42: '${slug}' },`,
-			slugUnknown: false,
-		};
-	}
+	const id = `42-${entry.id42}`;
 	return {
 		name: gccName,
 		projectId: id,
-		slug42: null,
-		line: `${INDENT}{ id: '${id}', slug42: null }, // « ${forComment(gccName)} » : absent du catalogue 42, slug à vérifier`,
-		slugUnknown: true,
+		slug42: entry.slug,
+		line: `${INDENT}{ id: '${id}', slug42: '${entry.slug}' },`,
+		slugUnknown: false,
 	};
 }
 

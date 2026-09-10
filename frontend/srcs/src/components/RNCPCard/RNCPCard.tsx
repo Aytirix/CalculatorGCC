@@ -61,13 +61,18 @@ const RNCPCard = ({
     userProgress.realProfessionalExperience >= rncp.requiredProfessionalExperience;
   const hasProfessionalExperience = validation.isProfessionalExperienceValid;
 
-  // `completedProjects` se compare par SLUG (c'est ce que renvoie l'API 42),
-  // mais la simulation est indexée par IDENTIFIANT partout ailleurs
-  // (`onToggleSimulation(project.id)`, `projectPercentages[project.id]`…).
-  // Les convertir en slugs ici rendait `simulatedProjects.includes(project.id)`
-  // toujours faux dès que les deux diffèrent : le projet restait affiché comme
-  // non coché, sans bordure bleue, alors qu'il comptait bien dans le total.
-  const completedProjectSlugs = completedProjects.map(p => p.slug || p.id);
+  // Tout ce qui descend d'ici est indexé par IDENTIFIANT — `onToggleSimulation`,
+  // `projectPercentages`, `simulatedProjects.includes(project.id)`. Les projets
+  // acquis suivent la même convention.
+  //
+  // `completedProjects` est déjà le résultat de la question « ce projet est-il
+  // acquis ? », tranchée en amont par `getCompletedProjects` avec les slugs bruts
+  // de l'API 42 — la seule granularité où une piscine peut être jugée. Renvoyer
+  // des slugs obligeait la feuille à reposer la question sans avoir les données
+  // pour y répondre : elle recevait des slugs de PROJET là où une piscine exige
+  // des slugs de MODULE, et les 7 piscines du référentiel ne s'affichaient plus
+  // jamais validées. Avec des identifiants, la feuille n'a plus qu'à comparer.
+  const completedProjectIds = completedProjects.map(p => p.id);
   const simulatedProjectIds = simulatedProjects.map(p => p.id);
 
   // Calculer le pourcentage de validation basé sur les résultats de validateRNCP
@@ -245,7 +250,7 @@ const RNCPCard = ({
               key={category.id}
               category={category}
               validation={categoryValidation}
-              completedProjects={completedProjectSlugs}
+              completedProjectIds={completedProjectIds}
               simulatedProjects={simulatedProjectIds}
               onToggleSimulation={onToggleSimulation}
               completedSubProjects={completedSubProjects}

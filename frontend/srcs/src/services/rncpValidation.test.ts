@@ -178,14 +178,20 @@ describe('les sous-projets réellement validés comptent dans l’acquis', () =>
         requiredXP: 10_000,
         projects: [
           {
-            id: 'piscine',
+            // `id` ET `slug` DIFFÉRENTS, délibérément.
+            //
+            // Ce fixture les avait égaux, et c'est la seule forme où l'on ne voit
+            // pas que `simulatedSubProjects` est indexé par IDENTIFIANT : une
+            // mutation qui l'indexait par slug passait les 81 tests. C'est
+            // exactement la classe de bug qui a produit quatre Bloquants d'affilée.
+            id: '42-2189',
             name: 'Piscine',
             slug: 'piscine',
             // Une piscine porte la somme de ses modules (voir `rncp.service.ts`).
             xp: 12_000,
             subProjects: [
-              { id: 'mod-1', name: 'Module 1', xp: 6_000 },
-              { id: 'mod-2', name: 'Module 2', xp: 6_000 },
+              { id: '42-2190', name: 'Module 1', slug: 'mod-1', xp: 6_000 },
+              { id: '42-2191', name: 'Module 2', slug: 'mod-2', xp: 6_000 },
             ],
           },
         ],
@@ -198,8 +204,8 @@ describe('les sous-projets réellement validés comptent dans l’acquis', () =>
     // la passe réelle ne recevait aucun sous-projet.
     const cat = xpService.validateRNCP(
       piscine, 0, 0, 0, [], [], undefined, undefined, undefined,
-      { piscine: ['mod-1', 'mod-2'] },
-      { level: 0, professionalExp: 0, subProjects: { piscine: ['mod-1', 'mod-2'] } }
+      { '42-2189': ['42-2190', '42-2191'] },
+      { level: 0, professionalExp: 0, subProjects: { '42-2189': ['42-2190', '42-2191'] } }
     ).categoriesValidation[0];
     expect(cat.realXP).toBe(12_000);
     expect(cat.isRealValid).toBe(true);
@@ -208,7 +214,7 @@ describe('les sous-projets réellement validés comptent dans l’acquis', () =>
   it("ne compte pas comme acquis une piscine seulement cochée", () => {
     const cat = xpService.validateRNCP(
       piscine, 0, 0, 0, [], [], undefined, undefined, undefined,
-      { piscine: ['mod-1', 'mod-2'] },
+      { '42-2189': ['42-2190', '42-2191'] },
       { level: 0, professionalExp: 0, subProjects: {} }
     ).categoriesValidation[0];
     expect(cat.currentXP).toBe(12_000);
@@ -513,5 +519,118 @@ describe("XP d'une piscine dont un module est retiré", () => {
     const avec = run(pool(true), ['m0']);
     expect(avec.realCount).toBe(1);
     expect(avec.realXP).toBe(10_000);
+  });
+});
+
+
+/**
+ * Identifiant et slug ne coïncident plus.
+ *
+ * Le référentiel est passé aux identifiants de 42 : un projet porte `42-1854`
+ * comme identifiant et `42sh` comme slug. Les projets VALIDÉS arrivent de l'API
+ * 42, donc par slug ; les projets SIMULÉS viennent de nos écrans, donc par
+ * identifiant. Tant que les deux étaient égaux, les confondre marchait par
+ * accident — et TOUS les tests d'origine utilisent des fixtures `id === slug`,
+ * la seule forme où le défaut est invisible. D'où ces cas, écrits à la forme
+ * réelle.
+ */
+describe('identifiant et slug distincts', () => {
+  const rncp = (): RNCP =>
+    ({
+      id: 'r', name: 'RNCP', level: 0, requiredEvents: 0, requiredProfessionalExperience: 0,
+      categories: [{
+        id: 'c', name: 'Cat', requiredCount: 1, requiredXP: 10_000,
+        projects: [{ id: '42-1854', name: '42sh', slug: '42sh', xp: 21_000 }],
+      }],
+    }) as unknown as RNCP;
+
+  const run = (completed: string[], simulated: string[]) =>
+    xpService.validateRNCP(
+      rncp(), 0, 0, 0, completed, simulated,
+      undefined, undefined, undefined, {},
+      { level: 0, professionalExp: 0, subProjects: {} }
+    ).categoriesValidation[0];
+
+  it("compte un projet simulé par son IDENTIFIANT", () => {
+    const cat = run([], ['42-1854']);
+    expect(cat.currentCount).toBe(1);
+    expect(cat.currentXP).toBe(21_000);
+  });
+
+  it("compte toujours un projet validé par son SLUG", () => {
+    // C'est la forme que renvoie l'API 42 : elle ne connaît pas nos identifiants.
+    const cat = run(['42sh'], []);
+    expect(cat.realCount).toBe(1);
+    expect(cat.realXP).toBe(21_000);
+  });
+
+  it("ne compte pas deux fois un projet à la fois validé et simulé", () => {
+    const cat = run(['42sh'], ['42-1854']);
+    expect(cat.currentCount).toBe(1);
+    expect(cat.currentXP).toBe(21_000);
+  });
+});
+
+/**
+ * Le rapprochement PERMISSIF, et la garde des piscines.
+ *
+ * `matchesIdOrSlug` a deux moitiés : une comparaison exacte sur l'identifiant,
+ * et un rapprochement normalisé sur le slug. Un test de mutation a montré que la
+ * seconde moitié n'était exercée par aucun des 74 tests — remplacer
+ * `isProjectCompleted` par un simple `includes` les laissait tous passer. Or
+ * c'est précisément cette moitié qui gère le préfixe `42cursus-` de l'API 42, et
+ * c'est elle qui faisait passer une piscine pour acquise sur un seul module.
+ */
+describe('rapprochement permissif', () => {
+  const projet = (): RNCP =>
+    ({
+      id: 'r', name: 'RNCP', level: 0, requiredEvents: 0, requiredProfessionalExperience: 0,
+      categories: [{
+        id: 'c', name: 'Cat', requiredCount: 1, requiredXP: 1,
+        projects: [{ id: '42-1463', name: 'zappy', slug: 'zappy', xp: 25_200 }],
+      }],
+    }) as unknown as RNCP;
+
+  const piscine = (): RNCP =>
+    ({
+      id: 'r', name: 'RNCP', level: 0, requiredEvents: 0, requiredProfessionalExperience: 0,
+      categories: [{
+        id: 'c', name: 'Cat', requiredCount: 1, requiredXP: 1,
+        projects: [{
+          id: '42-2355', name: 'Piscine Mobile', slug: 'mobile', xp: 20_000,
+          subProjects: [
+            { id: '42-2356', name: 'Mobile 0', slug: 'mobile-0-basic', xp: 10_000 },
+            { id: '42-2357', name: 'Mobile 1', slug: 'mobile-1-structure', xp: 10_000 },
+          ],
+        }],
+      }],
+    }) as unknown as RNCP;
+
+  const run = (data: RNCP, completed: string[]) =>
+    xpService.validateRNCP(
+      data, 0, 0, 0, completed, [],
+      undefined, undefined, undefined, {},
+      { level: 0, professionalExp: 0, subProjects: {} }
+    ).categoriesValidation[0];
+
+  it("reconnaît un slug préfixé par « 42cursus- », comme l'API 42 le renvoie", () => {
+    // C'est la forme réelle : l'API 42 dit « 42cursus-zappy », notre slug dit
+    // « zappy ». Une comparaison exacte échouerait.
+    expect(run(projet(), ['42cursus-zappy']).realCount).toBe(1);
+  });
+
+  it("ne valide PAS une piscine sur un seul de ses modules", () => {
+    // Le slug de la piscine (« mobile ») est un préfixe de celui de ses modules :
+    // sans la garde, le rapprochement permissif la donnait pour acquise, avec ses
+    // 20 000 XP, dès le premier module validé.
+    const un = run(piscine(), ['42cursus-mobile-0-basic']);
+    expect(un.realCount).toBe(0);
+    // L'XP d'un module VALIDÉ n'entre dans la catégorie que si la piscine est
+    // complète — seuls les modules COCHÉS en simulation comptent partiellement.
+    // Comportement d'origine, indépendant de la garde testée ici.
+    expect(un.realXP).toBe(0);
+
+    const tous = run(piscine(), ['42cursus-mobile-0-basic', '42cursus-mobile-1-structure']);
+    expect(tous.realCount).toBe(1);
   });
 });

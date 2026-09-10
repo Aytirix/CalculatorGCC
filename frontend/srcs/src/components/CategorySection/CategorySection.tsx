@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ProjectCategory, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
-import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
+import { findProjectPercentage } from '@/utils/projectMatcher';
 import { clampProjectPercentage } from '@/utils/projectPercentage';
 import ProjectCard from '../ProjectCard/ProjectCard';
 import CustomProjectCard from '../CustomProjectCard/CustomProjectCard';
@@ -14,7 +14,14 @@ import './CategorySection.scss';
 interface CategorySectionProps {
 	category: ProjectCategory;
 	validation: CategoryValidation;
-	completedProjects: string[];
+	/**
+	 * Identifiants des projets déjà ACQUIS, tranchés en amont.
+	 *
+	 * Surtout pas des slugs : juger ici qu'une piscine est acquise demanderait les
+	 * slugs de ses MODULES, que ce composant n'a pas. La question est répondue une
+	 * fois, au bon endroit, et il ne reste ici qu'une appartenance.
+	 */
+	completedProjectIds: string[];
 	simulatedProjects: string[];
 	onToggleSimulation: (projectId: string) => void;
 	completedSubProjects?: Record<string, string[]>;
@@ -36,7 +43,7 @@ interface CategorySectionProps {
 const CategorySection: React.FC<CategorySectionProps> = ({
 	category,
 	validation,
-	completedProjects,
+	completedProjectIds,
 	simulatedProjects,
 	onToggleSimulation,
 	completedSubProjects = {},
@@ -209,7 +216,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 									);
 								}
 
-								const isCompleted = isProjectCompleted(project.slug || project.id, completedProjects);
+								// Garde des piscines comprise : sans elle, la carte s'affichait
+								// « validée » — vert, ✓, réglage du pourcentage désactivé — dès
+								// UN module validé, pendant que la catégorie ne la comptait pas.
+								const isCompleted = completedProjectIds.includes(project.id);
 								const projectPercentage = isCompleted
 									? findProjectPercentage(project, completedProjectsPercentages, 100)
 									: clampProjectPercentage(projectPercentages[project.id] ?? 100, project);
@@ -280,7 +290,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 				<ProjectDetailsModal
 					project={detailsProject}
 					teamInfo={getTeamInfo(detailsProject)}
-					isCompleted={isProjectCompleted(detailsProject.slug || detailsProject.id, completedProjects)}
+					isCompleted={completedProjectIds.includes(detailsProject.id)}
 					isSimulated={simulatedProjects.includes(detailsProject.id)}
 					percentage={clampProjectPercentage(
 						projectPercentages[detailsProject.id] ?? 100,
