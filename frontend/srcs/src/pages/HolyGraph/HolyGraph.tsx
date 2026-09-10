@@ -262,7 +262,14 @@ const HolyGraph: React.FC = () => {
         const res = await BackendAPI42Service.getHolyGraph();
         if (cancelled) return;
         setData(res.cursus);
-        setActiveCursusId((prev) => prev ?? (res.cursus.length > 0 ? res.cursus[0].id : null));
+        // Retombe sur le premier cursus si celui qu'on affichait n'est plus servi :
+        // garder un identifiant orphelin donnait `activeCursus = null` et un écran
+        // vide dont on ne pouvait plus sortir.
+        setActiveCursusId((prev) =>
+          prev !== null && res.cursus.some((c) => c.id === prev)
+            ? prev
+            : (res.cursus.length > 0 ? res.cursus[0].id : null)
+        );
         setLoading(false);
         setError(null);
         if (res.cursus.some((c) => c.loading)) {
@@ -332,6 +339,16 @@ const HolyGraph: React.FC = () => {
     const spread = spreadOuterOverlaps(activeCursusRaw.projects, activeCursusRaw.edges, rings);
     return { ...activeCursusRaw, rings, projects: spread.projects, edges: spread.edges };
   }, [activeCursusRaw]);
+
+  /**
+   * Y a-t-il de quoi dessiner ?
+   *
+   * Un graphe qui a des projets est affichable, point — même si le backend annonce
+   * encore `loading` parce qu'une source secondaire (les compétences, par exemple)
+   * n'est pas arrivée. Attendre son feu vert laissait un voile « Récupération… »
+   * par-dessus un graphe déjà complet.
+   */
+  const graphePret = !error && activeCursus !== null && activeCursus.projects.length > 0;
 
   const selectedProject = useMemo(
     () => activeCursus?.projects.find((p) => p.id === selectedId) ?? null,
@@ -575,10 +592,20 @@ const HolyGraph: React.FC = () => {
     draw();
   }, [activeCursus, draw]);
 
+  // Cadrage initial : au changement de cursus, et au moment où le graphe devient
+  // dessinable.
+  //
+  // PAS sur l'objet `activeCursus` : le poll de 3 s en renvoie un nouveau à chaque
+  // fois, et `fitToView()` écrasait alors le zoom de l'utilisateur toutes les trois
+  // secondes. Mais `activeCursusId` SEUL ne suffit pas non plus : au premier poll le
+  // cursus arrive sans projets, `fitToView` sort immédiatement, et l'identifiant ne
+  // change plus quand les projets arrivent — le graphe restait dessiné à l'échelle 1
+  // sur des coordonnées 42 brutes, donc hors champ. `graphePret` bascule une seule
+  // fois par cursus : il donne le bon moment sans rejouer à chaque poll.
   useEffect(() => {
     fitToView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCursus]);
+  }, [activeCursusId, graphePret]);
 
   useEffect(() => {
     draw();
@@ -703,14 +730,47 @@ const HolyGraph: React.FC = () => {
     draw();
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+  /**
+   * Douceur du zoom, en pixels de défilement — plus la valeur est haute, plus c'est
+   * progressif. Deux réglages, parce que les périphériques n'envoient pas du tout
+   * les mêmes amplitudes :
+   *
+   *  - MOLETTE et défilement à deux doigts : un cran classique vaut 120 px, d'où
+   *    `exp(120 / 600) ≈ 1.22` par cran. Un pavé tactile envoie de petits deltas en
+   *    rafale, et retrouve ici une progression franche sans s'emballer.
+   *  - PINCEMENT (deux doigts qui s'écartent) : le navigateur l'envoie comme un
+   *    `wheel` avec `ctrlKey`, avec des deltas environ dix fois plus petits. Le même
+   *    diviseur rendrait le geste poussif, d'où un réglage propre.
+   */
+  const DOUCEUR_DEFILEMENT = 600;
+  const DOUCEUR_PINCEMENT = 180;
+
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     setPinnedId(null);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const view = viewRef.current;
-    const newScale = Math.min(4, Math.max(0.05, view.scale * (e.deltaY < 0 ? 1.15 : 0.87)));
+
+    // `deltaY` s'exprime en pixels, en lignes ou en pages selon le périphérique et
+    // le navigateur : sans normalisation, un même geste zoome de façon très
+    // différente d'une machine à l'autre.
+    let delta = e.deltaY;
+    if (e.deltaMode === 1) delta *= 16;
+    else if (e.deltaMode === 2) delta *= rect.height || 400;
+
+    // Le pas était FIXE (×1.15 par événement), quelle que soit l'amplitude du
+    // geste. Une molette crantée émet un événement par cran et s'en accommodait ;
+    // un pavé tactile en émet des dizaines pour un seul mouvement, et le zoom
+    // partait en vrille. Un facteur exponentiel de la distance rend les deux
+    // périphériques cohérents, et le zoom réversible : molette avant puis arrière
+    // sur la même distance ramène exactement à l'échelle de départ.
+    const facteur = Math.exp(-delta / (e.ctrlKey ? DOUCEUR_PINCEMENT : DOUCEUR_DEFILEMENT));
+    // Garde-fou : certains navigateurs envoient des deltas énormes sur un
+    // défilement rapide. On borne le saut d'un seul événement.
+    const facteurBorne = Math.min(2, Math.max(0.5, facteur));
+    const newScale = Math.min(4, Math.max(0.05, view.scale * facteurBorne));
 
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -718,7 +778,25 @@ const HolyGraph: React.FC = () => {
     view.offsetY = my - ((my - view.offsetY) / view.scale) * newScale;
     view.scale = newScale;
     draw();
-  };
+  }, [draw]);
+
+  /**
+   * Le zoom passe par un listener NATIF, en `passive: false`.
+   *
+   * React pose ses `onWheel` en passif : `preventDefault()` y est ignoré (avertissement
+   * en console), et le navigateur appliquait donc son propre zoom — la page entière
+   * grossissait au lieu du graphe. Seul un listener posé à la main peut refuser le
+   * comportement par défaut.
+   *
+   * Couvre aussi le pincement sur pavé tactile, que les navigateurs envoient comme un
+   * `wheel` avec `ctrlKey` : sans ce refus, il déclenche le zoom natif de la page.
+   */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel, graphePret]);
 
   /** Projet sous le curseur, ou `null`. Les nœuds dessinés au-dessus priment. */
   const projectAt = (clientX: number, clientY: number): HolyGraphProject | null => {
@@ -775,36 +853,84 @@ const HolyGraph: React.FC = () => {
       <Header />
 
       <div className="holy-graph-canvas-wrapper" ref={wrapperRef}>
-        {loading && <div className="holy-graph-overlay">Chargement…</div>}
-
-        {!loading && error && <div className="holy-graph-overlay">{error}</div>}
-
-        {!loading && !error && data && data.length === 0 && (
-          <div className="holy-graph-overlay">
-            Aucune donnée synchronisée pour le moment. Va sur le Dashboard pour lancer une première synchro.
+        {/* Le sélecteur de cursus vit HORS du bloc `graphePret` : enfermé dedans, il
+            disparaissait dès que le cursus courant n'avait rien à montrer — et on
+            se retrouvait bloqué sur un graphe vide, sans moyen d'en changer. */}
+        {data && data.length > 1 && (
+          <div className="holy-graph-controls holy-graph-controls--cursus">
+            <div className="holy-graph-tabs">
+              {data.map((c) => (
+                <button
+                  key={c.id}
+                  className={c.id === activeCursusId ? 'active' : ''}
+                  onClick={() => setActiveCursusId(c.id)}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {!loading && !error && activeCursus?.unavailableReason === 'MISSING_PROJECTS_SCOPE' && (
-          <div className="holy-graph-overlay">
-            Le graphe officiel de 42 n'est pas disponible : l'application 42 de cette instance n'a
-            pas le droit de lire <code>project_data</code> (scope «&nbsp;projects&nbsp;»). Le reste
-            de l'application fonctionne normalement.
-          </div>
+        {/* Ce qui commande l'affichage, c'est la présence de PROJETS — pas le drapeau
+            `loading` du backend. Celui-ci reste à `true` tant que la moindre source
+            manque (catalogue, layout, compétences), y compris quand le graphe est
+            déjà complet et dessinable : on affichait alors « Récupération… » par
+            dessus un graphe prêt, indéfiniment. Le drapeau ne sert plus qu'à savoir
+            quoi dire quand il n'y a réellement rien à montrer. */}
+        {!graphePret && (
+          <>
+            {error && <div className="holy-graph-overlay">{error}</div>}
+
+            {/* Sans cette branche, la zone restait entièrement VIDE dans deux cas :
+                au tout premier rendu (`loading`), et pendant que 42 construit le
+                graphe — `poll()` fait `setLoading(false)` avant de constater qu'un
+                cursus est encore `loading`, si bien qu'aucune autre condition ne
+                matchait. On ne promet plus de durée, mais on dit qu'il se passe
+                quelque chose. */}
+            {!error && (loading || activeCursus?.loading) && (
+              <div className="holy-graph-overlay">Récupération du Holy Graph…</div>
+            )}
+
+            {!error && !loading && data && data.length === 0 && (
+              <div className="holy-graph-overlay">
+                Aucune donnée synchronisée pour le moment. Va sur le Dashboard pour lancer une première synchro.
+              </div>
+            )}
+
+            {/* Un cursus qui existe, sans projet, sans erreur et sans raison connue :
+                aucune branche ne matchait et la zone restait vide DÉFINITIVEMENT
+                (le poll s'arrête, `loading` est faux). Cas réel : un cursus dont
+                aucune session n'est proposée sur le campus de l'utilisateur. */}
+            {!error && !loading && activeCursus && !activeCursus.loading
+              && activeCursus.projects.length === 0 && !activeCursus.unavailableReason && (
+              <div className="holy-graph-overlay">
+                Aucun projet n'est proposé sur ce graphe pour ton campus.
+              </div>
+            )}
+
+            {!error && activeCursus?.unavailableReason === 'MISSING_PROJECTS_SCOPE' && (
+              <div className="holy-graph-overlay">
+                Le graphe officiel de 42 n'est pas disponible : l'application 42 de cette instance n'a
+                pas le droit de lire <code>project_data</code> (scope «&nbsp;projects&nbsp;»). Le reste
+                de l'application fonctionne normalement.
+              </div>
+            )}
+          </>
         )}
 
-        {!loading && !error && activeCursus?.loading && (
-          <div className="holy-graph-overlay">
-            Récupération du Holy Graph officiel de 42 pour « {activeCursus.name} »… (une minute la première fois, puis instantané pour tout le monde)
-          </div>
+        {/* Graphe affichable mais encore en construction : le canvas est utilisable,
+            un bandeau discret explique que des projets vont continuer d'apparaître.
+            Sans lui, des nœuds surgissaient toutes les 3 s sans explication. */}
+        {graphePret && activeCursus?.loading && (
+          <div className="holy-graph-badge">Le graphe se complète…</div>
         )}
 
-        {!loading && !error && activeCursus && !activeCursus.loading && (
+        {graphePret && activeCursus && (
           <>
             <canvas
               ref={canvasRef}
               className={hovered ? 'over-node' : ''}
-              onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -816,20 +942,6 @@ const HolyGraph: React.FC = () => {
             />
 
             <div className="holy-graph-controls">
-              {data && data.length > 1 && (
-                <div className="holy-graph-tabs">
-                  {data.map((c) => (
-                    <button
-                      key={c.id}
-                      className={c.id === activeCursusId ? 'active' : ''}
-                      onClick={() => setActiveCursusId(c.id)}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {activeCursus.layers.length > 0 && (
                 <select
                   className="holy-graph-layer"

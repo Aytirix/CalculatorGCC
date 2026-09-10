@@ -1,4 +1,9 @@
-import levelData from '../../public/level.json';
+// Table des paliers d'XP. DANS `src/`, pas dans `public/` : Vite refuse d'importer
+// un fichier du dossier public depuis du JavaScript (« Assets in public directory
+// cannot be imported from JavaScript »). La règle s'est durcie en cours de route et
+// le module entier a cessé de se charger — écran noir, avant même que React ne
+// monte, donc hors de portée de l'ErrorBoundary.
+import levelData from '../data/level.json';
 import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
 import { clampProjectPercentage } from '@/utils/projectPercentage';
 import type { SimulationResult, RNCP, ProjectCategory, RNCPValidation, CategoryValidation, SimulatorProject } from '@/types/rncp.types';

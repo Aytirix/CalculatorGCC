@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/useAuth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -18,8 +18,8 @@ import Calendar from '@/pages/Calendar/Calendar';
 import ApiUsage from '@/pages/ApiUsage/ApiUsage';
 import HolyGraph from '@/pages/HolyGraph/HolyGraph';
 import MyProjects from '@/pages/MyProjects/MyProjects';
-import Setup from '@/pages/Setup/Setup';
 import AdminLogin from '@/pages/Admin/AdminLogin';
+import NotConfigured from '@/pages/NotConfigured/NotConfigured';
 import AdminPanel from '@/pages/Admin/AdminPanel';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
@@ -30,6 +30,11 @@ import { useViewingUser } from '@/contexts/useViewingUser';
 const AppRoutes: React.FC = () => {
 	const { isAuthenticated } = useAuth();
 	const { isConfigured, isChecking } = useSetupCheck();
+	// `useLocation` et NON `window.location` : cette dernière n'est pas réactive.
+	// Le composant ne s'abonnait donc à aucun changement de route, et après la
+	// redirection ci-dessous plus rien ne le re-rendait — il restait figé sur un
+	// `<Navigate>` déjà consommé, qui ne rend rien. Écran noir.
+	const location = useLocation();
 	const { viewingUser } = useViewingUser();
 	const viewKey = viewingUser?.userId42 ?? 'self';
 
@@ -47,11 +52,17 @@ const AppRoutes: React.FC = () => {
 		);
 	}
 
-	// Si non configuré, tout mène au bootstrap admin autonome (token console affiché au
-	// démarrage, puis passkey) : c'est la seule voie de configuration initiale depuis le
-	// retrait de /setup localhost. On ne redirige évidemment pas /admin* sur lui-même.
-	if (isConfigured === false && !window.location.pathname.startsWith('/admin')) {
-		return <Navigate to="/admin/login" replace />;
+	// Pas encore configurée : on l'ANNONCE au lieu de rediriger.
+	//
+	// Rediriger vers /admin/login envoyait tout visiteur sur un formulaire de token
+	// console, sans jamais dire pourquoi — incompréhensible pour qui n'administre
+	// pas le site, et sans issue pour lui. L'écran d'information explique la
+	// situation et laisse le bouton vers le panneau à qui saura s'en servir.
+	//
+	// `/admin/*` est épargné, sans quoi on masquerait le panneau qui sert justement
+	// à sortir de cet état.
+	if (isConfigured === false && !location.pathname.startsWith('/admin')) {
+		return <NotConfigured />;
 	}
 
 	return (
@@ -59,10 +70,7 @@ const AppRoutes: React.FC = () => {
 			<PrivacyGate />
 			<GithubLink />
 			<Routes>
-				{/* Route de setup - accessible à tous */}
-				<Route path="/setup" element={<Setup />} />
-
-				{/* Accès admin autonome (auth passkey / token console, hors OAuth 42) */}
+				{/* Accès admin autonome (token console, hors OAuth 42) */}
 				<Route path="/admin/login" element={<AdminLogin />} />
 				<Route path="/admin" element={<AdminPanel />} />
 

@@ -399,3 +399,21 @@
     text-decoration: underline;
   }
 }
+
+// Bandeau discret : le graphe est utilisable mais 42 continue de le construire.
+// Volontairement hors du flux et non bloquant — contrairement à l'overlay, qui
+// remplace le canvas.
+.holy-graph-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
