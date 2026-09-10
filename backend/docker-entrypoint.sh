@@ -73,6 +73,18 @@ assert_target_configured() {
 	esac
 }
 
+db_identity() {
+	# Identifie le SERVEUR joint, et non le nom qui a servi a le joindre. Deux
+	# alias peuvent designer la meme instance, et sur un reseau Docker partage le
+	# DNS peut renvoyer un conteneur different d'un appel a l'autre : comparer les
+	# noms, ou meme les IP resolues, ne prouve rien. `@@hostname` est le hostname
+	# du conteneur mariadb, unique par instance.
+	# Le `|| true` est indispensable : sous `set -e`, une substitution de commande
+	# qui echoue tuerait le script avant que l'appelant puisse expliquer pourquoi.
+	mariadb -N -B -h "$1" -P "$2" -u "$3" "-p$4" \
+		-e "SELECT CONCAT(@@hostname, ':', @@port);" 2>/dev/null || true
+}
+
 TARGET_DB_HOST="${TARGET_DB_HOST:-mariadb}"
 TARGET_DB_PORT="${TARGET_DB_PORT:-3306}"
 TARGET_DB_NAME="${DB_NAME:-calculatorgcc}"
@@ -105,6 +117,33 @@ if is_true "${CLONE_FROM_PROD_ENABLED:-false}"; then
 
 	log "Attente de la base source $PROD_DB_HOST:$PROD_DB_PORT..."
 	wait_for_db "$PROD_DB_HOST" "$PROD_DB_PORT" "$PROD_DB_USER" "$PROD_DB_PASSWORD" "$PROD_DB_WAIT_TIMEOUT"
+
+	# GARDE-FOU. La ligne suivante est un `DROP DATABASE` : si la cible se trouve
+	# etre la prod, il n'y a pas de seconde chance. Le 2026-09-10, les deux stacks
+	# exposaient chacune un hote nomme `mariadb` sur le reseau partage `coolify`,
+	# et le DNS a envoye la prod sur la base de la pre-prod ; le clone aurait pu
+	# partir dans l'autre sens. Seule la divergence des mots de passe root l'a
+	# evite -- un rempart involontaire, sur lequel on refuse de continuer a parier.
+	if [ "$(to_lower "$PROD_DB_HOST")" = "$(to_lower "$TARGET_DB_HOST")" ]; then
+		log "REFUS DE CLONER: source et cible portent le meme nom d'hote ($PROD_DB_HOST)."
+		exit 1
+	fi
+
+	source_identity=$(db_identity "$PROD_DB_HOST" "$PROD_DB_PORT" "$PROD_DB_USER" "$PROD_DB_PASSWORD")
+	target_identity=$(db_identity "$TARGET_DB_HOST" "$TARGET_DB_PORT" "root" "$TARGET_DB_ROOT_PASSWORD")
+
+	if [ -z "$source_identity" ] || [ -z "$target_identity" ]; then
+		log "REFUS DE CLONER: impossible d'identifier la source ou la cible."
+		exit 1
+	fi
+
+	if [ "$source_identity" = "$target_identity" ]; then
+		log "REFUS DE CLONER: $PROD_DB_HOST et $TARGET_DB_HOST designent le MEME serveur ($source_identity)."
+		log "Le clone aurait supprime la base qu'il devait copier. Verifiez DB_SHARED_ALIAS."
+		exit 1
+	fi
+
+	log "Source ($source_identity) et cible ($target_identity) distinctes, clone autorise."
 
 	escaped_db_name=$(printf '%s' "$TARGET_DB_NAME" | sed 's/`/``/g')
 
