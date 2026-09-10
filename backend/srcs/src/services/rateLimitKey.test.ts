@@ -59,6 +59,14 @@ describe('identiteDepuisJwt', () => {
 		}
 	});
 
+	it('tolère les espaces autour du jeton', () => {
+		// Un en-tête recopié à la main en porte facilement. Sans `trim()`, on
+		// retomberait sur l'IP au lieu de la clé utilisateur — pas un trou de
+		// sécurité, mais un quota partagé sans raison.
+		expect(identiteDepuisJwt('Bearer  bon ', v)).toBe(42);
+		expect(identiteDepuisJwt('Bearer bon', v)).toBe(42);
+	});
+
 	it('ne laisse jamais échapper une exception du vérificateur', () => {
 		const explose = () => { throw new Error('boum'); };
 		// Le comptage ne doit JAMAIS rejeter une requête : ce n'est pas son rôle,

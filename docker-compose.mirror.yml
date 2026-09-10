@@ -54,7 +54,13 @@ services:
     healthcheck:
       # Interroge le miroir LUI-MÊME, pas la cible : un hoquet réseau de
       # l'instance principale ne doit pas faire redémarrer nginx en boucle.
-      test: ["CMD", "curl", "-fsS", "http://localhost/api/health"]
+      #
+      # Les deux schémas sur le MÊME port 80 : avec ENABLE_SSL=true, nginx y écoute
+      # en TLS (`listen 80 ssl`) — il ne bascule pas sur 443. Une sonde en http
+      # clair y reçoit un 400 et le conteneur passait `unhealthy` alors qu'il
+      # servait très bien. Le certificat étant auto-signé, `-k` est nécessaire et
+      # sans risque : la sonde parle à elle-même, en local.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/api/health || curl -fsSk https://localhost:80/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
