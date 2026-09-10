@@ -60,7 +60,10 @@ services:
       CLONE_FROM_PROD_ENABLED: ${CLONE_FROM_PROD_ENABLED:-false}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       DB_NAME: ${DB_NAME:-calculatorgcc}
-      TARGET_DB_HOST: mariadb
+      # Cible du `DROP DATABASE` du clone (backend/docker-entrypoint.sh) : ce nom
+      # DOIT être unique au serveur Docker. `mariadb` ne l'est pas — voir le bloc
+      # `networks` du service mariadb plus bas.
+      TARGET_DB_HOST: ${DB_SHARED_ALIAS:?alias unique par environnement requis}
       TARGET_DB_PORT: 3306
       PROD_DB_HOST: ${PROD_DB_HOST:-}
       PROD_DB_PORT: ${PROD_DB_PORT:-3306}
@@ -69,7 +72,7 @@ services:
       PROD_DB_PASSWORD: ${PROD_DB_PASSWORD:-}
       PROD_DB_WAIT_TIMEOUT: ${PROD_DB_WAIT_TIMEOUT:-120}
       TARGET_DB_WAIT_TIMEOUT: ${TARGET_DB_WAIT_TIMEOUT:-120}
-      DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@mariadb:3306/${DB_NAME:-calculatorgcc}
+      DATABASE_URL: mysql://${DB_USER:-calculatorgcc_user}:${DB_PASSWORD}@${DB_SHARED_ALIAS:?alias unique par environnement requis}:3306/${DB_NAME:-calculatorgcc}
       # Credentials 42 : accepte CLIENT_ID_42/CLIENT_SECRET_42 ou les alias
       # API42_CLIENT_ID/API42_CLIENT_SECRET. Si définis ici, ils overrident la
       # config en DB (utile pour la pre-prod qui clone la DB de prod).
@@ -111,10 +114,22 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      calculatorGCC_network: {}
+      # `DB_SHARED_ALIAS` DOIT différer d'un environnement à l'autre (prod, pre-prod…).
+      # Compose AJOUTE le nom du service comme alias sur CHAQUE réseau, sans jamais
+      # le remplacer : sur le réseau partagé `coolify`, deux stacks exposent donc
+      # toutes les deux un hôte nommé `mariadb`, et le DNS Docker en désigne un au
+      # hasard. C'est ce qui a mis la prod à terre le 2026-09-10 (elle s'est mise à
+      # interroger la base de la pre-prod), et ce qui aurait pu faire tomber le
+      # `DROP DATABASE` du clone sur la prod. Seule la divergence des mots de passe
+      # l'a évité. D'où : plus personne ne joint la base par son nom de service.
+      # L'alias est posé sur les DEUX réseaux — le réseau interne pour le trafic
+      # applicatif, `coolify` pour le clone depuis une autre stack.
+      calculatorGCC_network:
+        aliases:
+          - ${DB_SHARED_ALIAS:?alias unique par environnement requis}
       coolify:
         aliases:
-          - ${DB_SHARED_ALIAS:-calculatorgcc-db}
+          - ${DB_SHARED_ALIAS:?alias unique par environnement requis}
 
   phpmyadmin:
     image: phpmyadmin:latest
@@ -130,7 +145,7 @@ services:
     labels:
       - "traefik.enable=false"
     environment:
-      PMA_HOST: mariadb
+      PMA_HOST: ${DB_SHARED_ALIAS:?alias unique par environnement requis}
       PMA_PORT: 3306
       UPLOAD_LIMIT: 50M
       PMA_ABSOLUTE_URI: ${APP_DOMAIN:-http://localhost:3000}/phpmyadmin/
