@@ -143,13 +143,21 @@ ou corps qui n'est pas `{"status":"ok"}`. Sans panneau d'administration ici, une
 URL erronée donnerait un site mort qu'on ne pourrait corriger qu'en redéployant
 à l'aveugle.
 
+Il refuse aussi une cible **qui est elle-même un miroir**, reconnue à son
+`"mode":"mirror"`. La chaîne passait sans bruit, puisqu'un miroir répond bien
+`{"status":"ok"}` en JSON : elle doublait les relais, et surtout le second miroir
+ne voyait plus que l'adresse du premier — journaux et rate-limit de l'instance
+principale comptaient alors tous les visiteurs de la chaîne comme un seul.
+
 Si l'URL n'a pas de chemin, `/api` est ajouté automatiquement.
 
 ### Ce qui reste local, ce qui part au relais
 
 - `/api/health` — répond localement. Le healthcheck du conteneur ne doit pas
   dépendre de la cible, sinon un hoquet réseau de celle-ci ferait redémarrer le
-  miroir en boucle.
+  miroir en boucle. Son `ok` ne dit donc **rien** de l'état de l'instance
+  principale : la réponse porte `"scope":"nginx-local"` pour le déclarer, et
+  `"target"` donne l'adresse à interroger pour surveiller la principale.
 - `/api/auth/42` — **redirection 302**, pas relais : l'instance principale
   détient les credentials 42 et son URL est la seule déclarée côté intra. Le
   `?origin=` posé par le frontend ramène l'utilisateur ici à la fin.
@@ -158,10 +166,28 @@ Si l'URL n'a pas de chemin, `/api` est ajouté automatiquement.
   par le miroir le jeton qui donne tous les droits, sans aucun bénéfice. Les
   **délégués**, eux, entrent avec leur session 42 : le reste de `/admin` est
   relayé normalement.
-- tout le reste de `/api/` — relayé, avec `X-Real-IP` propagé. Indispensable :
-  l'instance principale s'en sert comme clé de rate-limit, et sans lui tous les
-  visiteurs du miroir partageraient un seul quota.
+- tout le reste de `/api/` — relayé **tel qu'écrit**, encodage compris. nginx
+  décode l'URI avant de choisir le bloc ; reconstruire le chemin depuis cette
+  forme décodée transformait `/api/x%2Fy` en `/api/x/y`, soit deux segments là où
+  le client en visait un. Le relais repart donc de `$request_uri`, la ligne brute.
+- `/api…` mal encodé au point de ne plus commencer par `/api/` une fois décodé
+  (`/api%0a/health`) — **404**. Ces requêtes manquaient tous les blocs d'API et
+  finissaient sur le repli SPA : un `index.html` en 200 là où l'appelant attendait
+  du JSON.
 - `/` — le frontend, servi localement.
+
+`X-Real-IP` et `X-Forwarded-For` portent tous deux `$remote_addr`, et rien
+d'autre. C'est indispensable : l'instance principale s'en sert comme clé de
+rate-limit quand le visiteur n'est pas connecté, et sans cela tous les visiteurs
+du miroir partageraient un seul quota. La chaîne envoyée par le client est
+**jetée** plutôt que complétée — sur un miroir exposé en direct, le visiteur y
+écrivait ce qu'il voulait, et cette invention repartait vers la principale.
+
+`MIRROR_TRUSTED_PROXY` déclare le reverse proxy éventuellement placé devant le
+miroir (`10.0.0.0/8`, par exemple). Par défaut `127.0.0.1/32` — c'est-à-dire
+personne : sur un intranet d'école les visiteurs sont eux-mêmes en IP privée, et
+faire confiance à leur `X-Forwarded-For` reviendrait à les laisser choisir
+l'adresse journalisée.
 
 ### Quand la cible ne répond plus
 

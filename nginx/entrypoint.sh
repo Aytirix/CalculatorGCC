@@ -141,6 +141,23 @@ if [ -n "$MIRROR_API_URL" ]; then
                 return 1
                 ;;
         esac
+
+        # Cible qui est ELLE-MÊME un miroir : refusé.
+        #
+        # Le contrôle passait, puisqu'un miroir répond bien « status: ok » en JSON —
+        # et la chaîne s'installait en silence. Elle coûte deux relais par appel,
+        # mais surtout le second miroir ne voit plus que l'adresse du premier :
+        # journaux et rate-limit de la principale comptent alors tous les visiteurs
+        # de la chaîne comme un seul. La marque est posée par le bloc /api/health de
+        # frontend_mirror.conf, que seul un miroir sert.
+        case "$corps" in
+            *'"mode"'*'"mirror"'*)
+                echo "[miroir] ERREUR DE CONFIGURATION : la cible est elle-même un miroir."
+                echo "         MIRROR_API_URL doit désigner l'instance PRINCIPALE, pas un autre miroir."
+                echo "         Reçu : $corps"
+                return 1
+                ;;
+        esac
         return 0
     }
 
