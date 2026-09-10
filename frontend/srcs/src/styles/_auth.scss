@@ -112,3 +112,148 @@
 		cursor: not-allowed;
 	}
 }
+
+// ─── Écrans d'ÉTAT DU SERVICE ────────────────────────────────────────────────
+//
+// Partagé par « connexion 42 impossible » et « application non configurée ». Dans
+// les deux cas le visiteur n'y peut rien et aucune action de sa part ne résoudra
+// quoi que ce soit : d'où le ton ambré plutôt que rouge — on informe, on n'accuse
+// pas — et une hiérarchie qui répond dans l'ordre aux trois questions posées :
+// que se passe-t-il, est-ce moi, qui peut le régler.
+//
+// Vit ici et non dans le SCSS d'une page, justement parce que plusieurs écrans
+// s'en servent.
+.service-down {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  padding: 2rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  // Pastille ambrée : signale l'anomalie sans la dramatiser.
+  &__icon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 14px;
+    font-size: 1.5rem;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  &__title {
+    margin: 0.4rem 0 0;
+    font-size: 1.55rem;
+  }
+
+  &__lead {
+    margin: 0 0 0.6rem;
+    font-size: 1.02rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+  }
+
+  &__reassure {
+    margin: 0 0 1.5rem;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  // Encadré « voici la sortie » : détaché du diagnostic, pour que l'action à
+  // entreprendre ne se noie pas dans l'explication.
+  &__fix {
+    padding: 1.1rem 1.2rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+
+    h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: var(--text-primary);
+    }
+  }
+
+  &__contacts-label {
+    margin-top: 0.9rem !important;
+    font-size: 0.85rem !important;
+    color: var(--text-muted) !important;
+  }
+
+  // Les logins en pastilles : repérables d'un coup d'œil, et sélectionnables pour
+  // être recopiés dans un message.
+  &__contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid rgba(var(--color-primary-rgb), 0.35);
+      background: rgba(var(--color-primary-rgb), 0.12);
+      color: var(--color-primary);
+      font-size: 0.85rem;
+      font-weight: 600;
+
+      &::before { content: '@'; opacity: 0.55; }
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+  }
+
+  // Sortie secondaire : présente, mais qui ne dispute pas la vedette à l'action utile.
+  &__link {
+    border: 0;
+    background: none;
+    padding: 0.4rem 0;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+
+    &:hover { color: var(--text-primary); }
+  }
+
+  @media (max-width: 30rem) {
+    padding: 1.4rem;
+
+    &__header { gap: 0.75rem; }
+    &__title { font-size: 1.3rem; }
+    &__actions { align-items: stretch; flex-direction: column; }
+  }
+}

@@ -41,7 +41,7 @@ const Login: React.FC = () => {
 
 	return (
 		<div className="auth-page login-page">
-			{/* Accès administrateur discret : authentification autonome (passkey / token
+			{/* Accès administrateur discret : authentification autonome (token
 			    console), indépendante d'OAuth 42. */}
 			<button
 				type="button"

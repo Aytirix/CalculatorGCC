@@ -7,15 +7,12 @@ import {
   sessionMustBeCleared,
   sessionRetryIsWorthIt,
 } from '@/services/backend-auth.service';
+import { adminService, type AdminStatus } from '@/services/admin.service';
 import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import './Callback.scss';
 
-const isLocalhost =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-/** Une erreur de credentials 42 (clé invalide) est réparable via le setup en local. */
+/** Clé d'application 42 invalide : le site entier est hors service, pas cette session. */
 const isCredentialError = (reason: string | null): boolean =>
   reason === 'invalid_client' || reason === 'unauthorized_client';
 
@@ -26,8 +23,7 @@ const messageForReason = (reason: string | null): string => {
   switch (reason) {
     case 'invalid_client':
     case 'unauthorized_client':
-      // En local on redirige vers /setup avant d'arriver ici (voir useEffect).
-      return "La clé d'API 42 a expiré ou n'est plus valide. Contactez l'administrateur du site.";
+      return "La clé d'API 42 a expiré ou n'est plus valide.";
     case 'access_denied':
       return "Vous avez refusé l'autorisation. Réessayez pour vous connecter.";
     case 'invalid_grant':
@@ -43,6 +39,10 @@ const messageForReason = (reason: string | null): string => {
  */
 const Callback: React.FC = () => {
   const navigate = useNavigate();
+  /** La clé d'application 42 est morte : écran dédié, pas un simple message d'erreur. */
+  const [credentialFailure, setCredentialFailure] = useState(false);
+  /** Délégués habilités à remplacer les identifiants 42. Vide = personne de déclaré. */
+  const [contacts, setContacts] = useState<string[]>([]);
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   // Erreur d'auth 42 explicite : on laisse l'utilisateur lire et réessayer
@@ -80,11 +80,18 @@ const Callback: React.FC = () => {
 
       if (urlError) {
         console.error('[Callback] Authentication error:', urlError, 'reason:', reason);
-        // En local, une clé API 42 invalide se répare via le setup : on y redirige
-        // automatiquement au lieu d'afficher une impasse.
-        if (isLocalhost && isCredentialError(reason)) {
-          console.log('[Callback] Clé 42 invalide en local → redirection vers /setup');
-          navigate('/setup', { replace: true });
+        // Clé d'application 42 morte : cas à part. Réessayer ne peut pas marcher —
+        // c'est la configuration du site qui est en cause, pas cette tentative — et
+        // l'utilisateur doit savoir à qui s'adresser. On affiche donc une explication
+        // dédiée plutôt qu'un « Erreur » suivi d'un bouton qui rejoue la panne.
+        if (isCredentialError(reason)) {
+          setCredentialFailure(true);
+          setError(messageForReason(reason));
+          adminService.getStatus()
+            .then((s: AdminStatus) => setContacts(s.contacts ?? []))
+            // Silencieux : l'explication doit s'afficher même si la liste est
+            // injoignable. C'est un complément, pas le message.
+            .catch(() => {});
           return;
         }
         setError(messageForReason(reason));
@@ -152,6 +159,71 @@ const Callback: React.FC = () => {
     processCallback();
     return () => clearTimeout(redirectTimer);
   }, [navigate, searchParams, attempt, adoptSession]);
+
+  if (credentialFailure) {
+    return (
+      <div className="auth-page">
+        <div className="auth-aurora" aria-hidden="true" />
+        <motion.main
+          className="service-down"
+          role="alert"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <div className="service-down__header">
+            <span className="service-down__icon" aria-hidden="true">🔑</span>
+            <div>
+              <span className="auth-badge">Service indisponible</span>
+              <h1 className="auth-title service-down__title">Connexion 42 impossible</h1>
+            </div>
+          </div>
+
+          <p className="service-down__lead">
+            La clé d'application&nbsp;42 de ce site a expiré ou a été révoquée.
+          </p>
+
+          {/* Dit explicitement que ce n'est pas la faute du visiteur : sans ça, on
+              croit à un problème de compte et on réessaie en boucle. */}
+          <p className="service-down__reassure">
+            Ce n'est pas un problème avec votre compte&nbsp;: tant que la clé n'est pas
+            remplacée, <strong>personne ne peut se connecter</strong>.
+          </p>
+
+          <div className="service-down__fix">
+            <h2>Ce qu'il faut faire</h2>
+            <p>
+              Un administrateur doit renseigner de nouveaux identifiants&nbsp;42 dans le
+              panneau d'administration.
+            </p>
+            {contacts.length > 0 && (
+              <>
+                <p className="service-down__contacts-label">Personnes habilitées&nbsp;:</p>
+                <ul className="service-down__contacts">
+                  {contacts.map((login) => (
+                    <li key={login}>{login}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
+          <div className="service-down__actions">
+            <button type="button" className="auth-cta" onClick={() => navigate('/admin/login')} autoFocus>
+              Accès au panneau admin
+            </button>
+            <button
+              type="button"
+              className="service-down__link"
+              onClick={() => navigate('/', { replace: true })}
+            >
+              Retour à l'accueil
+            </button>
+          </div>
+        </motion.main>
+      </div>
+    );
+  }
 
   return (
     <div className="callback-page">

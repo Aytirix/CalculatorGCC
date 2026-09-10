@@ -23,10 +23,9 @@ export interface Api42ConfigState {
 }
 
 /**
- * État des credentials 42 pour les écrans d'administration — SANS jamais renvoyer les
- * secrets eux-mêmes. Partagé par le panneau owner (/admin/config) et par la page de
- * reconfiguration des délégués (/setup/admin/config) : les deux doivent préremplir le
- * Client ID courant, sinon l'admin doit le retaper de mémoire pour changer un secret.
+ * État des credentials 42 pour le panneau (/admin/config) — SANS jamais renvoyer les
+ * secrets eux-mêmes. Sert à préremplir le Client ID courant, sinon il faudrait le
+ * retaper de mémoire pour changer un simple secret.
  * Le client_id est l'identifiant PUBLIC de l'application OAuth, mais il reste derrière
  * une authentification : aucune raison de le publier à un visiteur anonyme.
  */
