@@ -4,7 +4,13 @@ import { setupService } from '../services/setup.service';
 import { backendAuthService } from '../services/backend-auth.service';
 
 /**
- * Hook qui vérifie si l'application est configurée.
+ * Hook qui vérifie que ce frontend peut travailler contre son backend.
+ *
+ * Deux questions, une requête : l'instance est-elle configurée, et reconnaît-elle
+ * l'origine d'où on l'interroge ? La seconde ne concerne que les miroirs, dont le
+ * `/api` est relayé vers l'instance principale : elle seule sait si ce miroir est
+ * déclaré chez elle, et sans cette déclaration la connexion 42 y renvoie les
+ * visiteurs sans un mot.
  *
  * Règle: si l'utilisateur possède un JWT, l'application est forcément déjà
  * configurée (sinon le backend refuserait toute requête authentifiée). Dans
@@ -15,6 +21,9 @@ export function useSetupCheck() {
   const hasToken = backendAuthService.isAuthenticated();
   const [isConfigured, setIsConfigured] = useState<boolean | null>(hasToken ? true : null);
   const [isChecking, setIsChecking] = useState(!hasToken);
+  // `null` = on ne sait pas (pas encore demandé, réseau muet, ou instance
+  // principale antérieure au contrôle). Seul un `false` explicite bloque.
+  const [originAllowed, setOriginAllowed] = useState<boolean | null>(null);
 
   const location = useLocation();
 
@@ -41,6 +50,22 @@ export function useSetupCheck() {
     try {
       const status = await setupService.getStatus();
       setIsConfigured(status.configured);
+
+      if (status.origin_allowed === false) {
+        // Un refus ne coupe l'affichage que sur un MIROIR, et seulement après
+        // preuve positive (`/api/health` répond `mode: mirror`, ce que seul un
+        // miroir fait). Sur l'instance principale, ce même refus veut dire que
+        // son APP_DOMAIN ne correspond pas au domaine réellement servi : sa
+        // connexion 42 est cassée, mais tout le reste marche — noircir la page
+        // serait un remède pire que le mal. C'est le cas du dev de ce dépôt,
+        // servi sur :3000 avec un APP_DOMAIN en :3100.
+        setOriginAllowed((await setupService.estMiroir()) ? false : null);
+      } else {
+        // Champ absent = instance principale antérieure à ce contrôle. On reste
+        // dans l'inconnu : bloquer sur une absence de réponse ferait tomber tout
+        // miroir pointé sur une principale pas encore à jour.
+        setOriginAllowed(status.origin_allowed === true ? true : null);
+      }
     } catch (error: any) {
       // « Le serveur DIT qu'il n'est pas configuré » et « le serveur ne répond
       // pas » sont deux choses différentes, et on les confondait toutes les deux
@@ -58,5 +83,5 @@ export function useSetupCheck() {
     }
   }, []);
 
-  return { isConfigured, isChecking, checkSetupStatus };
+  return { isConfigured, isChecking, originAllowed, checkSetupStatus };
 }

@@ -149,6 +149,24 @@ Il refuse aussi une cible **qui est elle-même un miroir**, reconnue à son
 ne voyait plus que l'adresse du premier — journaux et rate-limit de l'instance
 principale comptaient alors tous les visiteurs de la chaîne comme un seul.
 
+Enfin — et c'est le contrôle qui manquait le plus — il refuse de démarrer si
+l'instance principale **ne reconnaît pas ce miroir**. Il lui présente `APP_DOMAIN`
+sur `/setup/status?origin=…` et lit `origin_allowed`. `APP_DOMAIN` est donc
+obligatoire en mode miroir.
+
+Pourquoi c'est vital : la connexion 42 part d'ici avec `?origin=<ce miroir>`, mais
+c'est la principale qui tranche, et quand l'origine n'est pas déclarée chez elle,
+`initiateOAuth` retombe **en silence** sur son propre domaine. Le miroir démarrait
+sans broncher, le site s'affichait — et le visiteur qui cliquait « Se connecter »
+atterrissait sur le site principal, sans un mot. Constaté le 2026-09-11 sur
+`testmirror.theomouty.fr` : le `state` OAuth scellait `https://rncp.theomouty.fr`
+alors que le miroir avait bien transmis sa propre origine.
+
+Si la principale ne renvoie **pas** ce champ (version antérieure au contrôle), le
+miroir démarre avec un avertissement plutôt qu'un refus : le relais, lui,
+fonctionne, et bloquer ici rendrait tout miroir indéployable tant que la
+principale n'est pas à jour.
+
 Si l'URL n'a pas de chemin, `/api` est ajouté automatiquement.
 
 ### Ce qui reste local, ce qui part au relais
@@ -188,6 +206,26 @@ miroir (`10.0.0.0/8`, par exemple). Par défaut `127.0.0.1/32` — c'est-à-dire
 personne : sur un intranet d'école les visiteurs sont eux-mêmes en IP privée, et
 faire confiance à leur `X-Forwarded-For` reviendrait à les laisser choisir
 l'adresse journalisée.
+
+### Quand l'instance principale ne reconnaît plus ce miroir
+
+Le contrôle de démarrage ne voit qu'un instant : une origine **révoquée** depuis
+le panneau prend effet immédiatement, miroir déjà lancé. Le frontend joint donc
+sa propre origine à chaque appel de `/setup/status`, et affiche la page
+« Ce site n'est pas relié » dès que la réponse dit `origin_allowed: false`.
+
+Deux nuances volontaires :
+
+- **`false` strict.** Une réponse absente ou muette vaut « on ne sait pas » et ne
+  bloque rien — sinon un hoquet réseau, ou une principale pas encore à jour,
+  couperaient le site.
+- **Seulement pour les visiteurs anonymes.** Le hook ne pose pas la question quand
+  un jeton est présent, et c'est correct : l'origine ne sert qu'au retour de la
+  connexion 42. Une personne déjà connectée continue d'utiliser le miroir
+  normalement, seul le prochain login serait concerné.
+
+`/admin/*` est épargné, comme pour l'écran « non configurée » : c'est la seule
+porte qui reste ouverte à qui administre.
 
 ### Quand la cible ne répond plus
 

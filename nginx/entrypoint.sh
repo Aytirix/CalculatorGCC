@@ -80,6 +80,15 @@ if [ -n "$MIRROR_API_URL" ]; then
     # déploiement hors Docker.
     MIRROR_RESOLVER=${MIRROR_RESOLVER:-127.0.0.11}
 
+    # Le domaine PUBLIC de ce miroir. Obligatoire : c'est lui qui part dans le
+    # `?origin=` de la connexion 42, et donc lui que l'instance principale doit
+    # reconnaître. Sans lui, impossible de vérifier quoi que ce soit au démarrage.
+    if [ -z "${APP_DOMAIN:-}" ]; then
+        echo "[miroir] ERREUR DE CONFIGURATION : APP_DOMAIN est vide."
+        echo "         Renseignez le domaine public de CE miroir (ex. https://miroir.exemple.fr)."
+        exit 1
+    fi
+
     # Proxy de confiance devant le miroir, pour restaurer la vraie IP client.
     # Par défaut 127.0.0.1/32 : personne. Un miroir exposé en direct ne doit PAS
     # croire le X-Forwarded-For de ses visiteurs — sur un intranet ils sont en IP
@@ -156,6 +165,43 @@ if [ -n "$MIRROR_API_URL" ]; then
                 echo "         MIRROR_API_URL doit désigner l'instance PRINCIPALE, pas un autre miroir."
                 echo "         Reçu : $corps"
                 return 1
+                ;;
+        esac
+        # --- L'instance principale reconnait-elle CE miroir ? -----------------
+        #
+        # La connexion 42 part d'ici avec `?origin=<ce miroir>`, mais c'est la
+        # principale qui decide : si l'origine n'est pas declaree chez elle,
+        # `initiateOAuth` retombe EN SILENCE sur son propre domaine. Le visiteur
+        # clique « Se connecter » et atterrit sur le site principal, sans un mot.
+        # Constate le 2026-09-11 sur testmirror.theomouty.fr, et le miroir avait
+        # demarre sans la moindre alerte : c'est exactement ce qu'on corrige ici.
+        #
+        # `--get --data-urlencode` : c'est curl qui encode l'URL, pas nous.
+        reponse_statut=$(curl -sS --max-time 10 --get \
+            --data-urlencode "origin=$APP_DOMAIN" \
+            "${MIRROR_API_ORIGIN}${MIRROR_API_PATH}/setup/status" 2>/dev/null || true)
+        # Espaces retires : on ne depend pas du formatage JSON d'en face.
+        compact=$(printf '%s' "$reponse_statut" | tr -d ' \t\n')
+        case "$compact" in
+            *'"origin_allowed":false'*)
+                echo "[miroir] REFUS DE DEMARRER : l'instance principale ne reconnait pas ce miroir."
+                echo "         Origine presentee : $APP_DOMAIN"
+                echo "         Sans elle, « Se connecter » renverra vos visiteurs sur ${MIRROR_API_ORIGIN}."
+                echo "         Corrigez cote instance principale : panneau admin -> Origines autorisees"
+                echo "         -> ajouter exactement : $APP_DOMAIN"
+                return 1
+                ;;
+            *'"origin_allowed":true'*)
+                echo "[miroir] Origine $APP_DOMAIN reconnue par l'instance principale."
+                ;;
+            *)
+                # Champ absent : instance principale anterieure a ce controle. On
+                # NE bloque PAS -- refuser ici rendrait tout miroir indeployable
+                # tant que la principale n'est pas mise a jour, alors que le
+                # relais, lui, fonctionne.
+                echo "[miroir] AVERTISSEMENT : l'instance principale ne repond pas sur l'origine."
+                echo "         Verifiez a la main que $APP_DOMAIN figure dans ses origines autorisees,"
+                echo "         sinon la connexion 42 renverra vos visiteurs chez elle."
                 ;;
         esac
         return 0

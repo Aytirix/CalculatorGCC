@@ -20,6 +20,7 @@ import HolyGraph from '@/pages/HolyGraph/HolyGraph';
 import MyProjects from '@/pages/MyProjects/MyProjects';
 import AdminLogin from '@/pages/Admin/AdminLogin';
 import NotConfigured from '@/pages/NotConfigured/NotConfigured';
+import OriginNotAllowed from '@/pages/OriginNotAllowed/OriginNotAllowed';
 import AdminPanel from '@/pages/Admin/AdminPanel';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
@@ -29,7 +30,7 @@ import { useViewingUser } from '@/contexts/useViewingUser';
 
 const AppRoutes: React.FC = () => {
 	const { isAuthenticated } = useAuth();
-	const { isConfigured, isChecking } = useSetupCheck();
+	const { isConfigured, isChecking, originAllowed } = useSetupCheck();
 	// `useLocation` et NON `window.location` : cette dernière n'est pas réactive.
 	// Le composant ne s'abonnait donc à aucun changement de route, et après la
 	// redirection ci-dessous plus rien ne le re-rendait — il restait figé sur un
@@ -63,6 +64,21 @@ const AppRoutes: React.FC = () => {
 	// à sortir de cet état.
 	if (isConfigured === false && !location.pathname.startsWith('/admin')) {
 		return <NotConfigured />;
+	}
+
+	// Miroir que l'instance principale ne reconnaît pas.
+	//
+	// Sans cet écran, le site paraissait fonctionner jusqu'au clic sur « Se
+	// connecter » : l'instance principale, ne trouvant pas l'origine dans sa liste,
+	// retombait en silence sur son propre domaine et déposait le visiteur là-bas.
+	//
+	// `false` STRICT : `null` veut dire « on ne sait pas » (réseau muet, ou instance
+	// principale antérieure à ce contrôle) et ne doit rien bloquer.
+	//
+	// `/admin/*` épargné pour la même raison que ci-dessus : c'est la seule porte
+	// qui reste ouverte à qui administre.
+	if (originAllowed === false && !location.pathname.startsWith('/admin')) {
+		return <OriginNotAllowed />;
 	}
 
 	return (
