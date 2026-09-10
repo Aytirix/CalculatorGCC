@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Service momentanément indisponible — CalculatorGCC</title>
+	<!--
+		Servie par nginx quand l'instance principale ne répond pas.
+
+		Page STATIQUE et autonome : sur un miroir, il n'y a ni backend ni base, et
+		l'application React elle-même a besoin de l'API pour démarrer. Elle ne peut
+		donc pas afficher ce message — d'où ce HTML sans dépendance, styles compris.
+	-->
+	<style>
+		:root {
+			color-scheme: dark;
+			--fond: #1a1a1a;
+			--carte: #2a2a2a;
+			--texte: #ffffff;
+			--discret: #9ca3af;
+			--bordure: rgba(255, 255, 255, 0.12);
+			--ambre: #f59e0b;
+		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1.5rem;
+			background: var(--fond);
+			color: var(--texte);
+			font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+			line-height: 1.6;
+		}
+		main {
+			width: 100%;
+			max-width: 32rem;
+			padding: 2rem;
+			border-radius: 18px;
+			border: 1px solid var(--bordure);
+			background: var(--carte);
+		}
+		.entete { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
+		.pastille {
+			flex: 0 0 auto;
+			display: grid;
+			place-items: center;
+			width: 3rem;
+			height: 3rem;
+			border-radius: 14px;
+			font-size: 1.5rem;
+			background: rgba(245, 158, 11, 0.14);
+			border: 1px solid rgba(245, 158, 11, 0.35);
+		}
+		.badge {
+			display: inline-block;
+			padding: 0.25rem 0.6rem;
+			border-radius: 999px;
+			border: 1px solid var(--bordure);
+			color: var(--discret);
+			font-size: 0.72rem;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+		h1 { margin: 0.4rem 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+		.principal { margin: 0 0 0.6rem; font-size: 1.02rem; }
+		.secondaire { margin: 0 0 1.5rem; font-size: 0.92rem; color: var(--discret); }
+		button {
+			padding: 0.75rem 1.4rem;
+			border: 0;
+			border-radius: 12px;
+			background: #3b82f6;
+			color: #fff;
+			font-family: inherit;
+			font-size: 0.98rem;
+			font-weight: 600;
+			cursor: pointer;
+		}
+		button:hover { background: #2563eb; }
+		@media (max-width: 30rem) {
+			main { padding: 1.4rem; }
+			h1 { font-size: 1.25rem; }
+		}
+	</style>
+</head>
+<body>
+	<main role="alert">
+		<div class="entete">
+			<span class="pastille" aria-hidden="true">🔌</span>
+			<div>
+				<span class="badge">Service indisponible</span>
+				<h1>Le serveur ne répond pas</h1>
+			</div>
+		</div>
+
+		<p class="principal">
+			Ce site s'appuie sur une instance principale, qui est momentanément injoignable.
+		</p>
+		<p class="secondaire">
+			Rien à faire de votre côté&nbsp;: ce n'est pas un problème avec votre compte ni avec
+			votre connexion. Réessayez plus tard.
+		</p>
+
+		<button type="button" onclick="location.reload()">Réessayer</button>
+	</main>
+</body>
+</html>

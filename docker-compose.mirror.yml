@@ -1,0 +1,70 @@
+# ===========================================================================
+# MIROIR AUTONOME — un seul conteneur.
+#
+# Cette instance sert le frontend et relaie l'API vers l'instance principale.
+# Elle n'a NI backend, NI base de données, NI phpMyAdmin : c'est nginx qui fait
+# le relais. Rien n'est stocké ici, pas une donnée d'étudiant.
+#
+#   docker compose -f docker-compose.mirror.yml up -d --build
+#
+# À ne pas confondre avec le « miroir applicatif », réglable depuis le panneau
+# d'administration : celui-là suppose un backend et une base qui tournent, et
+# reste réversible sans redéploiement. Voir docs/instance-miroir.md.
+#
+# `MIRROR_API_URL` est OBLIGATOIRE. nginx vérifie la cible au démarrage et
+# refuse de se lancer si elle ne répond pas comme une API CalculatorGCC : sans
+# panneau d'administration ici, une URL erronée donnerait un site mort qu'on ne
+# pourrait corriger qu'en redéployant à l'aveugle.
+# ===========================================================================
+
+# Projet Compose DISTINCT. Sans ce nom, Compose le déduit du dossier — le même
+# que pour docker-compose.dev.yml et .prod.yml — et, les services s'appelant tous
+# `nginx`, lancer le miroir REMPLACE le nginx de l'environnement déjà en place.
+name: calculatorgcc-mirror
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+      args:
+        # Le domaine de CE miroir : le frontend est construit avec, et c'est lui
+        # qui repart dans le `?origin=` de la connexion 42 pour que l'instance
+        # principale sache où renvoyer l'utilisateur.
+        APP_DOMAIN: ${APP_DOMAIN:?domaine public de ce miroir requis}
+    container_name: calculatorGCC_nginx_mirror
+    environment:
+      ENABLE_SSL: ${ENABLE_SSL:-false}
+      APP_DOMAIN: ${APP_DOMAIN}
+      # API de l'instance principale, chemin /api compris. Sa présence suffit à
+      # basculer nginx en mode miroir (cf. nginx/entrypoint.sh).
+      MIRROR_API_URL: ${MIRROR_API_URL:?URL de l API principale requise}
+      # Résolveur DNS. 127.0.0.11 est celui de Docker ; à changer hors Docker.
+      MIRROR_RESOLVER: ${MIRROR_RESOLVER:-127.0.0.11}
+      # Reverse proxy placé DEVANT ce miroir, s'il y en a un (ex. 10.0.0.0/8).
+      # Laisser vide si le miroir est exposé en direct : croire le
+      # X-Forwarded-For de visiteurs en IP privée les laisserait forger l'IP
+      # journalisée et transmise à l'instance principale.
+      MIRROR_TRUSTED_PROXY: ${MIRROR_TRUSTED_PROXY:-127.0.0.1/32}
+    ports:
+      - "${MIRROR_PORT:-3000}:80"
+    volumes:
+      - ssl_certs:/etc/nginx/ssl
+    restart: unless-stopped
+    healthcheck:
+      # Interroge le miroir LUI-MÊME, pas la cible : un hoquet réseau de
+      # l'instance principale ne doit pas faire redémarrer nginx en boucle.
+      test: ["CMD", "curl", "-fsS", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - calculatorGCC_mirror
+
+networks:
+  calculatorGCC_mirror:
+    driver: bridge
+
+volumes:
+  ssl_certs:

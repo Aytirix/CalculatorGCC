@@ -72,7 +72,7 @@ revenir à la base locale : inutile de redéployer pour désactiver le miroir.
 
 ### 4. Ce qui reste local sur le miroir
 
-Le panneau d'administration (`/admin`), ses passkeys et le réglage du mode
+Le panneau d'administration (`/admin`), ses délégués et le réglage du mode
 miroir lui-même ne sont **jamais** relayés. Sans cette exception, activer le
 mode miroir couperait l'accès qui permet de le désactiver.
 
@@ -107,3 +107,71 @@ l'idée de départ, elle est piégeuse :
    l'œil en cas de problème.
 2. Révoquer l'origine dans le panneau admin, réessayer : la connexion doit
    revenir sur l'instance principale, et l'API refuser les appels cross-origin.
+
+---
+
+## Miroir autonome — sans backend ni base
+
+Le mode décrit plus haut suppose un backend et une base qui tournent : c'est
+Fastify qui relaie. Le **miroir autonome** s'en passe — nginx relaie seul.
+
+| | miroir applicatif | miroir autonome |
+|---|---|---|
+| déclencheur | panneau `/admin` | `MIRROR_API_URL` dans l'environnement |
+| conteneurs | nginx + backend + mariadb + phpmyadmin | **nginx seul** |
+| qui relaie | hook Fastify `proxyToMirror` | `proxy_pass` nginx |
+| réversible sans redéploiement | oui | non |
+| administration owner sur place | oui | **non** |
+
+### Déploiement
+
+```bash
+export APP_DOMAIN=https://mon-miroir.fr
+export MIRROR_API_URL=https://rncp.theomouty.fr/api
+docker compose -f docker-compose.mirror.yml up -d --build
+```
+
+Le fichier déclare `name: calculatorgcc-mirror`. Sans ce nom de projet distinct,
+Compose le déduirait du dossier — le même que pour `dev` et `prod` — et le
+service `nginx` du miroir **remplacerait** celui de l'environnement en place.
+
+### Ce que nginx vérifie au démarrage
+
+Il refuse de se lancer si la cible ne répond pas comme une API CalculatorGCC :
+injoignable, code autre que 200, réponse HTML au lieu de JSON (le `/api` oublié),
+ou corps qui n'est pas `{"status":"ok"}`. Sans panneau d'administration ici, une
+URL erronée donnerait un site mort qu'on ne pourrait corriger qu'en redéployant
+à l'aveugle.
+
+Si l'URL n'a pas de chemin, `/api` est ajouté automatiquement.
+
+### Ce qui reste local, ce qui part au relais
+
+- `/api/health` — répond localement. Le healthcheck du conteneur ne doit pas
+  dépendre de la cible, sinon un hoquet réseau de celle-ci ferait redémarrer le
+  miroir en boucle.
+- `/api/auth/42` — **redirection 302**, pas relais : l'instance principale
+  détient les credentials 42 et son URL est la seule déclarée côté intra. Le
+  `?origin=` posé par le frontend ramène l'utilisateur ici à la fin.
+- `/api/admin/session/console` — **403**. L'owner s'authentifie avec le token
+  console de l'instance principale ; laisser passer cette route ferait transiter
+  par le miroir le jeton qui donne tous les droits, sans aucun bénéfice. Les
+  **délégués**, eux, entrent avec leur session 42 : le reste de `/admin` est
+  relayé normalement.
+- tout le reste de `/api/` — relayé, avec `X-Real-IP` propagé. Indispensable :
+  l'instance principale s'en sert comme clé de rate-limit, et sans lui tous les
+  visiteurs du miroir partageraient un seul quota.
+- `/` — le frontend, servi localement.
+
+### Quand la cible ne répond plus
+
+`api-indisponible.html` s'affiche, en **503**. Une page statique et autonome :
+l'application React ne peut pas afficher ce message elle-même, puisqu'elle a
+besoin de l'API pour démarrer.
+
+### Résolveur DNS
+
+nginx résout les noms au démarrage quand l'hôte est écrit en dur. La cible étant
+externe, elle passe par une variable — ce qui impose un résolveur explicite.
+`MIRROR_RESOLVER` vaut `127.0.0.11` (le DNS de Docker) par défaut ; à changer
+hors réseau bridge.

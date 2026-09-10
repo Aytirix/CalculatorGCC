@@ -96,3 +96,40 @@ des noms ni des IP résolues — sur un réseau partagé, ceux-là ne prouvent r
 **Invariant à ne pas casser** : `DB_SHARED_ALIAS` doit rester **différent** d'un
 environnement à l'autre. Le compose échoue au déploiement s'il est absent ; il ne peut
 pas détecter qu'il est identique ailleurs.
+
+---
+
+## Retrait des passkeys — migration IRRÉVERSIBLE
+
+**Migration `20260910190000_delegate_permissions_drop_passkeys`.** Deux opérations :
+`admin_delegate` reçoit une colonne `permissions` (défaut `secrets42`), et la table
+`admin_credential` est **supprimée**.
+
+### Ce qu'il faut savoir avant de déployer
+
+**Il n'y a pas de retour en arrière.** Prisma ne génère pas de migration `down`, et
+la table droppée ne revient pas. Concrètement :
+
+- Revenir à l'image précédente laisse l'ancien code appeler `countCredentials()`
+  sur une table absente — or c'est `GET /admin/status`, une route **publique**
+  appelée par le frontend. Elle répondrait 500 pour tout le monde.
+- La passkey qui existait était **en service** (dernier usage le 2026-09-07). Après
+  le déploiement, la seule voie owner est le token console des logs.
+
+**Prendre un dump avant.** Un dump antérieur au déploiement est le seul chemin de
+retour. Attention : un dump PRIS AVANT contient encore `admin_credential` et pas la
+colonne `permissions` — le restaurer suppose de rejouer la migration ensuite.
+
+**Les délégués existants deviennent publics.** Le défaut `secrets42` les fait tous
+entrer dans la liste `contacts` de `GET /admin/status`, qui est **sans
+authentification** : c'est ce qui permet à l'écran « clé 42 expirée » d'indiquer qui
+contacter, mais cela s'applique rétroactivement à des lignes créées quand cette
+donnée n'était pas exposée. Pour qu'un délégué n'apparaisse pas dans cette liste, il
+faut lui retirer la zone `secrets42` depuis le panneau.
+
+### Rejouabilité
+
+Les deux instructions portent `IF NOT EXISTS` / `IF EXISTS`. MariaDB auto-commite
+chaque DDL : sans cela, un process qui meurt entre les deux laissait la migration en
+échec (`P3009`) et le conteneur refusait tout démarrage ultérieur jusqu'à un
+`prisma migrate resolve` à la main.

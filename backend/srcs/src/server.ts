@@ -17,7 +17,8 @@ import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } 
 import { loadReferential } from './services/referentialStore.js';
 import { migrateProjectIds } from './services/projectIdMigration.service.js';
 import { rncpService } from './services/rncp.service.js';
-import { initConsoleToken } from './services/adminAuth.service.js';
+import { initConsoleToken, verifyOwnerSession } from './services/adminAuth.service.js';
+import { cleRateLimit } from './services/rateLimitKey.js';
 
 const fastify = Fastify({
 	logger: {
@@ -77,7 +78,7 @@ await fastify.register(helmet, {
 // Rate limiting
 // Derrière nginx, `request.ip` vaut l'IP DU PROXY pour tout l'internet : sans clé
 // par client, un seul visiteur consomme le quota de tous — et peut verrouiller en
-// permanence le login admin (console + passkey). nginx pose `X-Real-IP` à partir de
+// permanence le login admin (token console). nginx pose `X-Real-IP` à partir de
 // la VRAIE IP client (bloc `real_ip` des confs de prod, qui résout X-Forwarded-For
 // derrière Traefik) ; on retombe sur `request.ip` si l'en-tête est absent.
 // Portée exacte de la garantie : sur le chemin PUBLIC (Internet → Traefik → nginx),
@@ -89,10 +90,28 @@ await fastify.register(helmet, {
 await fastify.register(rateLimit, {
 	max: config.rateLimit.max,
 	timeWindow: config.rateLimit.timeWindow,
-	keyGenerator: (request) => {
-		const realIp = request.headers['x-real-ip'];
-		return (typeof realIp === 'string' && realIp.length > 0) ? realIp : request.ip;
-	},
+	// Compte par PERSONNE quand on en connaît une, par adresse sinon. L'IP seule
+	// était un mauvais discriminant : derrière le NAT d'une école ou d'une
+	// entreprise, tous les utilisateurs se partageaient un unique quota — et à
+	// travers une instance miroir, c'était la population entière du miroir.
+	// `cleRateLimit` détaille les trois cas ; la signature du JWT y est toujours
+	// vérifiée, sans quoi la clé serait choisie par l'appelant.
+	keyGenerator: (request) => cleRateLimit(
+		{
+			authorization: request.headers.authorization,
+			adminSession: typeof request.headers['x-admin-session'] === 'string'
+				? request.headers['x-admin-session']
+				: undefined,
+			xRealIp: typeof request.headers['x-real-ip'] === 'string'
+				? request.headers['x-real-ip']
+				: undefined,
+			ip: request.ip,
+		},
+		(token) => fastify.jwt.verify(token),
+		// La session owner doit exister VRAIMENT pour devenir une clé : sinon
+		// l'en-tête, choisi par le client, permet d'en fabriquer à volonté.
+		(token) => verifyOwnerSession(token) !== null
+	),
 	// `statusCode` est indispensable : l'objet est *lancé* comme erreur et le
 	// setErrorHandler retombe sur `error.statusCode || 500` — sans lui, un quota
 	// dépassé répondait 500 au lieu de 429.
@@ -248,8 +267,8 @@ async function start() {
 
 		// Token console (bootstrap + recovery de l'auth admin autonome) : régénéré à
 		// CHAQUE démarrage, affiché ici une seule fois. Prouve l'accès au serveur
-		// (lire ces logs = contrôler la machine) → permet de créer la première passkey
-		// admin, ou de récupérer l'accès si toutes les méthodes sont perdues.
+		// (lire ces logs = contrôler la machine) → SEULE voie d'accès owner depuis le
+		// retrait des passkeys, et donc aussi le seul moyen de récupérer l'accès.
 		const consoleToken = initConsoleToken();
 		console.log('🔐 Admin console token (this boot only — bootstrap & recovery):');
 		console.log(`   ${consoleToken}`);

@@ -10,7 +10,7 @@ import { prisma } from '../db/connection.js';
  * routes applicatives vers l'instance principale.
  *
  * Ce qui reste LOCAL, et ne part jamais au relais :
- *  - `/admin/*` : le panneau d'administration du miroir, ses passkeys et ce
+ *  - `/admin/*` : le panneau d'administration du miroir, ses délégués et ce
  *    réglage lui-même. Sans ça, activer le mode miroir couperait l'accès qui
  *    permet de le désactiver.
  *  - `/setup*` : la configuration initiale de l'instance.

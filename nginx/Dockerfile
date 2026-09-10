@@ -42,6 +42,11 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 # Copier le frontend buildé
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Page servie quand l'instance principale ne répond pas (miroir autonome). Posée
+# APRÈS le build : le frontend React ne peut pas l'afficher lui-même, il a besoin
+# de l'API pour démarrer.
+COPY nginx/html/api-indisponible.html /usr/share/nginx/html/api-indisponible.html
+
 # Copier le script d'entrée
 COPY nginx/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
