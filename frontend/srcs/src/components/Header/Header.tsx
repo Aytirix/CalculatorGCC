@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import CommandPalette from '@/components/CommandPalette/CommandPalette';
 import './Header.scss';
+import { formatLevel } from '@/services/xp.service';
 
 /** Pages principales, dans l'ordre du parcours d'un utilisateur. */
 const NAV_ITEMS: { label: string; path: string; icon: string; tour?: string }[] = [
@@ -194,7 +195,7 @@ const Header: React.FC = () => {
                       {isViewingOther ? viewingUser?.login : user.login}
                     </span>
                     {user.level && !isViewingOther && (
-                      <span className="user-level-text">Level {user.level.toFixed(2)}</span>
+                      <span className="user-level-text">Level {formatLevel(user.level)}</span>
                     )}
                   </div>
                 </Button>

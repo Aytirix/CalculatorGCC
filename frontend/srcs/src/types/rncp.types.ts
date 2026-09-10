@@ -73,9 +73,15 @@ export interface SimulationResult {
 // Type pour la validation d'un RNCP
 export interface RNCPValidation {
   rncpId: string;
+  /** Niveau atteint SIMULATION COMPRISE. */
   isLevelValid: boolean;
+  /** Niveau REELLEMENT atteint, hors projection. */
+  isRealLevelValid: boolean;
   isEventsValid: boolean;
+  /** Experiences pro comptees SIMULATION COMPRISE. */
   isProfessionalExperienceValid: boolean;
+  /** Experiences pro REELLEMENT terminees. */
+  isRealProfessionalExperienceValid: boolean;
   categoriesValidation: CategoryValidation[];
   /** Toutes les conditions remplies, SIMULATION COMPRISE. */
   overallValid: boolean;

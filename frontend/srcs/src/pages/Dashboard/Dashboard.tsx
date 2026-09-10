@@ -6,7 +6,7 @@ import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceMod
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
-import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired } from '@/services/xp.service';
+import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired, formatLevel } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
@@ -1192,14 +1192,14 @@ const Dashboard: React.FC = () => {
 							<div className="level-info">
 								<div className="level-current">
 									<span className="label">Niveau actuel</span>
-									<span className="value">{userProgress.currentLevel.toFixed(2)}</span>
+									<span className="value">{formatLevel(userProgress.currentLevel)}</span>
 								</div>
 								{(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceMath.totalXP(manualExperiences) > 0 || apiExpXP > 0) && (
 									<>
 										<span className="arrow">→</span>
 										<div className="level-projected">
 											<span className="label">Niveau projeté</span>
-											<span className="value projected">{projectedLevel.toFixed(2)}</span>
+											<span className="value projected">{formatLevel(projectedLevel)}</span>
 										</div>
 									</>
 								)}
@@ -1364,6 +1364,7 @@ const Dashboard: React.FC = () => {
 						validation={selectedValidation}
 						userProgress={{
 							currentLevel: userProgress.currentLevel,
+							projectedLevel,
 							events: userProgress.events,
 							professionalExperience: projectedProfExp,
 							realProfessionalExperience: realProfExp,

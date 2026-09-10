@@ -22,6 +22,18 @@ const levels: LevelData[] = levelData as LevelData[];
  * le slug faisait que PLUS AUCUN projet simulé ne comptait dans sa catégorie —
  * mesuré : 0 sur 108.
  */
+/**
+ * Le niveau, formaté pour l'écran — TRONQUÉ, jamais arrondi.
+ *
+ * `toFixed(2)` arrondit : un niveau projeté de 20.99768 s'affichait « 21.00 »
+ * face à un RNCP qui en exige 21, et le critère restait pourtant refusé. On lisait
+ * « 21.00 / 21 » à côté d'une croix, sans rien pour comprendre qu'il manquait
+ * 134 XP. Tronquer ne peut jamais annoncer un seuil atteint avant qu'il le soit.
+ */
+export function formatLevel(level: number): string {
+	return (Math.floor(level * 100) / 100).toFixed(2);
+}
+
 export function matchesIdOrSlug(project: { id: string; slug?: string }, liste: string[]): boolean {
 	if (liste.includes(project.id)) return true;
 	return isProjectCompleted(project.slug || project.id, liste);
@@ -283,8 +295,13 @@ export const xpService = {
 		return {
 			rncpId: rncp.id,
 			isLevelValid,
+			// Le niveau REELLEMENT atteint, distinct de `isLevelValid` qui porte la
+			// projection. Sans lui, l'ecran ne peut pas distinguer « tu l'as » de
+			// « tu l'aurais », et comptait la projection comme un acquis.
+			isRealLevelValid,
 			isEventsValid,
 			isProfessionalExperienceValid,
+			isRealProfessionalExperienceValid: isRealProfExpValid,
 			categoriesValidation,
 			overallValid,
 			overallRealValid,

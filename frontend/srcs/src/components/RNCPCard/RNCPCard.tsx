@@ -1,12 +1,16 @@
 import type { RNCP, RNCPValidation, SimulatorProject, CategoryValidation } from '@/types/rncp.types';
 import CategorySection from '@/components/CategorySection/CategorySection';
+import { formatLevel } from '@/services/xp.service';
 import './RNCPCard.scss';
 
 interface RNCPCardProps {
   rncp: RNCP;
   validation: RNCPValidation;
   userProgress: {
+    /** Niveau REELLEMENT atteint. */
     currentLevel: number;
+    /** Niveau atteint SIMULATION COMPRISE (projets simules, stages prevus). */
+    projectedLevel: number;
     events: number;
     /** Expériences comptées SIMULATION COMPRISE (stages prévus, en cours). */
     professionalExperience: number;
@@ -109,12 +113,15 @@ const RNCPCard = ({
     let totalCriteria = 0;
     let validatedCriteria = 0;
 
+    // Sources REELLES uniquement. Les deux premiers criteres lisaient la
+    // projection, ce qui declarait acquis un niveau seulement simule — le meme
+    // defaut que `validateRNCP` corrige de son cote pour `overallRealValid`.
     totalCriteria++;
-    if (validation.isLevelValid) validatedCriteria++;
+    if (validation.isRealLevelValid) validatedCriteria++;
     totalCriteria++;
     if (validation.isEventsValid) validatedCriteria++;
     totalCriteria++;
-    if (validation.isProfessionalExperienceValid) validatedCriteria++;
+    if (validation.isRealProfessionalExperienceValid) validatedCriteria++;
 
     validation.categoriesValidation.forEach((catValidation: CategoryValidation) => {
       totalCriteria++;
@@ -183,14 +190,25 @@ const RNCPCard = ({
       {!isGlobalRNCP && (
         <div className="rncp-card__requirements">
         <div className="rncp-card__requirement-item">
-          <span className={`rncp-card__requirement-icon ${hasLevelRequirement ? 'validated' : ''}`}>
-            {hasLevelRequirement ? '✓' : '○'}
+          <span
+            className={`rncp-card__requirement-icon ${validation.isRealLevelValid ? 'validated' : ''}${!validation.isRealLevelValid && hasLevelRequirement ? ' projected' : ''}`}
+          >
+            {validation.isRealLevelValid ? '✓' : hasLevelRequirement ? '◆' : '○'}
           </span>
           <span className="rncp-card__requirement-label">Niveau</span>
           <span className="rncp-card__requirement-value">
-            <span className={hasLevelRequirement ? 'validated' : ''}>
-              {userProgress.currentLevel.toFixed(2)}
+            <span className={validation.isRealLevelValid ? 'validated' : ''}>
+              {formatLevel(userProgress.currentLevel)}
             </span>
+            {/* Ce que la simulation ajouterait, comme pour l'exp. pro. La carte
+                n'affichait que le niveau ACTUEL alors que le critere, lui, porte
+                sur le PROJETE : on lisait « 15.26 / 21 » sans voir ce qui etait
+                reellement compare. */}
+            {formatLevel(userProgress.projectedLevel) !== formatLevel(userProgress.currentLevel) && (
+              <span className="rncp-card__requirement-projected">
+                {' '}→ {formatLevel(userProgress.projectedLevel)}
+              </span>
+            )}
             {' / '}
             {rncp.level}
           </span>

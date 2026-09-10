@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xpService } from './xp.service';
+import { xpService, formatLevel } from './xp.service';
 
 /**
  * Conversion niveau ↔ XP.
@@ -68,5 +68,38 @@ describe('getLevelFromXP / getXPFromLevel', () => {
   it('laisse le niveau inchangé quand aucun projet n’est simulé', () => {
     const { projectedLevel } = xpService.simulateProjects(12.5, []);
     expect(projectedLevel).toBeCloseTo(12.5, 2);
+  });
+});
+
+/**
+ * Le niveau affiché ne doit JAMAIS dépasser le niveau réel.
+ *
+ * Cas mesuré en production le 2026-09-10 : niveau projeté 20.99768806073154 face
+ * à un RNCP qui en exige 21. `toFixed(2)` affichait « 21.00 » — donc « 21.00 / 21 »
+ * à côté d'un critère refusé, sans rien pour comprendre qu'il manquait 134 XP.
+ */
+describe('formatLevel', () => {
+  it("n'annonce pas un seuil atteint avant qu'il le soit", () => {
+    expect(formatLevel(20.99768806073154)).toBe('20.99');
+    expect(Number(formatLevel(20.99768806073154))).toBeLessThan(21);
+  });
+
+  it('tronque au lieu d\'arrondir, à la hausse comme à la baisse', () => {
+    expect(formatLevel(20.999)).toBe('20.99');
+    expect(formatLevel(20.991)).toBe('20.99');
+    expect(formatLevel(21)).toBe('21.00');
+    expect(formatLevel(15.26)).toBe('15.26');
+  });
+
+  it('garde deux décimales, y compris sur un entier ou un zéro', () => {
+    expect(formatLevel(0)).toBe('0.00');
+    expect(formatLevel(7)).toBe('7.00');
+  });
+
+  it('ne dépasse jamais la valeur réelle, sur toute la plage utile', () => {
+    for (let i = 0; i <= 3000; i++) {
+      const niveau = i / 100 + 0.007;
+      expect(Number(formatLevel(niveau))).toBeLessThanOrEqual(niveau);
+    }
   });
 });
