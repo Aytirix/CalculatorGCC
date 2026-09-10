@@ -100,6 +100,13 @@ export interface MissingProject {
 /** Un projet de chez nous que GCC ne compte pas dans cette catégorie. */
 export interface ExtraProject {
 	id: string;
+	/**
+	 * Le nom lisible, quand on peut le retrouver. Depuis que nos identifiants sont
+	 * ceux de 42 (`42-2522`), l'identifiant seul ne dit plus de QUEL projet on
+	 * parle : l'écran demanderait de supprimer une ligne que personne ne peut
+	 * reconnaître. `null` si aucune source ne le donne.
+	 */
+	name: string | null;
 	/** GCC le connaît mais l'a retiré du cursus : c'est une suppression à faire. */
 	retired: boolean;
 	/**
@@ -425,6 +432,24 @@ interface OurProject {
 	/** L'identifiant interne : c'est lui qu'on éditerait dans le référentiel. */
 	label: string;
 	keys: Set<string>;
+	/** De quoi retrouver un nom lisible quand l'identifiant n'en dit rien. */
+	slug42: string | null;
+	fallbackName: string | null;
+}
+
+/**
+ * Le nom à afficher à côté d'un identifiant, par ordre de fiabilité : ce que 42
+ * publie aujourd'hui, puis notre `fallback` (seule source restante pour un projet
+ * que 42 a retiré de son catalogue), puis le slug, faute de mieux.
+ */
+function nomLisible(p: OurProject, noms: Map<string, string>): string | null {
+	return (
+		noms.get(p.label) ??
+		(p.slug42 ? noms.get(normalize(p.slug42)) : undefined) ??
+		p.fallbackName ??
+		p.slug42 ??
+		null
+	);
 }
 
 function ourProjects(entry: RncpReferentialEntry, categoryId: string): OurProject[] {
@@ -444,7 +469,7 @@ function ourProjects(entry: RncpReferentialEntry, categoryId: string): OurProjec
 				if (key) keys.add(normalize(key));
 			}
 		}
-		return { label: p.id, keys };
+		return { label: p.id, keys, slug42: p.slug42, fallbackName: p.fallback?.name ?? null };
 	});
 }
 
@@ -468,7 +493,11 @@ interface Catalog42Entry {
 	id42: number;
 }
 
-function loadCatalog42(): { catalog: Map<string, Catalog42Entry>; error: string | null } {
+function loadCatalog42(): {
+	catalog: Map<string, Catalog42Entry>;
+	noms: Map<string, string>;
+	error: string | null;
+} {
 	const projects = API42Service.getCursusProjectsCached(RNCP_CURSUS_ID);
 	if (!projects) {
 		// Comme `rncp.service`, on relance le remplissage en tâche de fond : la
@@ -476,6 +505,7 @@ function loadCatalog42(): { catalog: Map<string, Catalog42Entry>; error: string 
 		API42Service.ensureCursusProjectsFetching(RNCP_CURSUS_ID);
 		return {
 			catalog: new Map(),
+			noms: new Map(),
 			error:
 				'catalogue du cursus 42 pas encore en cache ; son remplissage vient d\'être lancé, relance la comparaison dans une minute',
 		};
@@ -494,6 +524,15 @@ function loadCatalog42(): { catalog: Map<string, Catalog42Entry>; error: string 
 		parNom.get(key)!.push({ slug: project.slug, id42: project.id });
 	}
 
+	// Le chemin INVERSE : d'un identifiant vers le nom. Aucune ambiguïté à écarter
+	// ici, contrairement au sens nom -> slug ci-dessus : l'identifiant 42 et le
+	// slug sont uniques, ce sont les noms qui ne le sont pas.
+	const noms = new Map<string, string>();
+	for (const project of projects) {
+		noms.set(`42-${project.id}`, project.name);
+		noms.set(normalize(project.slug), project.name);
+	}
+
 	const catalog = new Map<string, Catalog42Entry>();
 	let ambigus = 0;
 	for (const [key, entrees] of parNom) {
@@ -509,8 +548,8 @@ function loadCatalog42(): { catalog: Map<string, Catalog42Entry>; error: string 
 				'proposés à l\'ajout, faute de pouvoir choisir un identifiant sans se tromper.'
 		);
 	}
-	if (catalog.size === 0) return { catalog, error: 'catalogue du cursus vide' };
-	return { catalog, error: null };
+	if (catalog.size === 0) return { catalog, noms, error: 'catalogue du cursus vide' };
+	return { catalog, noms, error: null };
 }
 
 /**
@@ -665,7 +704,7 @@ export async function compareWithGcc(
 		collected.push(collect(tree));
 	}
 
-	const { catalog: catalog42, error: catalogError } = loadCatalog42();
+	const { catalog: catalog42, noms: noms42, error: catalogError } = loadCatalog42();
 	if (catalogError) {
 		warnings.push(
 			`Catalogue 42 indisponible (${catalogError}) : les projets inconnus sortiront avec « slug42: null ».`
@@ -711,6 +750,7 @@ export async function compareWithGcc(
 				// une suppression à faire chez nous, autant le distinguer.
 				.map((p) => ({
 					id: p.label,
+					name: nomLisible(p, noms42),
 					retired: [...p.keys].some((key) => cat.retired.has(key)),
 					// Rempli en une seule requête après coup, pour ne pas interroger la
 					// base une fois par projet.

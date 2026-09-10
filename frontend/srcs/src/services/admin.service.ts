@@ -84,6 +84,8 @@ export interface GccMissingProject {
 }
 export interface GccExtraProject {
   id: string;
+  /** Le nom lisible : `42-2522` seul ne dit pas quel projet on s'apprête à retirer. */
+  name: string | null;
   retired: boolean;
   /** Utilisateurs qui l'ont simulé : au-dessus de zéro, le supprimer les bloque. */
   simulatedBy: number;

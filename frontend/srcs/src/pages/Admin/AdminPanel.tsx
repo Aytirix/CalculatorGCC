@@ -225,6 +225,10 @@ const GccSectionView: React.FC<{
                 {cat.extra.map((x) => (
                   <li key={x.id}>
                     <code>{x.id}</code>
+                    {/* Le nom, comme du côté des ajouts : ces lignes proposent de
+                        retirer un projet, et l'identifiant seul ne dit plus lequel
+                        depuis qu'il vaut `42-2522`. */}
+                    {x.name && <span className="muted"> — « {x.name} »</span>}
                     {x.retired && <span className="muted"> — retiré du cursus par GCC</span>}
                     {/* Deux conseils opposés selon que quelqu'un l'a simulé ou non.
                         Supprimer la ligne ne bloque plus personne, mais fait cesser
