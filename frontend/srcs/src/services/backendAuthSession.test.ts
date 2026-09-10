@@ -51,6 +51,7 @@ describe('sessionMustBeCleared', () => {
         email: 'x@x.fr',
         is_public: true,
         is_admin: false,
+        admin_permissions: [],
         credentials_invalid: false,
         next_secret_missing: false,
       },

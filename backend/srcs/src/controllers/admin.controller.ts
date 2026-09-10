@@ -3,9 +3,8 @@ import {
   verifyConsoleToken,
   createOwnerSession,
   revokeOwnerSession,
-  revokeOtherOwnerSessions,
 } from '../services/adminAuth.service.js';
-import { getAdminSessionToken } from '../middlewares/auth.middleware.js';
+import { getAdminSessionToken, adminActorLabel } from '../middlewares/auth.middleware.js';
 import { globalRefreshService } from '../services/globalRefresh.service.js';
 import { compareWithGcc, GccError } from '../services/gccReferential.service.js';
 import {
@@ -20,21 +19,18 @@ import {
 import { simulationRepository } from '../db/simulationRepository.js';
 import { rncpService } from '../services/rncp.service.js';
 import {
-  countCredentials,
   logAdminEvent,
-  listCredentials,
-  deleteCredential,
   listDelegates,
   addDelegate,
   removeDelegate,
   listAuditEvents,
 } from '../db/adminRepository.js';
 import {
-  startRegistration,
-  finishRegistration,
-  startAuthentication,
-  finishAuthentication,
-} from '../services/webauthn.service.js';
+  ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_LABELS,
+  parsePermissions,
+  serializePermissions,
+} from '../services/adminPermissions.js';
 import { applyApi42Configuration, getApi42ConfigState } from '../services/api42Config.service.js';
 import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
 import { config } from '../config/config.js';
@@ -51,22 +47,50 @@ const IDENTIFIER = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 /** Slug de l'API 42 : même esprit, en tolérant les majuscules qu'elle emploie. */
 const SLUG_42 = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
-/** Acteur pour l'audit : sujet de la session owner, sinon 'owner'. */
+/** Acteur pour l'audit : `console` pour l'owner, `delegate:<login>` sinon. */
 function actorOf(request: FastifyRequest): string {
-  return request.adminSession?.subject ?? 'owner';
+  return adminActorLabel(request);
 }
 
 export const adminController = {
   /**
-   * Statut minimal pour piloter l'UI du bouton « Admin » : une passkey est-elle
-   * enrôlée ? Si non, le front oriente vers le bootstrap par token console. On
-   * n'expose rien de sensible (ni identité, ni secret).
+   * Statut public minimal, pour que l'écran de connexion sache quoi proposer.
+   * On n'expose rien de sensible : ni identité, ni secret, ni qui est délégué.
    */
   async getStatus(_request: FastifyRequest, reply: FastifyReply) {
-    const passkeyCount = await countCredentials();
+    // Qui peut réparer une clé 42 morte : les délégués portant `secrets42`. Cette
+    // liste est PUBLIQUE, et c'est délibéré — quand la connexion 42 ne fonctionne
+    // plus, plus personne ne peut s'authentifier pour la demander ailleurs, et
+    // l'écran d'erreur n'aurait aucun destinataire à proposer. Ce sont des logins
+    // 42, publics sur l'intra ; on ne renvoie rien d'autre.
+    const contacts = (await listDelegates())
+      .filter((d) => parsePermissions(d.permissions).includes('secrets42'))
+      .map((d) => d.login42);
+
     return reply.send({
-      passkey_enrolled: passkeyCount > 0,
-      passkey_count: passkeyCount,
+      // Le token console est la seule voie OWNER. Un délégué, lui, entre avec sa
+      // session 42 ordinaire et ne voit que les zones qui lui sont ouvertes.
+      methods: ['console', 'delegate'],
+      permissions: ADMIN_PERMISSIONS.map((p) => ({ key: p, label: ADMIN_PERMISSION_LABELS[p] })),
+      contacts,
+    });
+  },
+
+  /**
+   * Qui suis-je et que puis-je faire ? Le panneau s'en sert pour n'afficher que
+   * les zones autorisées — sans quoi un délégué verrait des sections qui
+   * répondraient 403 à chaque clic.
+   *
+   * Ne dit jamais NON : un visiteur sans droit reçoit une liste vide, pas une
+   * erreur, pour que l'écran puisse l'expliquer plutôt que de casser.
+   */
+  async getMe(request: FastifyRequest, reply: FastifyReply) {
+    const actor = request.adminActor;
+    if (!actor) return reply.send({ kind: 'none', permissions: [] });
+    return reply.send({
+      kind: actor.kind,
+      label: actor.label,
+      permissions: actor.permissions === 'all' ? [...ADMIN_PERMISSIONS] : actor.permissions,
     });
   },
 
@@ -96,54 +120,6 @@ export const adminController = {
   async logout(request: FastifyRequest, reply: FastifyReply) {
     revokeOwnerSession(getAdminSessionToken(request));
     return reply.send({ ok: true });
-  },
-
-  // ===== WebAuthn : enrôlement d'une passkey (owner requis) =====
-
-  async webauthnRegisterOptions(_request: FastifyRequest, reply: FastifyReply) {
-    const { flowId, options } = await startRegistration();
-    return reply.send({ flow_id: flowId, options });
-  },
-
-  async webauthnRegisterVerify(request: FastifyRequest, reply: FastifyReply) {
-    const body = (request.body ?? {}) as { flow_id?: string; response?: any; label?: string };
-    if (!body.flow_id || !body.response) {
-      return reply.code(400).send({ error: 'flow_id et response requis' });
-    }
-    try {
-      const { credentialId } = await finishRegistration(body.flow_id, body.response, body.label);
-      await logAdminEvent(actorOf(request), 'passkey_enrolled', credentialId);
-      return reply.send({ ok: true, credential_id: credentialId });
-    } catch (e: any) {
-      return reply.code(400).send({ error: e?.message ?? "Échec de l'enrôlement" });
-    }
-  },
-
-  // ===== WebAuthn : authentification par passkey (public) =====
-
-  async webauthnAuthOptions(_request: FastifyRequest, reply: FastifyReply) {
-    const { flowId, options } = await startAuthentication();
-    return reply.send({ flow_id: flowId, options });
-  },
-
-  async webauthnAuthVerify(request: FastifyRequest, reply: FastifyReply) {
-    const body = (request.body ?? {}) as { flow_id?: string; response?: any };
-    if (!body.flow_id || !body.response) {
-      return reply.code(400).send({ error: 'flow_id et response requis' });
-    }
-    try {
-      const { credentialId } = await finishAuthentication(body.flow_id, body.response);
-      const session = createOwnerSession('owner:' + credentialId);
-      await logAdminEvent('owner:' + credentialId, 'admin_login', 'passkey');
-      return reply.send({
-        admin_token: session.token,
-        expires_at: session.expiresAt,
-        role: 'owner',
-      });
-    } catch {
-      await logAdminEvent('unknown', 'admin_login_failed', 'passkey');
-      return reply.code(401).send({ error: 'Authentification échouée' });
-    }
   },
 
   // ===== Secrets 42 (courant + next) =====
@@ -186,56 +162,90 @@ export const adminController = {
     return reply.send({ ok: true });
   },
 
-  // ===== Passkeys (gestion, owner requis) =====
+  // ===== Délégués (permission `delegates`) =====
 
-  async listPasskeys(_request: FastifyRequest, reply: FastifyReply) {
-    const creds = await listCredentials();
-    return reply.send({
-      credentials: creds.map((c) => ({
-        id: c.id,
-        label: c.label,
-        transports: c.transports,
-        created_at: c.createdAt,
-        last_used_at: c.lastUsedAt,
-      })),
-    });
+  /**
+   * Le délégué visé est-il MOI ?
+   *
+   * Un délégué qui édite sa propre ligne s'accorde ce qu'il veut : le garde-fou
+   * le plus simple est de lui interdire de se toucher lui-même. L'owner, lui,
+   * n'est jamais un délégué — il entre par le token console — donc la règle ne
+   * le gêne pas.
+   */
+  estSoiMeme(request: FastifyRequest, login: string): boolean {
+    const actor = request.adminActor;
+    if (actor?.kind !== 'delegate') return false;
+    // Comparaison INSENSIBLE à la casse, pour s'aligner sur la collation de la
+    // base (`utf8mb4_unicode_ci`). Sans ça, un JWT portant `Theo` retrouvait bien
+    // la ligne `theo` — donc ses droits — mais échappait aux gardes « ne pas se
+    // modifier soi-même » et « ne pas se retirer ». Pas d'escalade (la règle
+    // « on n'accorde pas ce qu'on n'a pas » tient), mais une garde qui ne garde
+    // rien est pire qu'une garde absente : on croit être protégé.
+    // `trim()` en plus de la casse : la collation MariaDB compare aussi en PAD
+    // SPACE, si bien qu'un login `alice ` retrouve la ligne `alice` et ses droits,
+    // tout en échappant à une comparaison de chaînes stricte.
+    const moi = actor.label.slice('delegate:'.length).trim().toLowerCase();
+    return moi === login.trim().toLowerCase();
   },
-
-  async deletePasskey(request: FastifyRequest, reply: FastifyReply) {
-    const id = Number((request.params as any).id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return reply.code(400).send({ error: 'id invalide' });
-    }
-    try {
-      await deleteCredential(id);
-    } catch {
-      return reply.code(404).send({ error: 'Passkey introuvable' });
-    }
-    // Retirer un authenticator doit COUPER les accès qu'il a ouverts : sinon une
-    // passkey compromise reste exploitable via sa session (et peut en ré-enrôler
-    // une autre). On épargne la session courante, celle qui fait le ménage.
-    const revoked = revokeOtherOwnerSessions(getAdminSessionToken(request));
-    await logAdminEvent(actorOf(request), 'passkey_deleted', `${id} (sessions révoquées: ${revoked})`);
-    return reply.send({ ok: true, sessions_revoked: revoked });
-  },
-
-  // ===== Délégués (logins 42 pouvant éditer les SEULS secrets 42, owner requis) =====
 
   async listDelegatesHandler(_request: FastifyRequest, reply: FastifyReply) {
     const delegates = await listDelegates();
     return reply.send({
-      delegates: delegates.map((d) => ({ login: d.login42, created_at: d.createdAt })),
+      delegates: delegates.map((d) => ({
+        login: d.login42,
+        permissions: parsePermissions(d.permissions),
+        created_at: d.createdAt,
+      })),
     });
   },
 
   async addDelegateHandler(request: FastifyRequest, reply: FastifyReply) {
-    const body = (request.body ?? {}) as { login?: string };
+    const body = (request.body ?? {}) as { login?: string; permissions?: unknown };
     const login = (body.login ?? '').trim().toLowerCase();
     if (!/^[a-z0-9._-]{1,64}$/.test(login)) {
       return reply.code(400).send({ error: 'Login 42 invalide' });
     }
-    await addDelegate(login);
-    await logAdminEvent(actorOf(request), 'delegate_added', login);
+
+    // `undefined` (champ absent) et `[]` (tout décoché) ne veulent PAS dire la même
+    // chose : le premier laisse les zones en place, le second les retire.
+    const demandees = Array.isArray(body.permissions)
+      ? body.permissions.filter((p): p is string => typeof p === 'string')
+      : undefined;
+
+    // ANTI-ESCALADE, deux règles.
+    //
+    // 1. On ne s'édite pas soi-même. Sans ça, un délégué portant `delegates` se
+    //    coche toutes les cases en une requête et devient owner de fait.
+    // 2. On n'accorde pas ce qu'on n'a pas. Sans ça, il lui suffit de créer un
+    //    second compte avec tous les droits, puis de s'y connecter.
+    // L'owner échappe aux deux : ses permissions valent `'all'` et il n'est pas
+    // un délégué.
+    const actor = request.adminActor;
+    if (actor?.kind === 'delegate') {
+      if (adminController.estSoiMeme(request, login)) {
+        return reply.code(403).send({
+          error: 'Un délégué ne peut pas modifier ses propres permissions',
+        });
+      }
+      const siennes = actor.permissions === 'all' ? [...ADMIN_PERMISSIONS] : actor.permissions;
+      const enTrop = (demandees ?? []).filter(
+        (p) => !(siennes as readonly string[]).includes(p) && (ADMIN_PERMISSIONS as readonly string[]).includes(p),
+      );
+      if (enTrop.length > 0) {
+        return reply.code(403).send({
+          error: `Vous ne détenez pas : ${enTrop.join(', ')}`,
+        });
+      }
+    }
+
+    await addDelegate(login, demandees);
+    await logAdminEvent(
+      actorOf(request),
+      'delegate_added',
+      demandees === undefined
+        ? `${login} [zones inchangées]`
+        : `${login} [${serializePermissions(demandees) || 'aucune'}]`,
+    );
     return reply.send({ ok: true });
   },
 
@@ -243,6 +253,11 @@ export const adminController = {
     const login = String((request.params as any).login ?? '').trim().toLowerCase();
     if (!login) {
       return reply.code(400).send({ error: 'login requis' });
+    }
+    // Se retirer soi-même n'est pas une escalade, mais c'est un pied de biche :
+    // le panneau perdrait son dernier gestionnaire sans que personne l'ait voulu.
+    if (adminController.estSoiMeme(request, login)) {
+      return reply.code(403).send({ error: 'Un délégué ne peut pas se retirer lui-même' });
     }
     await removeDelegate(login);
     await logAdminEvent(actorOf(request), 'delegate_removed', login);

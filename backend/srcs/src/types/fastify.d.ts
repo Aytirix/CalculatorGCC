@@ -1,5 +1,6 @@
 import '@fastify/jwt';
 import type { AdminSession } from '../services/adminAuth.service.js';
+import type { AdminPermission } from '../services/adminPermissions.js';
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -32,5 +33,14 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Session admin owner (auth autonome), posée par requireOwner. */
     adminSession?: AdminSession;
+    /**
+     * Qui agit sur le panneau, owner ou délégué — posé par requirePermission.
+     * L'owner a `'all'` : il ne porte pas de liste, il n'a simplement aucune borne.
+     */
+    adminActor?: {
+      kind: 'owner' | 'delegate';
+      label: string;
+      permissions: AdminPermission[] | 'all';
+    };
   }
 }

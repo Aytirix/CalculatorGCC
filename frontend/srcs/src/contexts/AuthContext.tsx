@@ -58,6 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (userInfo) {
       userInfo.is_public = me.is_public;
       userInfo.is_admin = me.is_admin;
+      userInfo.admin_permissions = me.admin_permissions;
       userInfo.credentials_invalid = me.credentials_invalid;
       userInfo.next_secret_missing = me.next_secret_missing;
       if (userInfo.image_url) {

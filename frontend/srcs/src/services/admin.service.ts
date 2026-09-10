@@ -1,11 +1,14 @@
 import axios from 'axios';
 import { config } from '../config/config';
 import { storage } from '@/utils/storage';
-import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
+import { JWT_STORAGE_KEY } from './backend-auth.service';
 
-// Auth admin autonome (découplée d'OAuth 42). La session owner est un token opaque
-// émis par le backend, gardé séparément du JWT 42 et envoyé via l'en-tête dédié
-// X-Admin-Session (jamais le Bearer 42).
+// Deux voies d'entrée dans le panneau, et deux en-têtes distincts :
+//  - OWNER : token opaque obtenu contre le token console, envoyé via l'en-tête
+//    dédié X-Admin-Session. Découplé d'OAuth 42, donc utilisable même si 42 est
+//    injoignable.
+//  - DÉLÉGUÉ : la session 42 ordinaire (Bearer), qui n'ouvre que les zones
+//    accordées à ce login.
 
 const api = axios.create({
   baseURL: config.backendUrl,
@@ -27,14 +30,47 @@ function setAdminToken(token: string): void {
 function clearAdminToken(): void {
   storage.remove(ADMIN_TOKEN_KEY);
 }
+/**
+ * L'en-tête d'identité pour les appels admin.
+ *
+ * La session owner prime : un owner qui se trouve aussi être délégué garde ses
+ * pleins droits. À défaut, on présente la session 42 — c'est la voie du délégué,
+ * et sans elle il n'aurait aucun moyen d'atteindre le panneau.
+ */
 function authHeader(): Record<string, string> {
   const t = getAdminToken();
-  return t ? { 'X-Admin-Session': t } : {};
+  if (t) return { 'X-Admin-Session': t };
+  // Clé RÉUTILISÉE et non recopiée : le jour où elle change, un doublon ferait
+  // silencieusement perdre l'accès au panneau à tous les délégués.
+  const jwt = storage.get(JWT_STORAGE_KEY);
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
 }
 
+/** Ce que l'écran de connexion peut proposer, et la liste des zones existantes. */
 export interface AdminStatus {
-  passkey_enrolled: boolean;
-  passkey_count: number;
+  methods: ('console' | 'delegate')[];
+  permissions: { key: AdminPermission; label: string }[];
+  /** Délégués habilités à remplacer les identifiants 42. Vide = personne de déclaré. */
+  contacts: string[];
+}
+
+/** Les zones du panneau. Doit rester alignée sur ADMIN_PERMISSIONS côté backend. */
+export const ADMIN_PERMISSIONS = [
+  'secrets42',
+  'referential',
+  'refresh',
+  'origins',
+  'mirror',
+  'audit',
+  'delegates',
+] as const;
+export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
+
+/** Qui je suis pour le panneau, et ce qu'il doit m'afficher. */
+export interface AdminMe {
+  kind: 'owner' | 'delegate' | 'none';
+  label?: string;
+  permissions: AdminPermission[];
 }
 export interface AdminConfig {
   configured: boolean;
@@ -43,13 +79,6 @@ export interface AdminConfig {
   next_secret_set: boolean;
   credentials_invalid: boolean;
   credentials_invalid_since: string | null;
-}
-export interface PasskeyInfo {
-  id: number;
-  label: string | null;
-  transports: string | null;
-  created_at: string;
-  last_used_at: string | null;
 }
 /** État du refresh global des données 42 partagées (owner uniquement). */
 export interface GlobalRefreshState {
@@ -154,8 +183,18 @@ export interface ApplyResult {
   refused: { operation: ReferentialOperation; reason: string }[];
 }
 
+/** Une action d'administration journalisée. */
+export interface AuditEvent {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  detail: string | null;
+}
+
 export interface DelegateInfo {
   login: string;
+  permissions: AdminPermission[];
   created_at: string;
 }
 
@@ -176,7 +215,12 @@ export interface OriginsState {
 }
 
 export const adminService = {
-  isAuthenticated(): boolean {
+  /**
+   * Y a-t-il une session OWNER ouverte ? Ne dit rien des délégués, qui entrent
+   * avec leur session 42 : pour savoir si quelqu'un a le droit d'être sur le
+   * panneau, c'est `getMe()` qui fait foi.
+   */
+  hasOwnerSession(): boolean {
     return !!getAdminToken();
   },
   getToken: getAdminToken,
@@ -192,27 +236,9 @@ export const adminService = {
     setAdminToken(res.data.admin_token);
   },
 
-  /** Authentification par passkey (cérémonie WebAuthn complète). */
-  async loginWithPasskey(): Promise<void> {
-    const opt = (await api.post<{ flow_id: string; options: any }>('/admin/webauthn/auth/options')).data;
-    const assertion = await startAuthentication({ optionsJSON: opt.options });
-    const res = await api.post<{ admin_token: string }>('/admin/webauthn/auth/verify', {
-      flow_id: opt.flow_id,
-      response: assertion,
-    });
-    setAdminToken(res.data.admin_token);
-  },
-
-  /** Enrôlement d'une passkey (owner déjà authentifié). */
-  async enrollPasskey(label?: string): Promise<void> {
-    const opt = (await api.post<{ flow_id: string; options: any }>(
-      '/admin/webauthn/register/options', {}, { headers: authHeader() },
-    )).data;
-    const attestation = await startRegistration({ optionsJSON: opt.options });
-    await api.post('/admin/webauthn/register/verify',
-      { flow_id: opt.flow_id, response: attestation, label },
-      { headers: authHeader() },
-    );
+  /** Qui suis-je et quelles zones me sont ouvertes ? Ne renvoie jamais d'erreur. */
+  async getMe(): Promise<AdminMe> {
+    return (await api.get<AdminMe>('/admin/me', { headers: authHeader() })).data;
   },
 
   async logout(): Promise<void> {
@@ -236,20 +262,18 @@ export const adminService = {
     await api.put('/admin/config/secrets', payload, { headers: authHeader() });
   },
 
-  // ----- Passkeys -----
-  async listPasskeys(): Promise<PasskeyInfo[]> {
-    return (await api.get<{ credentials: PasskeyInfo[] }>('/admin/credentials', { headers: authHeader() })).data.credentials;
-  },
-  async deletePasskey(id: number): Promise<{ sessions_revoked?: number }> {
-    return (await api.delete(`/admin/credentials/${id}`, { headers: authHeader() })).data;
+  // ----- Journal d'audit -----
+  async getAudit(): Promise<AuditEvent[]> {
+    return (await api.get<{ events: AuditEvent[] }>('/admin/audit', { headers: authHeader() })).data.events;
   },
 
   // ----- Délégués -----
   async listDelegates(): Promise<DelegateInfo[]> {
     return (await api.get<{ delegates: DelegateInfo[] }>('/admin/delegates', { headers: authHeader() })).data.delegates;
   },
-  async addDelegate(login: string): Promise<void> {
-    await api.post('/admin/delegates', { login }, { headers: authHeader() });
+  /** Crée ou met à jour un délégué : un ré-envoi du même login écrase ses permissions. */
+  async addDelegate(login: string, permissions: AdminPermission[]): Promise<void> {
+    await api.post('/admin/delegates', { login, permissions }, { headers: authHeader() });
   },
   async removeDelegate(login: string): Promise<void> {
     await api.delete(`/admin/delegates/${encodeURIComponent(login)}`, { headers: authHeader() });

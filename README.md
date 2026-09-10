@@ -26,8 +26,8 @@ corriger.
 
 3. **S'authentifier** :
    - Ouvrez http://localhost:3000/admin/login et collez le token
-   - Dans le panneau, **enrôlez une passkey** (WebAuthn : clé matérielle, biométrie,
-     gestionnaire de mots de passe…) pour ne plus dépendre des logs aux prochains accès
+   - C'est la seule voie d'accès **owner** : le token est régénéré à chaque démarrage,
+     il faut donc le relire dans les logs à chaque fois
 
 4. **Renseigner les identifiants 42** :
    - Client ID + Client Secret, validés auprès de l'API 42 avant d'être chiffrés en base
@@ -38,8 +38,11 @@ corriger.
 5. **C'est prêt !** 🎉
    - Vous pouvez vous connecter avec votre compte 42
    - Depuis le panneau, vous pouvez déclarer des **admins délégués** : des logins 42 qui
-     pourront mettre à jour les secrets 42 (menu utilisateur → « Identifiants API 42 »),
-     mais **jamais** toucher à l'identité administrateur (passkeys, délégués)
+     entrent dans le panneau avec leur session 42 ordinaire, et n'y voient que les zones
+     que vous leur cochez — secrets 42, référentiel RNCP, refresh, origines, miroir,
+     journal d'audit, gestion des délégués
+   - Un délégué ne peut ni modifier ses propres permissions, ni en accorder une qu'il ne
+     détient pas : sans ces deux règles, la zone « délégués » vaudrait un accès complet
 
 > **Accès perdu ?** Redémarrez le backend : un nouveau token console est généré et
 > affiché. C'est la voie de secours permanente, elle ne dépend ni du réseau ni d'OAuth 42.
@@ -98,9 +101,10 @@ corriger.
 
 ### 🔐 Authentification & Sécurité
 - OAuth 42 pour les utilisateurs, JWT pour l'API
-- **Administration découplée d'OAuth 42** : token console (régénéré à chaque démarrage,
-  jamais persisté) puis **passkeys WebAuthn** avec vérification utilisateur obligatoire
-- Deux rôles : **owner** (identité admin + secrets 42) et **délégués** (secrets 42 seuls)
+- **Administration découplée d'OAuth 42** : token console régénéré à chaque démarrage et
+  jamais persisté — le connaître prouve l'accès à la machine
+- Deux voies d'entrée : **owner** (token console, toutes les zones) et **délégués**
+  (session 42, uniquement les zones accordées), avec garde-fous anti-escalade
 - Secrets 42 chiffrés en base, validés auprès de l'API 42 avant enregistrement
 - Rotation sans coupure via le « Next Secret 42 »
 - Rate limiting par IP client réelle sur les routes d'authentification admin

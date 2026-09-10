@@ -63,7 +63,7 @@ const Header: React.FC = () => {
           </span>
           <button
             className="credentials-banner-action"
-            onClick={() => navigate('/setup')}
+            onClick={() => navigate('/admin')}
           >
             Mettre à jour →
           </button>
@@ -76,7 +76,7 @@ const Header: React.FC = () => {
           </span>
           <button
             className="credentials-banner-action"
-            onClick={() => navigate('/setup')}
+            onClick={() => navigate('/admin')}
           >
             Ajouter →
           </button>
@@ -207,14 +207,15 @@ const Header: React.FC = () => {
                       <span style={{ fontSize: '1.2rem' }}>⚙️</span>
                       <span>Paramètres du compte</span>
                     </DropdownMenuItem>
-                    {/* Admin délégué : seul point d'entrée UI vers la reconfiguration des
-                        secrets 42 — sans ça, il fallait taper /setup à la main. Les délégués
-                        n'ont accès qu'à ça ; le panneau owner (passkeys, délégués) vit sur
-                        /admin et s'authentifie hors OAuth 42. */}
-                    {user.is_admin && (
-                      <DropdownMenuItem onClick={() => navigate('/setup')} className="settings-item">
-                        <span style={{ fontSize: '1.2rem' }}>🔧</span>
-                        <span>Identifiants API 42</span>
+                    {/* Seul point d'entrée UI vers le panneau pour un délégué — sans ça,
+                        il faudrait taper /admin à la main. Affiché UNIQUEMENT s'il reste
+                        au moins une zone ouverte : un délégué dont toutes les cases ont
+                        été décochées est encore enregistré, mais le lien ne le mènerait
+                        que sur un panneau vide. */}
+                    {(user.admin_permissions?.length ?? 0) > 0 && (
+                      <DropdownMenuItem onClick={() => navigate('/admin')} className="settings-item">
+                        <span style={{ fontSize: '1.2rem' }}>🛠️</span>
+                        <span>Panel admin</span>
                       </DropdownMenuItem>
                     )}
                   </>

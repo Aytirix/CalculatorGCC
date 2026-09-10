@@ -5,8 +5,11 @@ import { Button } from '@/components/ui/button';
 import {
   adminService,
   type AdminConfig,
-  type PasskeyInfo,
   type DelegateInfo,
+  type AdminMe,
+  type AdminPermission,
+  type AuditEvent,
+  ADMIN_PERMISSIONS,
   type GlobalRefreshState,
   type AllowedOriginInfo,
   type GccComparison,
@@ -28,22 +31,53 @@ import { useRncpData } from '@/contexts/useRncpData';
  * instance relaie une autre : les credentials 42, les délégués qui les
  * renouvellent et le refresh des données partagées vivent alors sur l'instance
  * principale. Les afficher ici laisserait croire qu'on agit dessus alors qu'ils
- * ne servent à rien — on les masque. Restent les passkeys (l'accès à ce panneau)
- * et les origines, qui portent le réglage du miroir lui-même : sans elles, on ne
- * pourrait plus revenir en arrière.
+ * ne servent à rien — on les masque. Restent les origines, qui portent le réglage
+ * du miroir lui-même : sans elles, on ne pourrait plus revenir en arrière.
+ *
+ * `permission` dit quelle zone chaque onglet requiert. Un délégué ne voit que les
+ * siennes : afficher les autres l'enverrait vers des écrans qui répondent 403.
  */
 const TABS = [
-  { id: 'secrets', label: 'Secrets API 42', icon: '🔑', mirrored: true },
-  { id: 'passkeys', label: 'Passkeys', icon: '🛡️', mirrored: false },
-  { id: 'delegates', label: 'Délégués', icon: '👥', mirrored: true },
-  { id: 'origins', label: 'Origines autorisées', icon: '🌐', mirrored: false },
-  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄', mirrored: true },
+  { id: 'secrets', label: 'Secrets API 42', icon: '🔑', mirrored: true, permission: 'secrets42' },
+  { id: 'delegates', label: 'Délégués', icon: '👥', mirrored: true, permission: 'delegates' },
+  { id: 'origins', label: 'Origines autorisées', icon: '🌐', mirrored: false, permission: 'origins' },
+  { id: 'mirror', label: 'Mode miroir', icon: '🪞', mirrored: false, permission: 'mirror' },
+  { id: 'audit', label: "Journal d'audit", icon: '📜', mirrored: false, permission: 'audit' },
+  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄', mirrored: true, permission: 'refresh' },
   // Le rapport lit le catalogue 42, donc les credentials, qui vivent sur
   // l'instance principale : masqué en miroir comme les autres.
-  { id: 'gcc', label: 'Référentiel RNCP', icon: '📐', mirrored: true },
+  { id: 'gcc', label: 'Référentiel RNCP', icon: '📐', mirrored: true, permission: 'referential' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
+
+/**
+ * Libellés des zones, pour les cases à cocher des délégués.
+ *
+ * Dérivés de `TABS` plutôt que redéclarés : les deux listes décrivaient les mêmes
+ * zones et pouvaient diverger au premier renommage.
+ */
+const PERMISSION_LABELS: Record<AdminPermission, string> = Object.fromEntries(
+  TABS.map((entry) => [entry.permission, entry.label])
+) as Record<AdminPermission, string>;
+
+/**
+ * Garde d'exhaustivité, vérifiée à la COMPILATION.
+ *
+ * `Object.fromEntries` renvoie un type trop large et le cast ci-dessus fait taire
+ * TypeScript : sans ce garde-fou, une zone ajoutée à `ADMIN_PERMISSIONS` sans
+ * onglet correspondant afficherait une case à cocher au libellé vide, en silence.
+ *
+ * Les crochets autour des deux types empêchent la distribution de l'union — sans
+ * eux, `never extends never` serait vrai pour chaque membre et la garde ne
+ * garderait rien.
+ */
+type ZonesAvecOnglet = (typeof TABS)[number]['permission'];
+type ZonesSansOnglet = Exclude<AdminPermission, ZonesAvecOnglet>;
+const _toutesLesZonesOntUnOnglet: [ZonesSansOnglet] extends [never]
+  ? true
+  : ['ZONE SANS ONGLET :', ZonesSansOnglet] = true;
+void _toutesLesZonesOntUnOnglet;
 
 /**
  * « Secrets API 42, Délégués et Données 42 partagées » — les libellés des
@@ -447,12 +481,13 @@ const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const { reload: reloadRncp } = useRncpData();
   const [config, setConfig] = useState<AdminConfig | null>(null);
-  const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
+  const [me, setMe] = useState<AdminMe | null>(null);
   const [delegates, setDelegates] = useState<DelegateInfo[]>([]);
+  const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [refresh, setRefresh] = useState<GlobalRefreshState | null>(null);
   const [secretForm, setSecretForm] = useState({ client_id: '', client_secret: '', client_secret_next: '' });
   const [newDelegate, setNewDelegate] = useState('');
-  const [newPasskeyLabel, setNewPasskeyLabel] = useState('');
+  const [newDelegatePerms, setNewDelegatePerms] = useState<AdminPermission[]>([]);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -477,17 +512,26 @@ const AdminPanel: React.FC = () => {
   // En mode miroir, on ne garde que les onglets qui pilotent encore quelque
   // chose ici.
   const visibleTabs = useMemo(
-    () => TABS.filter((entry) => !mirrorUrl || !entry.mirrored),
-    [mirrorUrl]
+    () =>
+      TABS.filter((entry) => !mirrorUrl || !entry.mirrored).filter(
+        // `me === null` = on ne sait pas encore : on n'affiche rien plutôt que de
+        // faire clignoter des onglets qui disparaîtraient au chargement suivant.
+        (entry) => me?.permissions.includes(entry.permission) ?? false
+      ),
+    [mirrorUrl, me]
   );
 
   // Onglet réellement affiché : DÉRIVÉ, pas corrigé après coup par un effet.
   // Avec un effet, le rendu qui découvre le mode miroir affichait encore la
   // section « Secrets API 42 » — précisément celle qu'on veut masquer — le temps
   // d'un commit, sans onglet correspondant dans la sidebar.
-  const activeTab: TabId = visibleTabs.some((entry) => entry.id === tab)
+  // Repli sur le PREMIER onglet réellement visible, et `null` s'il n'y en a aucun.
+  // Le repli en dur sur 'origins' rendait cette section à un délégué qui n'a pas la
+  // permission : liste vide (jamais chargée) indiscernable de « aucune origine »,
+  // et chaque action répondait 403.
+  const activeTab: TabId | null = visibleTabs.some((entry) => entry.id === tab)
     ? tab
-    : (visibleTabs[0]?.id ?? 'origins');
+    : (visibleTabs[0]?.id ?? null);
 
   // Session admin expirée/invalide → on repart proprement vers l'écran d'auth.
   const onAuthError = useCallback((e: any): boolean => {
@@ -529,25 +573,59 @@ const AdminPanel: React.FC = () => {
       }
     };
 
+    // Qui suis-je AVANT tout le reste : c'est ce qui décide de ce qu'on a le droit
+    // de charger. Sans cette étape, un délégué déclencherait un 403 par zone
+    // interdite et l'écran lui listerait des échecs pour des sections qu'il n'a
+    // simplement pas à voir.
+    let actor: AdminMe;
+    try {
+      actor = await adminService.getMe();
+    } catch (e) {
+      if (onAuthError(e)) return false;
+      // Un 500, un 502 ou une coupure réseau ne veut PAS dire « vous n'avez plus
+      // de droits ». On effaçait pourtant le token et on déconnectait l'owner —
+      // sur le panneau qui sert précisément quand tout le reste est cassé, et
+      // dont la session ne se retrouve qu'en relisant les logs du serveur.
+      setLoading(false);
+      setMsg({
+        kind: 'err',
+        text: "Le serveur n'a pas répondu. Votre session est conservée — réessayez.",
+      });
+      return false;
+    }
+    setMe(actor);
+
+    // Réponse claire du serveur : plus aucune zone ouverte. Là, oui, on sort.
+    if (actor.permissions.length === 0) {
+      adminService.clearToken();
+      navigate('/admin/login?raison=sans-acces');
+      return false;
+    }
+    const peut = (p: AdminPermission) => actor.permissions.includes(p);
+
     await Promise.all([
-      section('secrets 42', () => adminService.getConfig(), (cfg) => {
+      peut('secrets42') && section('secrets 42', () => adminService.getConfig(), (cfg) => {
         setConfig(cfg);
         setSecretForm((f) => ({ ...f, client_id: cfg.client_id || f.client_id }));
       }),
-      section('passkeys', () => adminService.listPasskeys(), setPasskeys),
-      section('délégués', () => adminService.listDelegates(), setDelegates),
-      section('données 42 partagées', () => adminService.getGlobalRefresh(), setRefresh),
-      section('origines autorisées', () => adminService.listOrigins(), (og) => {
+      peut('delegates') && section('délégués', () => adminService.listDelegates(), setDelegates),
+      peut('audit') && section("journal d'audit", () => adminService.getAudit(), setAudit),
+      peut('refresh') && section('données 42 partagées', () => adminService.getGlobalRefresh(), setRefresh),
+      peut('origins') && section('origines autorisées', () => adminService.listOrigins(), (og) => {
         setOrigins(og.origins);
         setOriginsSelf(og.self);
         setOriginsSelfAllowed(og.self_allowed);
       }),
-      section('référentiel RNCP', () => adminService.getReferentialState(), setReferential),
-      section('mode miroir', () => adminService.getMirror(), (mi) => {
+      peut('referential') && section('référentiel RNCP', () => adminService.getReferentialState(), setReferential),
+      // Sans la permission `mirror`, on ne sait pas si l'instance en est une. Les
+      // onglets « miroir » resteront donc visibles pour ce délégué — ils ne
+      // mentent pas pour autant : en miroir, le backend relaie vers l'instance
+      // principale et l'action aboutit là-bas.
+      peut('mirror') && section('mode miroir', () => adminService.getMirror(), (mi) => {
         setMirrorUrl(mi.mirror_api_url);
         setMirrorInput(mi.mirror_api_url ?? '');
       }),
-    ]);
+    ].filter(Boolean) as Promise<void>[]);
 
     setLoading(false);
     if (failures.length > 0) {
@@ -559,15 +637,14 @@ const AdminPanel: React.FC = () => {
       });
     }
     return failures.length === 0;
-  }, [onAuthError]);
+  }, [onAuthError, navigate]);
 
+  // Qui a le droit d'être ici, c'est `/admin/me` qui le dit — pas la présence d'un
+  // token owner en stockage. Un délégué entre avec sa session 42 et n'en a aucun :
+  // tester le token le renvoyait à l'écran de connexion en boucle.
   useEffect(() => {
-    if (!adminService.isAuthenticated()) {
-      navigate('/admin/login');
-      return;
-    }
     reload();
-  }, [navigate, reload]);
+  }, [reload]);
 
   // Tant qu'un refresh global tourne, on suit sa progression (le bouton doit
   // rester désactivé jusqu'à la fin, y compris après un rechargement de page).
@@ -808,52 +885,34 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const addPasskey = async () => {
-    setMsg(null);
-    setBusy(true);
-    try {
-      await adminService.enrollPasskey(newPasskeyLabel.trim() || undefined);
-      setNewPasskeyLabel('');
-      setMsg({ kind: 'ok', text: 'Passkey enrôlée.' });
-      await reload();
-    } catch (e: any) {
-      if (!onAuthError(e)) setMsg({ kind: 'err', text: e?.response?.data?.error || e?.message || 'Enrôlement annulé ou échoué.' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removePasskey = async (id: number) => {
-    setMsg(null);
-    setBusy(true);
-    try {
-      const res = await adminService.deletePasskey(id);
-      const revoked = res?.sessions_revoked ?? 0;
-      // Retirer une passkey coupe les autres sessions owner : on le dit explicitement,
-      // sinon rien ne confirme que l'accès de l'authenticator retiré est bien mort.
-      setMsg({
-        kind: 'ok',
-        text: revoked > 0
-          ? `Passkey supprimée — ${revoked} session(s) admin révoquée(s).`
-          : 'Passkey supprimée.',
-      });
-      await reload();
-    } catch (e: any) {
-      if (!onAuthError(e)) setMsg({ kind: 'err', text: 'Suppression impossible.' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const addDelegate = async () => {
     setMsg(null);
     setBusy(true);
     try {
-      await adminService.addDelegate(newDelegate.trim().toLowerCase());
+      await adminService.addDelegate(newDelegate.trim().toLowerCase(), newDelegatePerms);
       setNewDelegate('');
+      setNewDelegatePerms([]);
+      setMsg({ kind: 'ok', text: 'Délégué enregistré.' });
       await reload();
     } catch (e: any) {
       if (!onAuthError(e)) setMsg({ kind: 'err', text: e?.response?.data?.error || 'Ajout impossible.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Coche ou décoche une zone sur un délégué DÉJÀ enregistré, et enregistre aussitôt. */
+  const toggleDelegatePermission = async (d: DelegateInfo, permission: AdminPermission) => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      const suivantes = d.permissions.includes(permission)
+        ? d.permissions.filter((p) => p !== permission)
+        : [...d.permissions, permission];
+      await adminService.addDelegate(d.login, suivantes);
+      await reload();
+    } catch (e: any) {
+      if (!onAuthError(e)) setMsg({ kind: 'err', text: e?.response?.data?.error || 'Modification impossible.' });
     } finally {
       setBusy(false);
     }
@@ -874,7 +933,10 @@ const AdminPanel: React.FC = () => {
 
   const logout = async () => {
     await adminService.logout();
-    navigate('/admin/login');
+    // Un délégué n'a pas de session admin à fermer : sa session 42 reste valide et
+    // /admin se rouvrirait aussitôt. Le bouton ne prétend donc plus le déconnecter
+    // (cf. son libellé), il le ramène simplement à l'application.
+    navigate(me?.kind === 'delegate' ? '/dashboard' : '/admin/login');
   };
 
   if (loading) {
@@ -991,51 +1053,43 @@ const AdminPanel: React.FC = () => {
         </section>
         )}
 
-        {/* ===== Passkeys ===== */}
-        {activeTab === 'passkeys' && (
-        <section className="admin-section">
-          <h2>Passkeys ({passkeys.length})</h2>
-          <ul className="admin-list">
-            {passkeys.map((p) => (
-              <li key={p.id}>
-                <span>
-                  {p.label || 'Passkey'} · créée le {new Date(p.created_at).toLocaleDateString()}
-                  {p.last_used_at ? ` · utilisée le ${new Date(p.last_used_at).toLocaleDateString()}` : ''}
-                </span>
-                <button className="admin-link danger" onClick={() => removePasskey(p.id)} disabled={busy}>
-                  Supprimer
-                </button>
-              </li>
-            ))}
-            {passkeys.length === 0 && (
-              <li className="muted">Aucune passkey. Enrôlez-en une pour ne plus dépendre du token console.</li>
-            )}
-          </ul>
-          <div className="admin-inline">
-            <input
-              type="text"
-              value={newPasskeyLabel}
-              onChange={(e) => setNewPasskeyLabel(e.target.value)}
-              placeholder="Libellé (optionnel)"
-              disabled={busy}
-            />
-            <Button onClick={addPasskey} className="admin-btn" disabled={busy}>+ Ajouter une passkey</Button>
-          </div>
-        </section>
-        )}
-
         {/* ===== Admins délégués ===== */}
         {activeTab === 'delegates' && (
         <section className="admin-section">
           <h2>Admins délégués ({delegates.length})</h2>
-          <p className="muted">Ces logins 42 peuvent éditer les secrets 42 — rien d'autre.</p>
-          <ul className="admin-list">
+          <p className="muted">
+            Ces logins 42 entrent dans ce panneau avec leur session 42 ordinaire, et n'y voient
+            que les zones cochées ci-dessous. Décocher tout laisse le compte enregistré sans
+            aucun accès.
+          </p>
+          {me?.kind === 'delegate' && (
+            <p className="muted">
+              Vous ne pouvez ni vous modifier vous-même, ni accorder une zone que vous ne
+              détenez pas.
+            </p>
+          )}
+          <ul className="admin-list admin-list--delegates">
             {delegates.map((d) => (
-              <li key={d.login}>
-                <span><code>{d.login}</code></span>
-                <button className="admin-link danger" onClick={() => removeDelegate(d.login)} disabled={busy}>
-                  Retirer
-                </button>
+              <li key={d.login} className="delegate-row">
+                <div className="delegate-row__head">
+                  <span><code>{d.login}</code></span>
+                  <button className="admin-link danger" onClick={() => removeDelegate(d.login)} disabled={busy}>
+                    Retirer
+                  </button>
+                </div>
+                <div className="delegate-row__perms">
+                  {ADMIN_PERMISSIONS.map((perm) => (
+                    <label key={perm} className="delegate-perm">
+                      <input
+                        type="checkbox"
+                        checked={d.permissions.includes(perm)}
+                        onChange={() => toggleDelegatePermission(d, perm)}
+                        disabled={busy}
+                      />
+                      <span>{PERMISSION_LABELS[perm]}</span>
+                    </label>
+                  ))}
+                </div>
               </li>
             ))}
             {delegates.length === 0 && <li className="muted">Aucun délégué.</li>}
@@ -1050,28 +1104,48 @@ const AdminPanel: React.FC = () => {
             />
             <Button onClick={addDelegate} className="admin-btn" disabled={busy || !newDelegate.trim()}>+ Ajouter</Button>
           </div>
+          <div className="delegate-row__perms">
+            {ADMIN_PERMISSIONS.map((perm) => (
+              <label key={perm} className="delegate-perm">
+                <input
+                  type="checkbox"
+                  checked={newDelegatePerms.includes(perm)}
+                  onChange={() =>
+                    setNewDelegatePerms((prev) =>
+                      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
+                    )
+                  }
+                  disabled={busy}
+                />
+                <span>{PERMISSION_LABELS[perm]}</span>
+              </label>
+            ))}
+          </div>
         </section>
         )}
 
         {/* ===== Refresh global des données 42 ===== */}
-        {activeTab === 'origins' && (
+        {/* ===== Mode miroir (permission `mirror`) ===== */}
+        {/* Vivait DANS la section « Origines autorisées », donc visible de qui a
+            `origins` sans avoir `mirror` : il lisait « base de données locale »
+            — faux, la valeur n'ayant jamais été chargée — et prenait un 403 en
+            enregistrant. Chaque zone a maintenant sa section. */}
+        {activeTab === 'mirror' && (
         <section className="admin-section">
-          <h2>Origines autorisées</h2>
+          <h2>Mode miroir</h2>
           <p className="muted">
-            Une autre instance peut servir le frontend et proxifier <code>/api</code> vers ce
-            backend : une seule base, un seul serveur, aucun secret partagé. Seules les origines
-            listées ici peuvent appeler l'API depuis un autre domaine et recevoir le retour de
-            connexion 42. Une révocation prend effet immédiatement.
+            Cette instance peut cesser de servir ses propres données et relayer chaque requête
+            vers une autre. Le panneau d'administration, lui, reste toujours local — sans quoi
+            activer le miroir couperait l'accès qui permet de le désactiver.
           </p>
 
           <div className="admin-status">
             <span>
-              Source des données :{' '}
-              <code>{mirrorUrl || 'base de données locale'}</code>
+              Source des données : <code>{mirrorUrl || 'base de données locale'}</code>
             </span>
             <span className="muted">
               {mirrorUrl
-                ? "Mode miroir : cette instance ne sert plus ses propres données, elle relaie tout vers l'instance ci-dessus, qui doit avoir autorisé ce domaine. Le panneau admin, lui, reste local."
+                ? "Mode miroir : cette instance relaie tout vers l'instance ci-dessus, qui doit avoir autorisé ce domaine."
                 : 'Cette instance sert ses propres données. Renseigne ci-dessous l’API d’une autre instance pour relayer vers elle — sans rien reconstruire.'}
             </span>
           </div>
@@ -1091,6 +1165,42 @@ const AdminPanel: React.FC = () => {
               {mirrorInput.trim() ? 'Relayer vers cette API' : 'Revenir à la base locale'}
             </Button>
           </div>
+        </section>
+        )}
+
+        {/* ===== Journal d'audit (permission `audit`) ===== */}
+        {/* La permission existait, la route backend aussi — mais rien ne l'affichait :
+            cocher `audit` n'ouvrait strictement rien. */}
+        {activeTab === 'audit' && (
+        <section className="admin-section">
+          <h2>Journal d'audit</h2>
+          <p className="muted">
+            Les actions d'administration, les plus récentes en premier.
+          </p>
+          <ul className="admin-list">
+            {audit.map((e) => (
+              <li key={e.id}>
+                <span>
+                  <code>{e.actor}</code> · {e.action}
+                  {e.detail ? ` · ${e.detail}` : ''}
+                </span>
+                <span className="muted">{new Date(e.at).toLocaleString()}</span>
+              </li>
+            ))}
+            {audit.length === 0 && <li className="muted">Aucun événement enregistré.</li>}
+          </ul>
+        </section>
+        )}
+
+        {activeTab === 'origins' && (
+        <section className="admin-section">
+          <h2>Origines autorisées</h2>
+          <p className="muted">
+            Une autre instance peut servir le frontend et proxifier <code>/api</code> vers ce
+            backend : une seule base, un seul serveur, aucun secret partagé. Seules les origines
+            listées ici peuvent appeler l'API depuis un autre domaine et recevoir le retour de
+            connexion 42. Une révocation prend effet immédiatement.
+          </p>
 
           <ul className="admin-list">
             <li>

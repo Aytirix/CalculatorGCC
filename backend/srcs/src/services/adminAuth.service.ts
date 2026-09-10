@@ -1,7 +1,8 @@
 import * as crypto from 'crypto';
 
-// Authentification admin autonome : token console (bootstrap/recovery) + sessions
-// owner opaques en mémoire. Tout est volontairement NON persisté : un redémarrage
+// Authentification admin autonome : token console + sessions owner opaques en
+// mémoire. C'est la seule voie OWNER ; un délégué, lui, entre avec sa session 42
+// et n'obtient que les zones qui lui ont été ouvertes. Tout est volontairement NON persisté : un redémarrage
 // régénère le token console (recovery toujours possible via les logs) et invalide
 // les sessions (ré-authentification forcée, sain pour un panel sensible).
 
@@ -12,7 +13,7 @@ function sha256(input: string): string {
 // ===== Token console (bootstrap + recovery) =====
 // Généré à CHAQUE démarrage, affiché une fois dans les logs. Prouve l'accès au
 // serveur (lire les logs = contrôler la machine) → seule racine de confiance pour
-// créer la première passkey ou récupérer l'accès si toutes les méthodes sont perdues.
+// entrer dans le panneau en tant qu'owner, et seul moyen de récupérer l'accès.
 let consoleTokenHash: string | null = null;
 
 /** Génère et mémorise un nouveau token console ; renvoyé EN CLAIR (à logger une seule fois). */
@@ -77,23 +78,4 @@ export function verifyOwnerSession(token: string | undefined): AdminSession | nu
 export function revokeOwnerSession(token: string | undefined): void {
   if (!token) return;
   sessions.delete(sha256(token));
-}
-
-/**
- * Révoque toutes les sessions owner SAUF celle du token fourni. Appelé quand une
- * passkey est retirée : sans ça, retirer un authenticator compromis n'invalidait
- * rien et l'attaquant gardait sa session (et pouvait en ré-enrôler une autre).
- * On épargne la session courante pour ne pas éjecter l'owner qui fait le ménage.
- * Renvoie le nombre de sessions révoquées.
- */
-export function revokeOtherOwnerSessions(keepToken: string | undefined): number {
-  const keepKey = keepToken ? sha256(keepToken) : null;
-  let revoked = 0;
-  for (const key of [...sessions.keys()]) {
-    if (key !== keepKey) {
-      sessions.delete(key);
-      revoked++;
-    }
-  }
-  return revoked;
 }

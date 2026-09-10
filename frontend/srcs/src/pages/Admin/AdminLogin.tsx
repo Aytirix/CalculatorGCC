@@ -1,51 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { adminService } from '@/services/admin.service';
 import './Admin.scss';
 import './AdminLogin.scss';
 
+/**
+ * Deux façons d'entrer, qui ne s'adressent pas aux mêmes personnes :
+ *
+ *  - le TOKEN CONSOLE, affiché dans les logs du serveur à chaque démarrage. Il
+ *    prouve l'accès à la machine et donne le panneau entier. Indépendant d'OAuth
+ *    42, donc utilisable même quand 42 est injoignable.
+ *  - la SESSION 42 d'un délégué, qui n'ouvre que les zones qu'on lui a accordées.
+ *    Aucune action ici : s'il est déjà connecté, le panneau le reconnaît seul.
+ */
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
-  const [passkeyEnrolled, setPasskeyEnrolled] = useState<boolean | null>(null);
-  const [statusUnavailable, setStatusUnavailable] = useState(false);
-  const [showConsole, setShowConsole] = useState(false);
+  const [searchParams] = useSearchParams();
+  // Renvoyé ici faute d'accès : sans ce mot, un délégué dont on a décoché toutes
+  // les cases se retrouvait devant un formulaire de token console, sans que rien
+  // n'explique pourquoi son panneau avait disparu.
+  const sansAcces = searchParams.get('raison') === 'sans-acces';
   const [consoleToken, setConsoleToken] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  /** Le visiteur a-t-il déjà des droits via sa session 42 ? */
+  const [delegateAccess, setDelegateAccess] = useState(false);
 
   useEffect(() => {
-    adminService.getStatus()
-      .then((s) => {
-        setPasskeyEnrolled(s.passkey_enrolled);
-        // Aucune passkey (bootstrap) → on présente directement le token console.
-        setShowConsole(!s.passkey_enrolled);
-      })
-      .catch(() => {
-        // Statut indisponible ≠ « aucune passkey » : on ne doit PAS condamner la voie
-        // passkey (sinon plus aucun accès sans recharger la page). On propose les deux.
-        setStatusUnavailable(true);
-        setPasskeyEnrolled(false);
-        setShowConsole(true);
-      });
+    // Un délégué déjà connecté à 42 n'a rien à saisir : on lui propose d'entrer
+    // directement. L'échec est sans conséquence — le formulaire reste la voie
+    // normale, et c'est la seule qui compte pour l'owner.
+    adminService.getMe()
+      .then((me) => setDelegateAccess(me.kind === 'delegate' && me.permissions.length > 0))
+      .catch(() => setDelegateAccess(false));
   }, []);
-
-  // Tant qu'on n'a pas la preuve du contraire (statut indisponible), la passkey reste
-  // proposée : c'est la voie normale de l'owner.
-  const canTryPasskey = passkeyEnrolled === true || statusUnavailable;
-
-  const handlePasskey = async () => {
-    setError('');
-    setBusy(true);
-    try {
-      await adminService.loginWithPasskey();
-      navigate('/admin');
-    } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Échec de l'authentification par passkey.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const handleConsole = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,63 +83,51 @@ const AdminLogin: React.FC = () => {
           </div>
         )}
 
-        {passkeyEnrolled === null ? (
-          <p className="muted">Chargement…</p>
-        ) : (
-          <>
-            {canTryPasskey && !showConsole && (
-              <>
-                <button type="button" className="auth-cta admin-login-cta" onClick={handlePasskey} disabled={busy}>
-                  {busy ? 'Authentification…' : 'Se connecter avec une passkey'}
-                </button>
-                <button className="admin-link" onClick={() => setShowConsole(true)} disabled={busy}>
-                  Utiliser le token console (recovery)
-                </button>
-              </>
-            )}
-
-            {showConsole && (
-              <form onSubmit={handleConsole} className="admin-form">
-                {statusUnavailable ? (
-                  <div className="admin-info">
-                    <p>
-                      Statut du serveur indisponible : les deux voies restent proposées —
-                      passkey, ou <strong>token console</strong> (affiché dans les logs au démarrage).
-                    </p>
-                  </div>
-                ) : !passkeyEnrolled && (
-                  <div className="admin-info">
-                    <p>
-                      Aucune passkey enrôlée. Entrez le <strong>token console</strong> affiché dans les logs
-                      du serveur au démarrage, puis enrôlez une passkey depuis le panneau.
-                    </p>
-                  </div>
-                )}
-                <div className="form-group">
-                  <label htmlFor="consoleToken">Token console</label>
-                  <input
-                    id="consoleToken"
-                    type="password"
-                    value={consoleToken}
-                    onChange={(e) => setConsoleToken(e.target.value)}
-                    placeholder="Collez le token affiché dans les logs"
-                    autoComplete="off"
-                    required
-                    disabled={busy}
-                  />
-                </div>
-                <button type="submit" className="auth-cta admin-login-cta" disabled={busy || !consoleToken.trim()}>
-                  {busy ? 'Vérification…' : 'Valider'}
-                </button>
-                {canTryPasskey && (
-                  <button type="button" className="admin-link" onClick={() => setShowConsole(false)} disabled={busy}>
-                    ← Essayer la passkey
-                  </button>
-                )}
-              </form>
-            )}
-          </>
+        {sansAcces && !error && (
+          <div className="admin-info">
+            <p>
+              Votre compte&nbsp;42 n'a plus aucune zone d'administration ouverte. Contactez
+              un administrateur si cela vous semble être une erreur.
+            </p>
+          </div>
         )}
+
+        {delegateAccess && (
+          <div className="admin-info">
+            <p>
+              Votre compte&nbsp;42 est <strong>délégué</strong> : vous pouvez entrer sans token,
+              avec les zones qui vous ont été accordées.
+            </p>
+            <button type="button" className="auth-cta admin-login-cta" onClick={() => navigate('/admin')}>
+              Ouvrir le panneau
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleConsole} className="admin-form">
+          <div className="admin-info">
+            <p>
+              Entrez le <strong>token console</strong> affiché dans les logs du serveur à chaque
+              démarrage. Il donne accès à l'ensemble du panneau.
+            </p>
+          </div>
+          <div className="form-group">
+            <label htmlFor="consoleToken">Token console</label>
+            <input
+              id="consoleToken"
+              type="password"
+              value={consoleToken}
+              onChange={(e) => setConsoleToken(e.target.value)}
+              placeholder="Collez le token affiché dans les logs"
+              autoComplete="off"
+              required
+              disabled={busy}
+            />
+          </div>
+          <button type="submit" className="auth-cta admin-login-cta" disabled={busy || !consoleToken.trim()}>
+            {busy ? 'Vérification…' : 'Valider'}
+          </button>
+        </form>
       </motion.div>
     </div>
   );

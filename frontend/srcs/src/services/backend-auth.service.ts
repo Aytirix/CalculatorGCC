@@ -3,7 +3,7 @@ import { config } from '@/config/config';
 
 // Le backend est accessible via Nginx reverse proxy
 const BACKEND_URL = config.backendUrl;
-const JWT_STORAGE_KEY = 'gcc_jwt_token';
+export const JWT_STORAGE_KEY = 'gcc_jwt_token';
 
 export interface JWTPayload {
   api_token: string;
@@ -26,6 +26,8 @@ export interface User {
   image_url?: string;
   is_public?: boolean | null;
   is_admin?: boolean;
+  /** Zones du panneau ouvertes à ce login. Vide = aucun accès. */
+  admin_permissions?: string[];
   credentials_invalid?: boolean;
   next_secret_missing?: boolean;
   // Propriétés optionnelles pour compatibilité
@@ -43,6 +45,8 @@ export interface MeResponse {
   api_token?: string;
   is_public: boolean | null;
   is_admin: boolean;
+  /** Zones du panneau ouvertes à ce login. Vide = aucun accès. */
+  admin_permissions: string[];
   credentials_invalid: boolean;
   next_secret_missing: boolean;
 }

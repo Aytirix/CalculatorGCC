@@ -6,7 +6,7 @@ import { simulationRepository } from '../db/simulationRepository.js';
 import { userToken42Repository } from '../db/userToken42Repository.js';
 import { requestOAuth42Token } from '../services/oauth42.service.js';
 import { getAdminConfigStatus } from '../db/configRepository.js';
-import { isDelegate } from '../db/adminRepository.js';
+import { getDelegatePermissions } from '../db/adminRepository.js';
 import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
 import { createOAuthState, readOAuthState } from '../services/oauthState.service.js';
 
@@ -207,15 +207,18 @@ export class AuthController {
 
     const isPublic = await simulationRepository.getPrivacyStatus(user.user_id_42);
 
-    // Admin délégué = login 42 inscrit par l'owner dans la liste des délégués (DB).
-    // Ces logins peuvent éditer les SEULS secrets 42 (voie /setup admin) et voient les
-    // bannières d'alerte. L'owner, lui, s'authentifie séparément (passkey / console).
-    const isAdmin = await isDelegate(user.login);
-    // État de config réservé à l'admin (booléens uniquement, jamais les secrets) —
-    // et on évite le hit DB pour les utilisateurs normaux.
+    // Délégué = login 42 inscrit par l'owner, avec les zones du panneau qui lui sont
+    // ouvertes. On renvoie la LISTE et pas seulement un booléen : le menu ne doit
+    // proposer le panneau que s'il mène quelque part, et un délégué dont toutes les
+    // cases ont été décochées reste enregistré sans aucun accès.
+    // L'owner, lui, s'authentifie séparément (token console) et n'apparaît pas ici.
+    const adminPermissions = (await getDelegatePermissions(user.login)) ?? [];
+    const isAdmin = adminPermissions.length > 0;
+    // Les bannières portent sur les secrets 42 : les montrer à quelqu'un qui n'a pas
+    // cette zone l'alerterait d'un problème qu'il ne peut pas corriger.
     let credentialsInvalid = false;
     let nextSecretMissing = false;
-    if (isAdmin) {
+    if (adminPermissions.includes('secrets42')) {
       const status = await getAdminConfigStatus();
       credentialsInvalid = status.credentialsInvalidSince !== null;
       nextSecretMissing = status.nextSecretMissing;
@@ -229,6 +232,7 @@ export class AuthController {
       api_token: user.api_token,
       is_public: isPublic,
       is_admin: isAdmin,
+      admin_permissions: adminPermissions,
       credentials_invalid: credentialsInvalid,
       next_secret_missing: nextSecretMissing,
     };

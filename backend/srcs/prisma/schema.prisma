@@ -19,7 +19,7 @@ model Configuration {
   clientSecret42Next String?   @db.Text
   credentialsInvalidSince DateTime?
   // Inerte depuis le retrait de la voie de bootstrap /setup localhost : le bootstrap
-  // owner passe par /admin (token console en mémoire + passkey). Purgée à NULL par la
+  // owner passe par /admin (token console en mémoire). Purgée à NULL par la
   // migration `retire_setup_token` ; plus aucun code ne la lit/écrit.
   setupToken         String?   @db.VarChar(128)
   isConfigured       Boolean   @default(false)
@@ -181,29 +181,25 @@ model GlobalRefresh {
   @@map("global_refresh")
 }
 
-// ===== Authentification admin autonome (découplée d'OAuth 42) =====
-// Permet à l'owner de gérer l'application (secrets 42, méthodes d'auth, délégués)
-// même si l'OAuth 42 est mort. L'owner s'authentifie par passkey (WebAuthn) ; un
-// token console affiché dans les logs au boot sert de bootstrap/recovery. Aucune
-// donnée ici n'est un secret (clé PUBLIQUE WebAuthn, login délégué, journal) → pas
-// de chiffrement nécessaire.
-
-model AdminCredential {
-  id           Int       @id @default(autoincrement())
-  credentialId String    @unique @db.VarChar(512) // identifiant WebAuthn (base64url)
-  publicKey    String    @db.Text                 // clé publique COSE (base64url)
-  counter      Int       @default(0)              // compteur anti-clonage (0 pour les passkeys synchronisées)
-  transports   String?   @db.VarChar(255)         // transports WebAuthn (csv)
-  label        String?   @db.VarChar(128)         // libellé lisible choisi par l'owner
-  createdAt    DateTime  @default(now())
-  lastUsedAt   DateTime?
-
-  @@map("admin_credential")
-}
+// ===== Administration =====
+// Deux voies d'entrée dans le panneau, volontairement distinctes :
+//  - l'OWNER présente le token console affiché dans les logs au démarrage. Il
+//    prouve l'accès à la machine, ne dépend pas d'OAuth 42, et fonctionne donc
+//    même quand 42 est injoignable. Il donne toutes les zones.
+//  - un DÉLÉGUÉ présente sa session 42 ordinaire et n'obtient que les zones
+//    listées dans `permissions`.
+// Aucune donnée ici n'est un secret (login, permissions, journal) → pas de
+// chiffrement nécessaire.
 
 model AdminDelegate {
   id        Int      @id @default(autoincrement())
-  login42   String   @unique @db.VarChar(64) // login 42 autorisé à éditer les SEULS secrets 42
+  login42   String   @unique @db.VarChar(64) // login 42 autorisé sur le panneau admin
+  // Zones du panneau ouvertes à ce délégué, en CSV : secrets42, referential,
+  // refresh, origins, mirror, audit, delegates. Vide = aucun accès (le compte
+  // reste listé sans rien pouvoir faire, plutôt que de disparaître en silence).
+  // Défaut `secrets42` : c'était le seul droit existant avant les permissions,
+  // les délégués déjà enregistrés le gardent sans changement.
+  permissions String @default("secrets42") @db.VarChar(255)
   createdAt DateTime @default(now())
 
   @@map("admin_delegate")

@@ -141,6 +141,50 @@
   }
 }
 
+// Une ligne de délégué tient sur deux étages : le login et son retrait, puis la
+// grille des zones. `.admin-list li` est un flex en `space-between` ; on le repasse
+// en colonne ici plutôt que de créer une seconde liste.
+.admin-list--delegates {
+  li.delegate-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: $spacing-sm;
+    padding: 0.75rem 0;
+  }
+}
+
+.delegate-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-md;
+}
+
+.delegate-row__perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+}
+
+.delegate-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+
+  input { cursor: pointer; }
+
+  // Une zone accordée doit se distinguer d'un coup d'œil sur une ligne qui en
+  // porte sept.
+  &:has(input:checked) {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+}
+
 .admin-inline {
   display: flex;
   gap: $spacing-sm;
