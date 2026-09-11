@@ -46,10 +46,39 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
 
   const isLocked = (key: StageNoteKey) => knownNotes?.[key] != null;
 
+  /**
+   * Texte en cours de frappe, par sous-note.
+   *
+   * Sans ce tampon, la valeur était bornée à CHAQUE frappe et devenait
+   * inatteignable : depuis 100, taper un chiffre donnait « 1002 », ramené à 125 —
+   * et pour `duration`, dont le minimum est 100, on ne pouvait même pas vider le
+   * champ, il revenait à 100 à chaque touche. On saisit donc librement, et on
+   * borne à la sortie du champ.
+   */
+  const [saisie, setSaisie] = useState<Partial<Record<StageNoteKey, string>>>({});
+
   const setNote = (key: StageNoteKey, value: number) => {
     if (isLocked(key)) return; // note réelle : non éditable
     const clamped = Math.max(STAGE_NOTE_MIN[key], Math.min(STAGE_NOTE_MAX[key], value || 0));
     setNotes((prev) => ({ ...prev, [key]: clamped }));
+  };
+
+  /** Frappe libre : on retient le texte, sans borner ni convertir. */
+  const saisirNote = (key: StageNoteKey, texte: string) => {
+    if (isLocked(key)) return;
+    setSaisie((prev) => ({ ...prev, [key]: texte.replace(/[^0-9]/g, '') }));
+  };
+
+  /** Sortie du champ : on borne une seule fois, et on rend la main au modèle. */
+  const validerNote = (key: StageNoteKey) => {
+    const texte = saisie[key];
+    if (texte === undefined) return;
+    setNote(key, texte === '' ? notes[key] : parseInt(texte));
+    setSaisie((prev) => {
+      const suite = { ...prev };
+      delete suite[key];
+      return suite;
+    });
   };
 
   const baseXP = useMemo(() => predictStageXP(notes, we), [notes, we]);
@@ -74,8 +103,31 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
 
   const hasKnown = knownNotes && Object.values(knownNotes).some((v) => v != null);
 
+  /**
+   * Enregistrement ANTÉRIEUR au modèle à quatre sous-notes : il porte une note
+   * finale mais aucune sous-note.
+   *
+   * Le formulaire retombe alors sur les défauts à 100, et l'écart avec la carte
+   * — qui affiche la note stockée, 115 par exemple — est incompréhensible : on
+   * lit deux chiffres contradictoires sans savoir lequel fait foi. On le dit,
+   * plutôt que de laisser deviner, et on rappelle la note d'origine.
+   */
+  const noteOrpheline =
+    initialValues != null && initialValues.subNotes == null
+      ? initialValues.validationPercentage
+      : null;
+
   return (
     <form className="stage-form" onSubmit={handleSubmit}>
+      {noteOrpheline !== null && (
+        <div className="stage-form__note-orpheline" role="status">
+          Cette expérience a été enregistrée avant le détail par sous-notes&nbsp;: seule sa note
+          finale est connue, <strong>{noteOrpheline}&nbsp;%</strong>. Les valeurs ci-dessous sont
+          des valeurs par défaut, pas celles qui ont produit cette note. En enregistrant, la note
+          sera <strong>recalculée</strong> à partir de ce que vous saisissez ici.
+        </div>
+      )}
+
       <div className="form-header">
         <button
           type="button"
@@ -175,9 +227,10 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
                 type="number"
                 min={min}
                 max={max}
-                value={notes[key]}
+                value={saisie[key] ?? notes[key]}
                 disabled={locked}
-                onChange={(e) => setNote(key, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                onChange={(e) => saisirNote(key, e.target.value)}
+                onBlur={() => validerNote(key)}
               />
               <span className="percentage-symbol">{key === 'peer' ? 'pts' : '%'}</span>
             </div>

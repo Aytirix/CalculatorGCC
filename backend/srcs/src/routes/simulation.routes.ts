@@ -62,6 +62,15 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.save(request, reply);
 	});
 
+	// Sauvegarder UNIQUEMENT les expériences professionnelles manuelles.
+	// Route dédiée : `PUT /simulation` remplace toute la simulation, et la page
+	// qui appelle ici n'en connaît qu'une partie.
+	fastify.put('/simulation/manual-experiences', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.saveManualExperiences(request, reply);
+	});
+
 	// Sauvegarder uniquement l'état du guide interactif
 	fastify.put('/simulation/tour-seen', {
 		preHandler: authenticate,

@@ -80,10 +80,12 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 						min="0"
 						max="125"
 						value={validationPercentage}
-						onChange={(e) => {
-							const raw = e.target.value.replace(/[^0-9]/g, '');
-							setValidationPercentage(raw === '' ? '' : String(Math.min(125, parseInt(raw))));
-						}}
+						// On borne à la SORTIE du champ, pas à chaque frappe. Borner en
+						// cours de saisie rendait la valeur inatteignable : depuis 100,
+						// taper un chiffre donnait « 1002 », ramené à 125 — et une fois
+						// à 125 on ne pouvait plus en sortir qu'en vidant le champ.
+						onChange={(e) => setValidationPercentage(e.target.value.replace(/[^0-9]/g, ''))}
+						onBlur={() => setValidationPercentage(String(validationNum))}
 					/>
 					<span className="percentage-symbol">%</span>
 				</div>

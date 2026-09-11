@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
 import ExperienceCard from '@/components/ExperienceCard/ExperienceCard';
 import { professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import { simulationService } from '@/services/simulation.service';
 import './ProfessionalExperience.scss';
 
 import type { StageSubNotes, WorkExperienceLevel } from '@/utils/stageModel';
@@ -27,12 +28,39 @@ const ProfessionalExperience: React.FC = () => {
   const [experiences, setExperiences] = useState<ProfessionalExperience[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExperience, setEditingExperience] = useState<ProfessionalExperience | null>(null);
+  const [erreurSauvegarde, setErreurSauvegarde] = useState<string | null>(null);
 
   // Charger les expériences depuis le localStorage au montage
   useEffect(() => {
     const loadedExperiences = professionalExperienceStorage.getAll();
     setExperiences(loadedExperiences);
   }, []);
+
+  /**
+   * Écrit la liste en BASE, pas seulement dans le navigateur.
+   *
+   * Sans cet appel, toute modification faite ici était perdue au rafraîchissement :
+   * la page n'écrivait que dans le localStorage, et le Dashboard — qui recharge la
+   * simulation depuis la base à chaque visite — réécrasait l'édition par la copie
+   * serveur. Un stage revenait à 115 %, une alternance à 120 %.
+   *
+   * Route DÉDIÉE : `simulationService.save()` remplace la simulation entière et
+   * viderait les projets simulés, que cette page ne connaît pas.
+   *
+   * En cas d'échec on garde l'affichage local — l'utilisateur voit son édition —
+   * mais on le dit, sans quoi il repartirait en croyant avoir sauvegardé.
+   */
+  const persister = async (liste: ProfessionalExperience[]) => {
+    setErreurSauvegarde(null);
+    try {
+      await simulationService.saveManualExperiences(liste);
+    } catch (error) {
+      console.error('[ExpérienceProfessionnelle] Sauvegarde en base échouée :', error);
+      setErreurSauvegarde(
+        "Modification enregistrée sur cet appareil seulement : le serveur n'a pas répondu. Elle sera perdue au prochain chargement."
+      );
+    }
+  };
 
   const handleAddExperience = (experience: Omit<ProfessionalExperience, 'id'>) => {
     if (editingExperience) {
@@ -44,6 +72,7 @@ const ProfessionalExperience: React.FC = () => {
       const updatedExperiences = professionalExperienceStorage.update(updatedExperience);
       setExperiences(updatedExperiences);
       setEditingExperience(null);
+      void persister(updatedExperiences);
     } else {
       // Mode ajout
       const newExperience: ProfessionalExperience = {
@@ -52,6 +81,7 @@ const ProfessionalExperience: React.FC = () => {
       };
       const updatedExperiences = professionalExperienceStorage.add(newExperience);
       setExperiences(updatedExperiences);
+      void persister(updatedExperiences);
     }
     setIsModalOpen(false);
     // Forcer un rafraîchissement pour mettre à jour le niveau sur le dashboard
@@ -66,6 +96,7 @@ const ProfessionalExperience: React.FC = () => {
   const handleDeleteExperience = (id: string) => {
     const updatedExperiences = professionalExperienceStorage.remove(id);
     setExperiences(updatedExperiences);
+    void persister(updatedExperiences);
     // Forcer un rafraîchissement pour mettre à jour le niveau sur le dashboard
     window.dispatchEvent(new Event('storage'));
   };
@@ -97,6 +128,12 @@ const ProfessionalExperience: React.FC = () => {
             Ajouter
           </Button>
         </motion.div>
+
+        {erreurSauvegarde && (
+          <div className="save-error" role="alert">
+            ⚠️ {erreurSauvegarde}
+          </div>
+        )}
 
         <motion.div
           className="xp-summary"

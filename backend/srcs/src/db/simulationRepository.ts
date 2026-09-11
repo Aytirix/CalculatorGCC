@@ -503,6 +503,49 @@ export const simulationRepository = {
 	/**
 	 * Met à jour uniquement l'état "guide vu" de l'utilisateur.
 	 */
+	/**
+	 * Écrit UNIQUEMENT les expériences professionnelles manuelles.
+	 *
+	 * Sauvegarde partielle, sur le modèle de `saveTourSeen`, et non `save()` :
+	 * celle-ci remplace la simulation ENTIÈRE et remet à vide tout champ absent du
+	 * corps. Appelée depuis la page « Expérience professionnelle », qui ne connaît
+	 * ni les projets simulés ni les pourcentages, elle aurait effacé tout le reste.
+	 *
+	 * Le besoin vient d'un bug : cette page n'écrivait que dans le localStorage,
+	 * et le Dashboard, qui recharge la simulation depuis la base à chaque visite,
+	 * réécrasait l'édition par la copie serveur. Toute modification était donc
+	 * perdue au rafraîchissement — un stage remis à 115 %, une alternance à 120 %.
+	 */
+	async saveManualExperiences(
+		userId42: number,
+		login: string,
+		imageUrl: string | null,
+		experiences: unknown[],
+		firstName?: string | null,
+		lastName?: string | null
+	): Promise<unknown[]> {
+		await prisma.userSimulation.upsert({
+			where: { userId42 },
+			create: {
+				userId42,
+				login,
+				imageUrl,
+				firstName: firstName ?? null,
+				lastName: lastName ?? null,
+				manualExperiences: experiences as Prisma.InputJsonValue,
+			},
+			update: {
+				login,
+				imageUrl,
+				...(firstName !== undefined && { firstName }),
+				...(lastName !== undefined && { lastName }),
+				manualExperiences: experiences as Prisma.InputJsonValue,
+			},
+		});
+
+		return experiences;
+	},
+
 	async saveTourSeen(userId42: number, login: string, imageUrl: string | null, hasSeenTour: boolean, firstName?: string | null, lastName?: string | null, seenSteps?: string[]): Promise<boolean> {
 		await prisma.userSimulation.upsert({
 			where: { userId42 },

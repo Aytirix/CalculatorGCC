@@ -121,3 +121,18 @@
     opacity: 0.7;
   }
 }
+
+/* Sauvegarde en base impossible : l'édition reste à l'écran mais elle sera
+   perdue au prochain chargement. Le dire explicitement, sinon on repart en
+   croyant avoir sauvegardé — c'est très exactement le bug que cette page a
+   longtemps eu, en silence. */
+.save-error {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 83, 9, 0.4);
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

@@ -212,6 +212,42 @@ export const SimulationController = {
 	/**
 	 * PUT /simulation/tour-seen - Sauvegarde uniquement l'état du guide
 	 */
+	/**
+	 * PUT /simulation/manual-experiences — enregistre les seules expériences
+	 * professionnelles saisies à la main.
+	 *
+	 * Route dédiée et non `PUT /simulation` : cette dernière remplace la
+	 * simulation entière et vide tout champ absent du corps. La page qui appelle
+	 * ici ne connaît ni les projets simulés ni les pourcentages — elle aurait tout
+	 * effacé. Voir `simulationRepository.saveManualExperiences`.
+	 */
+	async saveManualExperiences(request: FastifyRequest, reply: FastifyReply) {
+		const { user_id_42, login, image_url, first_name, last_name } = request.user;
+		const body = request.body as { manualExperiences?: unknown } | undefined;
+
+		if (!body || !Array.isArray(body.manualExperiences)) {
+			return reply.code(400).send({ error: 'manualExperiences must be an array' });
+		}
+
+		// Borne de garde : ce tableau part en JSON dans une colonne, et rien ne
+		// limiterait sa taille autrement. Une centaine d'expériences est déjà
+		// au-delà de tout usage réel.
+		if (body.manualExperiences.length > 100) {
+			return reply.code(400).send({ error: 'Too many experiences (max 100)' });
+		}
+
+		const saved = await simulationRepository.saveManualExperiences(
+			user_id_42,
+			login,
+			image_url ?? null,
+			body.manualExperiences,
+			first_name,
+			last_name
+		);
+
+		return reply.send({ manualExperiences: saved });
+	},
+
 	async saveTourSeen(request: FastifyRequest, reply: FastifyReply) {
 		const { user_id_42, login, image_url, first_name, last_name } = request.user;
 		const body = request.body as

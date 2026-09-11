@@ -417,3 +417,16 @@
     .muted { color: var(--text-secondary); opacity: 0.8; }
   }
 }
+
+/* Enregistrement antérieur au modèle à quatre sous-notes : la carte affiche la
+   note stockée, le formulaire des défauts. Deux chiffres contradictoires sans
+   explication, c'est ce qui faisait dire « c'est impossible ». */
+.stage-form__note-orpheline {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(180, 83, 9, 0.4);
+  background: rgba(180, 83, 9, 0.12);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}

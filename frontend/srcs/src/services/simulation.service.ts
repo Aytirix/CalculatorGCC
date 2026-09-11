@@ -1,5 +1,8 @@
 import { backendAuthService } from './backend-auth.service';
 import { config } from '@/config/config';
+// `import type` : effacé à la compilation, donc aucun cycle à l'exécution même si
+// la page importe ce service en retour.
+import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
 
 const BACKEND_URL = config.backendUrl;
 
@@ -149,6 +152,29 @@ export const simulationService = {
 			method: 'PUT',
 			body: JSON.stringify(data),
 		});
+	},
+
+	/**
+	 * Sauvegarde UNIQUEMENT les expériences professionnelles saisies à la main.
+	 *
+	 * Route dédiée, et surtout pas `save()` : celle-ci remplace la simulation
+	 * entière et vide tout champ absent. La page « Expérience professionnelle » ne
+	 * connaît ni les projets simulés ni les pourcentages — l'appeler d'ici aurait
+	 * effacé tout le reste.
+	 *
+	 * Même garde que `save()` : on n'écrit jamais en consultant le profil d'un
+	 * autre. Sans elle, éditer une expérience en lecture seule écrirait dans SES
+	 * données.
+	 */
+	async saveManualExperiences(
+		manualExperiences: ProfessionalExperience[]
+	): Promise<ProfessionalExperience[]> {
+		if (_viewSimUserId !== null) return manualExperiences;
+		const reponse = await request<{ manualExperiences: ProfessionalExperience[] }>(
+			'/simulation/manual-experiences',
+			{ method: 'PUT', body: JSON.stringify({ manualExperiences }) }
+		);
+		return reponse.manualExperiences;
 	},
 
 	/**
