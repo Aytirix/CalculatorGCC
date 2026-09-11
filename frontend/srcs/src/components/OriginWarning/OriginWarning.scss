@@ -6,10 +6,26 @@
  * cassée — le remède était pire que le mal. Ici l'information passe et le site
  * reste debout. */
 .origin-warning {
-	/* NON collant. Le header de l'application l'est déjà (`top: 0`, z-index 1000)
-	   dans le même défilement : un bandeau collant lui passait dessous au premier
-	   scroll, et surenchérir sur le z-index n'aurait fait que les superposer.
-	   En tête de flux, il est lu une fois et laisse la place. */
+	/* FIXÉ EN BAS, et hors du flux.
+	 *
+	 * En tête de flux, il s'ajoutait aux `min-height: 100vh` des pages et créait
+	 * une barre de défilement de sa propre hauteur — sur dix-sept écrans, puisque
+	 * c'est le nombre de fichiers qui réclament toute la hauteur du viewport.
+	 * Les corriger un par un pour un bandeau d'alerte n'en valait pas le prix.
+	 *
+	 * En bas plutôt qu'en haut : le header de l'application est déjà collant en
+	 * `top: 0` avec un z-index supérieur, un bandeau fixé en haut lui passerait
+	 * dessous au premier défilement. En bas, rien ne le concurrence.
+	 *
+	 * Contrepartie assumée : il recouvre les derniers pixels d'une page longue une
+	 * fois arrivé en bas. Acceptable pour un avertissement permanent, qu'on lit
+	 * une fois. */
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 1100;
+	box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.25);
 	display: flex;
 	gap: 0.75rem;
 	align-items: flex-start;
