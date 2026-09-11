@@ -12,6 +12,7 @@ import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercent
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import { normaliserExperiences } from '@/utils/experienceMigration';
+import { anneesDepuisNom, nombreExperiences } from '@/utils/experienceCount';
 import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
@@ -485,7 +486,13 @@ const Dashboard: React.FC = () => {
 			if (name.includes('évaluation') || name.includes('evaluation')) return false;
 			if (name.includes('peer video') || name.includes('contract upload') || name.includes('duration')) return false;
 			return true;
-		}).length;
+		}).reduce((total, p) => {
+			// `.length` comptait une alternance de 2 ans pour UNE expérience, là où
+			// les trois autres compteurs en voyaient deux. Son titulaire perdait un
+			// point de prérequis RNCP, sans aucun recours.
+			const nom = p.project.name.toLowerCase();
+			return total + nombreExperiences(nom.includes('alternance'), anneesDepuisNom(nom));
+		}, 0);
 	};
 
 	// Calcule quels sous-projets sont validés individuellement via l'API
@@ -961,12 +968,8 @@ const Dashboard: React.FC = () => {
 	};
 
 	// Expérience professionnelle projetée : réelle + manuelle simulée + API en cours
-	const simulatedManualProfExpCount = manualExperiences
-		.filter(exp => exp.isSimulation)
-		.reduce((count, exp) => {
-			if (exp.type === 'alternance' && exp.duration === 2) return count + 2;
-			return count + 1;
-		}, 0);
+	// `duration === 2 ? 2 : 1` comptait une alternance de 3 ans pour UNE.
+	const simulatedManualProfExpCount = professionalExperienceMath.simulatedCount(manualExperiences);
 
 	const apiEnCoursProfExpCount = apiStages
 		.filter(p => {
@@ -979,13 +982,8 @@ const Dashboard: React.FC = () => {
 			return name.includes('alternance') || name.includes('stage') || name.includes('internship') || slug.startsWith('work-experience-');
 		})
 		.reduce((count, p) => {
-			const nameL = p.project.name.toLowerCase();
-			if (nameL.includes('alternance')) {
-				const match = nameL.match(/(\d+)\s*an/);
-				const years = match ? parseInt(match[1]) : 1;
-				return count + years;
-			}
-			return count + 1;
+			const nom = p.project.name.toLowerCase();
+			return count + nombreExperiences(nom.includes('alternance'), anneesDepuisNom(nom));
 		}, 0);
 
 	const projectedProfExp =

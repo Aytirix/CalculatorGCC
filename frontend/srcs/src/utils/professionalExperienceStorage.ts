@@ -1,5 +1,6 @@
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 import { normaliserExperiences } from './experienceMigration';
+import { nombreExperiences } from './experienceCount';
 
 const STORAGE_KEY = 'professional_experiences';
 
@@ -44,7 +45,14 @@ export const professionalExperienceMath = {
   realCount(experiences: ProfessionalExperience[]): number {
     return experiences
       .filter(exp => !exp.isSimulation)
-      .reduce((count, exp) => count + (exp.type === 'alternance' ? exp.duration : 1), 0);
+      .reduce((count, exp) => count + nombreExperiences(exp.type === 'alternance', exp.duration), 0);
+  },
+
+  /** Le miroir exact de `realCount`, pour les expériences SIMULÉES. */
+  simulatedCount(experiences: ProfessionalExperience[]): number {
+    return experiences
+      .filter(exp => exp.isSimulation)
+      .reduce((count, exp) => count + nombreExperiences(exp.type === 'alternance', exp.duration), 0);
   },
 };
 

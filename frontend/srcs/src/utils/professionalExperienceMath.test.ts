@@ -74,3 +74,41 @@ describe('professionalExperienceMath', () => {
     expect(professionalExperienceMath.realCount(list)).toBe(1);
   });
 });
+
+describe('la règle des années — « alternance 2 ans = 2 expériences pro »', () => {
+	const alt = (duration: number, isSimulation: boolean): ProfessionalExperience => ({
+		id: `a${duration}`, type: 'alternance', startDate: '', duration,
+		validationPercentage: 100, coalitionBoost: 0, isSimulation,
+		simulationExplicite: true, xpEarned: 90_000 * duration,
+	});
+	const stage = (isSimulation: boolean): ProfessionalExperience => ({
+		id: 's', type: 'stage', startDate: '', duration: 6,
+		validationPercentage: 100, coalitionBoost: 0, isSimulation,
+		simulationExplicite: true, xpEarned: 50_000,
+	});
+
+	it('compte une alternance acquise pour ses années', () => {
+		expect(professionalExperienceMath.realCount([alt(2, false)])).toBe(2);
+		expect(professionalExperienceMath.realCount([alt(1, false)])).toBe(1);
+		expect(professionalExperienceMath.realCount([alt(3, false)])).toBe(3);
+	});
+
+	it('applique la MÊME règle aux simulations', () => {
+		// Elles codaient `duration === 2 ? 2 : 1` : une alternance de 3 ans comptait
+		// pour 1, donc la même expérience valait 3 ou 1 selon un simple drapeau.
+		expect(professionalExperienceMath.simulatedCount([alt(3, true)])).toBe(3);
+		expect(professionalExperienceMath.simulatedCount([alt(2, true)])).toBe(2);
+	});
+
+	it('compte un stage pour 1, quelle que soit sa durée en mois', () => {
+		expect(professionalExperienceMath.realCount([stage(false)])).toBe(1);
+		expect(professionalExperienceMath.simulatedCount([stage(true)])).toBe(1);
+	});
+
+	it('partitionne strictement acquis et simulé', () => {
+		// Aucun double comptage : chaque expérience est dans exactement un compteur.
+		const liste = [alt(2, false), alt(1, true), stage(true)];
+		expect(professionalExperienceMath.realCount(liste)).toBe(2);
+		expect(professionalExperienceMath.simulatedCount(liste)).toBe(2);
+	});
+});
