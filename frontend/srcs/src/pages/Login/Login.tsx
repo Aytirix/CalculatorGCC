@@ -83,19 +83,17 @@ const Login: React.FC = () => {
 						className="auth-cta login-cta"
 						onClick={login}
 						disabled={connexionImpossible}
-						aria-disabled={connexionImpossible}
-						title={
-							connexionImpossible
-								? "Cette adresse n'est pas déclarée sur le serveur qui traite la connexion 42."
-								: undefined
-						}
+						// `disabled` sort le bouton de l'ordre de tabulation : un `title`
+						// y serait inatteignable au clavier. L'explication vit donc dans le
+						// paragraphe ci-dessous, que `aria-describedby` rattache au bouton.
+						aria-describedby="login-note"
 						whileHover={connexionImpossible ? undefined : { scale: 1.02 }}
 						whileTap={connexionImpossible ? undefined : { scale: 0.98 }}
 					>
 						Se connecter avec 42
 					</motion.button>
 
-					<p className="auth-note login-note">
+					<p className="auth-note login-note" id="login-note">
 						{connexionImpossible
 							? "La connexion est indisponible depuis cette adresse : elle n'est pas déclarée sur le serveur qui la traite. Passez par le site principal, ou demandez à un administrateur de l'ajouter."
 							: "Connexion via l'intra 42. L'application lit tes projets, ton niveau et tes événements — elle n'écrit jamais rien sur ton compte."}

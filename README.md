@@ -223,7 +223,7 @@ Les variables suivantes sont prévues dans [.env.example](.env.example) :
 #### Variables pour la prod
 
 ```env
-APP_DOMAIN=rncp.theomouty.fr
+APP_DOMAIN=https://rncp.theomouty.fr
 TRAEFIK_ROUTER_NAME=calculatorgcc-prod
 TRAEFIK_SERVICE_NAME=calculatorgcc-prod
 
@@ -237,7 +237,7 @@ REQUIRE_CONFIGURED_DB=false
 #### Variables pour la préprod
 
 ```env
-APP_DOMAIN=preprod-rncp.theomouty.fr
+APP_DOMAIN=https://preprod-rncp.theomouty.fr
 TRAEFIK_ROUTER_NAME=calculatorgcc-preprod
 TRAEFIK_SERVICE_NAME=calculatorgcc-preprod
 

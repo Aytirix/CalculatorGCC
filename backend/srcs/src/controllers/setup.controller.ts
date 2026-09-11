@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { isConfigured } from '../db/configRepository.js';
 import { allowedOriginRepository, normalizeOrigin } from '../db/allowedOriginRepository.js';
 import { isMirrorActiveCached } from '../services/mirror.service.js';
-import { origineAutorisee } from '../services/originGate.js';
+import { origineAutorisee, instanceFaitAutorite } from '../services/originGate.js';
 
 class SetupController {
   /**
@@ -60,7 +60,7 @@ class SetupController {
    * donner un feu vert sur la panne même qu'on cherche à signaler.
    */
   private faitAutorite(): boolean {
-    return Boolean(process.env.APP_DOMAIN) && !isMirrorActiveCached();
+    return instanceFaitAutorite(process.env.APP_DOMAIN, normalizeOrigin, isMirrorActiveCached());
   }
 }
 

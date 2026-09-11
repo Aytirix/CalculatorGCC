@@ -100,7 +100,10 @@ if [ -n "$MIRROR_API_URL" ]; then
     # « non reconnue », et le message renvoyait l'exploitant vers son panneau —
     # lequel refuse la même chaîne en 400. Consigne impossible à suivre, sur une
     # forme que README.md et coolify-init-app.md documentent pourtant.
-    case "$APP_DOMAIN" in
+    # Casse ignorée : « HTTPS://… » est une URL parfaitement valide, que `new URL()`
+    # accepte sans broncher. La refuser ici aurait été un refus de démarrer sur une
+    # écriture légitime.
+    case "$(printf '%s' "$APP_DOMAIN" | tr 'A-Z' 'a-z')" in
         http://*|https://*) ;;
         *)
             echo "[miroir] ERREUR DE CONFIGURATION : APP_DOMAIN doit commencer par http:// ou https://"
@@ -108,6 +111,29 @@ if [ -n "$MIRROR_API_URL" ]; then
             exit 1
             ;;
     esac
+
+    # Normalisation, à l'identique de `new URL(x).origin` côté JavaScript : schéma
+    # et hôte en minuscules, port par défaut retiré, chemin ôté.
+    #
+    # Indispensable pour comparer : l'origine que l'instance principale scelle dans
+    # le `state` est normalisée, pas la nôtre. Sans cela, « https://x.fr:443 »,
+    # « https://X.FR » ou « https://x.fr/app » — trois écritures parfaitement
+    # valides de la même origine — faisaient accuser la principale à tort, avec une
+    # consigne (« ajouter exactement : … ») que le panneau normalise à
+    # l'enregistrement : suivre l'instruction ne levait jamais l'alerte. C'est
+    # exactement le genre d'affirmation non vérifiée qu'on cherche à supprimer.
+    normaliser_origine() {
+        brut="$1"
+        schema=$(printf '%s' "${brut%%://*}" | tr 'A-Z' 'a-z')
+        reste="${brut#*://}"
+        hote=$(printf '%s' "${reste%%/*}" | tr 'A-Z' 'a-z')
+        case "$schema" in
+            https) hote="${hote%:443}" ;;
+            http)  hote="${hote%:80}" ;;
+        esac
+        printf '%s://%s' "$schema" "$hote"
+    }
+    APP_DOMAIN=$(normaliser_origine "$APP_DOMAIN")
 
     # Proxy de confiance devant le miroir, pour restaurer la vraie IP client.
     # Par défaut 127.0.0.1/32 : personne. Un miroir exposé en direct ne doit PAS

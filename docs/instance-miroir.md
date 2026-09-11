@@ -232,8 +232,12 @@ l'adresse journalisée.
 
 Le contrôle de démarrage ne voit qu'un instant : une origine peut être **révoquée**
 alors que le miroir tourne. Le frontend joint donc sa propre origine à chaque appel
-de `/setup/status`, au plus une fois toutes les 30 secondes, et affiche un
-**bandeau** dès que la réponse dit `origin_allowed: false`. Le bouton « Se
+de `/setup/status`, et affiche un **bandeau** dès que la réponse dit
+`origin_allowed: false`.
+
+Ce n'est pas un sondage périodique : la vérification est déclenchée par un
+**changement de page**, avec un plafond d'un appel toutes les 30 secondes. Une
+révocation reste donc invisible pour qui ne navigue pas. Le bouton « Se
 connecter » est alors désactivé, avec la raison.
 
 Un bandeau, et non un écran plein. L'écran plein a été livré puis retiré en audit :

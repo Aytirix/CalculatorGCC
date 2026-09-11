@@ -79,11 +79,12 @@ describe('câblage', () => {
 		expect(appSource).toMatch(/originAllowed === false && <OriginWarning \/>/);
 	});
 
-	it('App ne remplace plus toute la page', async () => {
-		// La régression corrigée : l'écran plein éteignait un miroir servi sur un
-		// port différent de son APP_DOMAIN, là où seule la connexion était cassée.
-		expect(appSource).not.toMatch(/return <OriginNotAllowed/);
-	});
+	// Pas d'assertion « le plein écran ne revient pas » : elle ne peut être qu'une
+	// interdiction de vocabulaire (`not.toMatch(/return <OriginNotAllowed/)`), que
+	// tout renommage contourne. C'est le reproche exact qu'un audit a fait à la
+	// version précédente de ce fichier ; la réintroduire sous un autre nom serait
+	// se mentir. Ce qui protège réellement, c'est le test de `lireVerdictSetup`
+	// qui garantit qu'un `null` ne devient jamais un `false`.
 
 	it('Login désactive le bouton plutôt que de mentir', async () => {
 		expect(loginSource).toMatch(/originAllowed === false/);

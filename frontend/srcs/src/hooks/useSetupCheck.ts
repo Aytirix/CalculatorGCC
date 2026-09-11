@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setupService } from '../services/setup.service';
-import { lireVerdictSetup } from '../services/setupVerdict';
+import { lireVerdictSetup, prochainConfigured } from '../services/setupVerdict';
 import { backendAuthService } from '../services/backend-auth.service';
 
 /**
@@ -49,13 +49,24 @@ export function useSetupCheck() {
 
 		const numero = ++dernierAppel.current;
 		const verdict = await lireVerdictSetup(() => setupService.getStatus());
+		// Relâché AVANT la garde d'ancienneté : sinon une réponse périmée sortait
+		// sans jamais lever l'écran de chargement, et « Loading… » restait à vie.
+		setIsChecking(false);
 		if (numero !== dernierAppel.current) return;
 
-		// `configured` ne revient jamais en arrière : une fois l'instance connue
-		// configurée, un hoquet ne doit pas réafficher « pas encore configurée ».
-		if (verdict.configured !== null) setIsConfigured(verdict.configured);
+		// `configured` ne revient JAMAIS en arrière — et cette fois le code le fait
+		// vraiment. La version précédente n'écartait que `null`, si bien qu'un
+		// `false` explicite remplaçait l'application entière par « non configurée »
+		// en pleine session. Le trou est né de ce commit : avant, un porteur de
+		// jeton n'interrogeait jamais cette route, et deux chemins renvoient
+		// pourtant ce `false` — une instance en miroir applicatif, qui n'a par
+		// conception aucun credential 42, et une instance dont les credentials ne
+		// déchiffrent plus. Forme fonctionnelle pour ne pas lire un état périmé
+		// depuis la fermeture du `useCallback`.
+		// Forme fonctionnelle : ne pas lire un état périmé depuis la fermeture du
+		// `useCallback`, dont les dépendances sont vides.
+		setIsConfigured((precedent) => prochainConfigured(precedent, verdict.configured));
 		setOriginAllowed(verdict.originAllowed);
-		setIsChecking(false);
 	}, []);
 
 	// Revérifié à chaque changement de route, y compris une fois l'instance connue

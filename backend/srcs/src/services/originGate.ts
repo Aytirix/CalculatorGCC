@@ -59,3 +59,27 @@ export async function origineAutorisee(
 
 	return estAutorisee(normalisee);
 }
+
+/**
+ * Cette instance fait-elle autorité sur la question de l'origine ?
+ *
+ * Extrait du contrôleur pour être testable : c'est le point de CÂBLAGE, et un
+ * audit par mutation a montré que ces points-là échappaient entièrement aux
+ * tests — on pouvait forcer la valeur à `true` ou à `false` sans un seul rouge,
+ * ce qui neutralise le contrôle dans un sens et rend la panne dans l'autre.
+ *
+ * Deux conditions, et la première est plus subtile qu'un simple « la variable
+ * est-elle posée » : un `APP_DOMAIN` sans schéma est ILLISIBLE comme origine, et
+ * l'instance ne se reconnaît alors même plus elle-même — elle se déclarerait
+ * « non autorisée » à son propre frontend, en désignant la mauvaise cause. Or
+ * c'est précisément la forme que documentaient README.md et coolify-init-app.md.
+ */
+export function instanceFaitAutorite(
+	appDomain: string | undefined,
+	normaliser: (brut: string) => string | null,
+	enMiroirApplicatif: boolean
+): boolean {
+	if (enMiroirApplicatif) return false;
+	if (!appDomain) return false;
+	return normaliser(appDomain) !== null;
+}

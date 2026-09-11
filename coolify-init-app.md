@@ -134,7 +134,7 @@ Exemple:
 
 ```env
 # prod
-APP_DOMAIN=rncp.theomouty.fr
+APP_DOMAIN=https://rncp.theomouty.fr
 TRAEFIK_ROUTER_NAME=calculatorgcc-prod
 TRAEFIK_SERVICE_NAME=calculatorgcc-prod
 MARIADB_DATA_PATH=/data/calculatorgcc-prod/mariadb
@@ -142,7 +142,7 @@ DB_SHARED_ALIAS=calculatorgcc-prod-db
 REQUIRE_CONFIGURED_DB=false
 
 # preprod
-APP_DOMAIN=preprod-rncp.theomouty.fr
+APP_DOMAIN=https://preprod-rncp.theomouty.fr
 TRAEFIK_ROUTER_NAME=calculatorgcc-preprod
 TRAEFIK_SERVICE_NAME=calculatorgcc-preprod
 MARIADB_DATA_PATH=/data/calculatorgcc-preprod/mariadb

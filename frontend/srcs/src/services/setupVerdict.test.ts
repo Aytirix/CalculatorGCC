@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lireVerdictSetup } from './setupVerdict';
+import { lireVerdictSetup, prochainConfigured } from './setupVerdict';
 import type { SetupStatus } from './setup.service';
 
 /**
@@ -80,5 +80,31 @@ describe('lireVerdictSetup', () => {
 			expect((await lireVerdictSetup(reponse({ configured: false }))).configured).toBe(false);
 			expect((await lireVerdictSetup(reponse({ configured: true }))).configured).toBe(true);
 		});
+	});
+});
+
+describe('prochainConfigured', () => {
+	it('ne revient JAMAIS de « configurée » à « non configurée »', () => {
+		// LA régression : depuis que le porteur de jeton interroge cette route, un
+		// `false` explicite remplaçait toute l'application par « non configurée » en
+		// pleine session. Deux chemins le renvoient pour de bon — miroir applicatif
+		// sans credentials 42, et credentials qui ne déchiffrent plus.
+		expect(prochainConfigured(true, false)).toBe(true);
+	});
+
+	it('ne conclut rien sur un inconnu', () => {
+		for (const precedent of [true, false, null] as const) {
+			expect(prochainConfigured(precedent, null)).toBe(precedent);
+		}
+	});
+
+	it('accepte la première réponse, quelle qu’elle soit', () => {
+		expect(prochainConfigured(null, false)).toBe(false);
+		expect(prochainConfigured(null, true)).toBe(true);
+	});
+
+	it('laisse « non configurée » devenir « configurée »', () => {
+		// Le sens utile : on renseigne les identifiants depuis le panneau, on revient.
+		expect(prochainConfigured(false, true)).toBe(true);
 	});
 });

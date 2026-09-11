@@ -37,19 +37,26 @@ build-dev: ## Rebuild les images en mode développement
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
 
 test: ## Lancer les tests unitaires (backend + frontend)
-# Les deux, et le backend D'ABORD. La cible n'exécutait que le frontend : les
-# tests backend ne tournaient donc que si quelqu'un tapait la commande à la main
-# dans le bon conteneur — autant dire jamais. C'est pourtant là que vit le
-# contrôle d'origine, et le projet n'a aucune CI pour rattraper l'oubli.
-	@echo "$(BLUE)🧪 Tests backend...$(RESET)"
-# `vitest` a été ajouté aux devDependencies après la construction de l'image :
-# un conteneur plus ancien ne l'a pas, et `npm test` y échoue en « not found ».
-# On le dit au lieu de laisser lire une erreur npm sans rapport apparent.
-	@docker exec calculatorGCC_backend_dev sh -c 'command -v vitest >/dev/null 2>&1 || [ -x node_modules/.bin/vitest ]' \
-		|| { echo "$(BLUE)   vitest absent du conteneur backend : lancez « make build-dev » une fois.$(RESET)"; exit 1; }
-	@docker exec calculatorGCC_backend_dev npm test
+# Les deux. La cible n'exécutait que le frontend : les tests backend ne tournaient
+# donc que si quelqu'un tapait la commande à la main dans le bon conteneur —
+# autant dire jamais. C'est pourtant là que vit le contrôle d'origine, et le
+# projet n'a aucune CI pour rattraper l'oubli.
+#
+# Le FRONTEND D'ABORD : une première version lançait le backend en premier et
+# avortait la cible quand son conteneur n'avait pas `vitest`, si bien que plus
+# AUCUN test ne s'exécutait — une cible de test muette est pire que partielle.
 	@echo "$(BLUE)🧪 Tests frontend...$(RESET)"
 	@docker exec calculatorGCC_frontend_dev npm test
+	@echo "$(BLUE)🧪 Tests backend...$(RESET)"
+# `vitest` a été ajouté aux devDependencies après la construction de l'image : un
+# conteneur plus ancien ne l'a pas. Plutôt que d'échouer sur un « not found » sans
+# rapport apparent, on se rabat sur les node_modules de l'hôte, qui eux l'ont.
+	@if docker exec calculatorGCC_backend_dev test -x node_modules/.bin/vitest 2>/dev/null; then \
+		docker exec calculatorGCC_backend_dev npm test; \
+	else \
+		echo "$(BLUE)   vitest absent du conteneur backend, repli sur l'hôte (« make build-dev » pour l'y ajouter).$(RESET)"; \
+		cd backend/srcs && npx vitest run; \
+	fi
 
 # ATTENTION : le typecheck du frontend DOIT passer par « tsc -b ».
 # « tsc --noEmit » ne vérifie strictement RIEN ici (tsconfig racine avec

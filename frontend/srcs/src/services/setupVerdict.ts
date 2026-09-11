@@ -49,3 +49,29 @@ export async function lireVerdictSetup(
 		return { configured: refusExplicite ? false : null, originAllowed: null };
 	}
 }
+
+/**
+ * Prochaine valeur du drapeau « instance configurée ».
+ *
+ * MONOTONE : une fois connue configurée, elle ne redevient jamais « non
+ * configurée ». Extrait du hook pour être testable — c'est un point de câblage,
+ * et l'audit a montré que ceux-là échappaient aux tests.
+ *
+ * Le besoin est né d'une régression. Avant que le contrôle d'origine n'existe, un
+ * porteur de jeton n'interrogeait jamais `/setup/status` ; en levant ce
+ * court-circuit, on a exposé tout le monde à un `configured: false` explicite, qui
+ * remplace l'application entière par « non configurée » en pleine session. Deux
+ * chemins le renvoient pour de bon : une instance en miroir applicatif, qui n'a
+ * par conception aucun credential 42, et une instance dont les credentials ne
+ * déchiffrent plus.
+ */
+export function prochainConfigured(
+	precedent: boolean | null,
+	verdict: boolean | null
+): boolean | null {
+	// Inconnu : on ne touche à rien. Un hoquet réseau n'est pas une information.
+	if (verdict === null) return precedent;
+	// Déjà connue configurée : plus de retour en arrière.
+	if (precedent === true) return true;
+	return verdict;
+}

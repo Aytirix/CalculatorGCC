@@ -6,9 +6,10 @@
  * cassée — le remède était pire que le mal. Ici l'information passe et le site
  * reste debout. */
 .origin-warning {
-	position: sticky;
-	top: 0;
-	z-index: 900;
+	/* NON collant. Le header de l'application l'est déjà (`top: 0`, z-index 1000)
+	   dans le même défilement : un bandeau collant lui passait dessous au premier
+	   scroll, et surenchérir sur le z-index n'aurait fait que les superposer.
+	   En tête de flux, il est lu une fois et laisse la place. */
 	display: flex;
 	gap: 0.75rem;
 	align-items: flex-start;

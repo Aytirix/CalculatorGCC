@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { origineAutorisee } from './originGate.js';
+import { origineAutorisee, instanceFaitAutorite } from './originGate.js';
 // La VRAIE fonction du dépôt, et non une copie « en plus court » : le contrat
 // entre le gate et la normalisation ne se vérifie qu'en exerçant celle qui tourne
 // en production. La copie simplifiée d'une version antérieure de ce test aurait
@@ -140,5 +140,37 @@ describe('origineAutorisee', () => {
 			expect(await origineAutorisee('https://intrus.fr', normalizeOrigin, listeVide, true))
 				.toBe(false);
 		});
+	});
+});
+
+describe('instanceFaitAutorite', () => {
+	it('fait autorité dans le cas nominal', async () => {
+		expect(instanceFaitAutorite('https://rncp.exemple.fr', normalizeOrigin, false)).toBe(true);
+	});
+
+	it('ne fait PAS autorité en miroir applicatif', () => {
+		// `/setup/status` est servi localement par un miroir applicatif : sa propre
+		// liste blanche ne prouve rien, c'est sa cible qui scelle le `state`. Elle
+		// s'auto-autorisait — un feu vert sur la panne même qu'on veut signaler.
+		expect(instanceFaitAutorite('https://miroir.exemple.fr', normalizeOrigin, true)).toBe(false);
+	});
+
+	it('ne fait PAS autorité sans APP_DOMAIN', () => {
+		for (const rien of [undefined, '']) {
+			expect(instanceFaitAutorite(rien, normalizeOrigin, false)).toBe(false);
+		}
+	});
+
+	it('ne fait PAS autorité sur un APP_DOMAIN ILLISIBLE', () => {
+		// La forme que README.md et coolify-init-app.md documentaient : sans schéma,
+		// `normalizeOrigin` rend `null`, l'instance ne se reconnaît plus elle-même
+		// et se déclarerait « non autorisée » à son propre frontend.
+		for (const bancal of ['rncp.theomouty.fr', 'localhost:3000', '   ', 'ftp://x.fr']) {
+			expect(instanceFaitAutorite(bancal, normalizeOrigin, false)).toBe(false);
+		}
+	});
+
+	it('le miroir applicatif prime, même avec un domaine impeccable', () => {
+		expect(instanceFaitAutorite('https://parfait.fr', normalizeOrigin, true)).toBe(false);
 	});
 });
