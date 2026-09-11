@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/useAuth';
+import { useOriginStatus } from '@/contexts/useOriginStatus';
 import './Login.scss';
 
 /**
@@ -38,6 +39,12 @@ const FEATURES: { icon: string; title: string; text: string }[] = [
 const Login: React.FC = () => {
 	const { login } = useAuth();
 	const navigate = useNavigate();
+	// Cette adresse n'est pas déclarée sur le serveur qui traite la connexion 42 :
+	// cliquer déposerait la personne sur l'AUTRE site, sans un mot. Un bouton qui
+	// ment est pire qu'un bouton éteint. `false` STRICT — `null` veut dire « on ne
+	// sait pas » et ne doit rien désactiver.
+	const { originAllowed } = useOriginStatus();
+	const connexionImpossible = originAllowed === false;
 
 	return (
 		<div className="auth-page login-page">
@@ -75,15 +82,23 @@ const Login: React.FC = () => {
 						type="button"
 						className="auth-cta login-cta"
 						onClick={login}
-						whileHover={{ scale: 1.02 }}
-						whileTap={{ scale: 0.98 }}
+						disabled={connexionImpossible}
+						aria-disabled={connexionImpossible}
+						title={
+							connexionImpossible
+								? "Cette adresse n'est pas déclarée sur le serveur qui traite la connexion 42."
+								: undefined
+						}
+						whileHover={connexionImpossible ? undefined : { scale: 1.02 }}
+						whileTap={connexionImpossible ? undefined : { scale: 0.98 }}
 					>
 						Se connecter avec 42
 					</motion.button>
 
 					<p className="auth-note login-note">
-						Connexion via l'intra 42. L'application lit tes projets, ton niveau et tes
-						événements — elle n'écrit jamais rien sur ton compte.
+						{connexionImpossible
+							? "La connexion est indisponible depuis cette adresse : elle n'est pas déclarée sur le serveur qui la traite. Passez par le site principal, ou demandez à un administrateur de l'ajouter."
+							: "Connexion via l'intra 42. L'application lit tes projets, ton niveau et tes événements — elle n'écrit jamais rien sur ton compte."}
 					</p>
 				</motion.section>
 

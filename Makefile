@@ -36,7 +36,18 @@ build-dev: ## Rebuild les images en mode développement
 	@echo "$(GREEN)🔨 Reconstruction des images de développement...$(RESET)"
 	@$(DOCKER_COMPOSE) -f docker-compose.dev.yml build --no-cache
 
-test: ## Lancer les tests unitaires du frontend
+test: ## Lancer les tests unitaires (backend + frontend)
+# Les deux, et le backend D'ABORD. La cible n'exécutait que le frontend : les
+# tests backend ne tournaient donc que si quelqu'un tapait la commande à la main
+# dans le bon conteneur — autant dire jamais. C'est pourtant là que vit le
+# contrôle d'origine, et le projet n'a aucune CI pour rattraper l'oubli.
+	@echo "$(BLUE)🧪 Tests backend...$(RESET)"
+# `vitest` a été ajouté aux devDependencies après la construction de l'image :
+# un conteneur plus ancien ne l'a pas, et `npm test` y échoue en « not found ».
+# On le dit au lieu de laisser lire une erreur npm sans rapport apparent.
+	@docker exec calculatorGCC_backend_dev sh -c 'command -v vitest >/dev/null 2>&1 || [ -x node_modules/.bin/vitest ]' \
+		|| { echo "$(BLUE)   vitest absent du conteneur backend : lancez « make build-dev » une fois.$(RESET)"; exit 1; }
+	@docker exec calculatorGCC_backend_dev npm test
 	@echo "$(BLUE)🧪 Tests frontend...$(RESET)"
 	@docker exec calculatorGCC_frontend_dev npm test
 

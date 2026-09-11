@@ -83,11 +83,31 @@ if [ -n "$MIRROR_API_URL" ]; then
     # Le domaine PUBLIC de ce miroir. Obligatoire : c'est lui qui part dans le
     # `?origin=` de la connexion 42, et donc lui que l'instance principale doit
     # reconnaître. Sans lui, impossible de vérifier quoi que ce soit au démarrage.
-    if [ -z "${APP_DOMAIN:-}" ]; then
+    #
+    # Espaces retirés puis slash final ôté, comme pour MIRROR_API_URL : l'origine
+    # scellée par l'instance principale est normalisée (`new URL(x).origin`), et
+    # une comparaison sur « https://x.fr/ » échouerait pour rien.
+    APP_DOMAIN="$(printf '%s' "${APP_DOMAIN:-}" | tr -d '[:space:]')"
+    APP_DOMAIN="${APP_DOMAIN%/}"
+    if [ -z "$APP_DOMAIN" ]; then
         echo "[miroir] ERREUR DE CONFIGURATION : APP_DOMAIN est vide."
         echo "         Renseignez le domaine public de CE miroir (ex. https://miroir.exemple.fr)."
         exit 1
     fi
+
+    # Forme contrôlée, et pas seulement la présence. Sans schéma, l'instance
+    # principale ne peut pas lire cette valeur comme une origine : elle répondait
+    # « non reconnue », et le message renvoyait l'exploitant vers son panneau —
+    # lequel refuse la même chaîne en 400. Consigne impossible à suivre, sur une
+    # forme que README.md et coolify-init-app.md documentent pourtant.
+    case "$APP_DOMAIN" in
+        http://*|https://*) ;;
+        *)
+            echo "[miroir] ERREUR DE CONFIGURATION : APP_DOMAIN doit commencer par http:// ou https://"
+            echo "         Reçu : $APP_DOMAIN"
+            exit 1
+            ;;
+    esac
 
     # Proxy de confiance devant le miroir, pour restaurer la vraie IP client.
     # Par défaut 127.0.0.1/32 : personne. Un miroir exposé en direct ne doit PAS
@@ -167,41 +187,78 @@ if [ -n "$MIRROR_API_URL" ]; then
                 return 1
                 ;;
         esac
-        # --- L'instance principale reconnait-elle CE miroir ? -----------------
+        # --- L'instance principale nous rendra-t-elle la main ? ---------------
         #
-        # La connexion 42 part d'ici avec `?origin=<ce miroir>`, mais c'est la
-        # principale qui decide : si l'origine n'est pas declaree chez elle,
-        # `initiateOAuth` retombe EN SILENCE sur son propre domaine. Le visiteur
-        # clique « Se connecter » et atterrit sur le site principal, sans un mot.
-        # Constate le 2026-09-11 sur testmirror.theomouty.fr, et le miroir avait
-        # demarre sans la moindre alerte : c'est exactement ce qu'on corrige ici.
+        # On ne lui demande pas un avis : on REJOUE le parcours. `/auth/42?origin=`
+        # répond par une redirection vers 42 dont le paramètre `state` scelle
+        # l'origine de retour. Si ce n'est pas la nôtre, nos visiteurs
+        # atterriront chez elle en cliquant « Se connecter » — sans un mot, car
+        # `initiateOAuth` retombe en silence sur son propre domaine.
         #
-        # `--get --data-urlencode` : c'est curl qui encode l'URL, pas nous.
-        reponse_statut=$(curl -sS --max-time 10 --get \
-            --data-urlencode "origin=$APP_DOMAIN" \
-            "${MIRROR_API_ORIGIN}${MIRROR_API_PATH}/setup/status" 2>/dev/null || true)
-        # Espaces retires : on ne depend pas du formatage JSON d'en face.
-        compact=$(printf '%s' "$reponse_statut" | tr -d ' \t\n')
-        case "$compact" in
-            *'"origin_allowed":false'*)
-                echo "[miroir] REFUS DE DEMARRER : l'instance principale ne reconnait pas ce miroir."
-                echo "         Origine presentee : $APP_DOMAIN"
-                echo "         Sans elle, « Se connecter » renverra vos visiteurs sur ${MIRROR_API_ORIGIN}."
-                echo "         Corrigez cote instance principale : panneau admin -> Origines autorisees"
-                echo "         -> ajouter exactement : $APP_DOMAIN"
-                return 1
+        # C'est la méthode de `checkReturnOrigin()` (mirror.service.ts), écrite
+        # avant nous pour ce besoin exact, et c'est aussi celle qui a servi à
+        # diagnostiquer la panne du 2026-09-11. Un premier jet interrogeait
+        # `/setup/status?origin=` : réponse servie LOCALEMENT par un miroir
+        # applicatif, qui s'auto-autorise — donc un feu vert sur la panne même
+        # qu'on cherche à signaler.
+        #
+        # On AVERTIT sans refuser de démarrer. L'origine est un état DISTANT et
+        # révocable par quelqu'un d'autre : avec `restart: unless-stopped`, sortir
+        # en erreur mettrait le conteneur en boucle au premier redémarrage suivant
+        # une révocation, et il ne servirait alors plus rien du tout — pas même le
+        # bandeau d'explication. La doctrine du fichier, plus haut, dit la même
+        # chose : on ne refuse de démarrer que si un redéploiement est nécessaire
+        # pour corriger. Ici, tout se répare côté instance principale.
+        avertir_origine() {
+            echo "[miroir] AVERTISSEMENT : $1"
+            echo "         Origine de ce miroir : $APP_DOMAIN"
+            echo "         Tant que ce n'est pas réglé, « Se connecter » renverra vos visiteurs"
+            echo "         sur ${MIRROR_API_ORIGIN}. Le site reste servi, avec un bandeau d'alerte."
+        }
+
+        redirection=$(curl -sS --max-time 10 -o /dev/null -w '%{redirect_url}' \
+            --get --data-urlencode "origin=$APP_DOMAIN" \
+            "${MIRROR_API_ORIGIN}${MIRROR_API_PATH}/auth/42" 2>/dev/null || true)
+
+        if [ -z "$redirection" ]; then
+            # Pas de redirection : la cible n'a pas démarré de connexion 42. Soit
+            # elle n'est pas configurée, soit elle a répondu une erreur. On ne
+            # sait pas — et on le dit, plutôt que d'inventer un verdict.
+            avertir_origine "impossible de vérifier — /auth/42 n'a pas renvoyé de redirection."
+            return 0
+        fi
+
+        etat=$(printf '%s' "$redirection" | sed -n 's/.*[?&]state=\([^&]*\).*/\1/p')
+        if [ -z "$etat" ]; then
+            avertir_origine "l'instance principale est trop ancienne pour renvoyer les visiteurs ici."
+            return 0
+        fi
+
+        # base64url -> base64 : alphabet et remplissage. `cut -d.` isole la charge
+        # utile, la signature HMAC ne nous sert à rien (c'est elle qui nous est
+        # renvoyée, on ne la vérifie pas).
+        charge=$(printf '%s' "$etat" | cut -d. -f1 | tr '_-' '/+')
+        case $(( ${#charge} % 4 )) in
+            2) charge="${charge}==" ;;
+            3) charge="${charge}=" ;;
+        esac
+        # Espaces retirés avant comparaison : `JSON.stringify` n'en met pas, mais
+        # rien ne garantit qu'un sérialiseur différent n'en mettra jamais, et un
+        # faux « non reconnu » est précisément le genre de verdict erroné qu'on
+        # cherche à supprimer. Même précaution que pour la réponse de /health.
+        scelle=$(printf '%s' "$charge" | base64 -d 2>/dev/null | tr -d ' \t\n' || true)
+
+        case "$scelle" in
+            *"\"o\":\"$APP_DOMAIN\""*)
+                echo "[miroir] L'instance principale renverra bien les visiteurs sur $APP_DOMAIN."
                 ;;
-            *'"origin_allowed":true'*)
-                echo "[miroir] Origine $APP_DOMAIN reconnue par l'instance principale."
+            '')
+                avertir_origine "impossible de relire le state renvoyé par l'instance principale."
                 ;;
             *)
-                # Champ absent : instance principale anterieure a ce controle. On
-                # NE bloque PAS -- refuser ici rendrait tout miroir indeployable
-                # tant que la principale n'est pas mise a jour, alors que le
-                # relais, lui, fonctionne.
-                echo "[miroir] AVERTISSEMENT : l'instance principale ne repond pas sur l'origine."
-                echo "         Verifiez a la main que $APP_DOMAIN figure dans ses origines autorisees,"
-                echo "         sinon la connexion 42 renverra vos visiteurs chez elle."
+                avertir_origine "l'instance principale ne reconnaît PAS cette origine."
+                echo "         Corrigez côté instance principale : panneau admin -> Origines autorisées"
+                echo "         -> ajouter exactement : $APP_DOMAIN"
                 ;;
         esac
         return 0

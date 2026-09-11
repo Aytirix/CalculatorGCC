@@ -1,15 +1,23 @@
 /**
  * « L'origine d'où l'on m'interroge est-elle reconnue ici ? »
  *
- * Isolé du contrôleur pour être testable sans base : la logique tient en trois
- * cas, mais deux d'entre eux ont des conséquences opposées et l'un d'eux bloque
- * l'application entière s'il est mal tranché.
+ * Isolé du contrôleur pour être testable sans base. Trois réponses, et non deux :
+ * `true`, `false`, et **`null` pour « je ne sais pas »**.
  *
- * Le cas qui compte est l'ABSENCE de paramètre. Elle vaut `true` — « rien à
- * bloquer » — et non `false` : tout frontend qui ne pose pas la question (sonde
- * de supervision, version antérieure à ce contrôle) doit continuer de
- * fonctionner. Répondre `false` par défaut ferait tomber l'instance principale
- * elle-même, dont le frontend interrogeait cette route sans rien demander.
+ * Ce `null` est le cœur de la fonction. La version précédente écrasait
+ * l'incertitude en `true`, et le démarrage d'un miroir affichait alors « Origine
+ * reconnue par l'instance principale » alors que personne n'avait rien vérifié —
+ * exactement le mensonge silencieux que ce garde-fou existe pour supprimer. Une
+ * non-réponse ne doit pas s'écrire comme un accord.
+ *
+ * Deux situations où cette instance ne peut PAS trancher :
+ *  - `APP_DOMAIN` absent : `config.frontendUrl` retombe sur le nom d'hôte du
+ *    conteneur, et la comparaison « est-ce moi ? » ne veut plus rien dire ;
+ *  - instance en **miroir applicatif** : elle relaie `/auth/42` vers une autre
+ *    instance, qui décide seule du retour — mais `/setup/status` reste servi
+ *    localement (`LOCAL_PREFIXES` dans `mirror.service.ts`). Répondre depuis sa
+ *    propre liste blanche reviendrait à se valider en se regardant soi-même, et
+ *    c'est précisément ce qu'elle faisait : un feu vert sur la panne à corriger.
  */
 
 /** Vérificateur de liste blanche, injecté pour rester testable. */
@@ -20,28 +28,34 @@ export async function origineAutorisee(
 	normaliser: (brut: string) => string | null,
 	estAutorisee: EstAutorisee,
 	/**
-	 * L'instance sait-elle sous quel domaine elle est servie ?
-	 *
-	 * Faux quand `APP_DOMAIN` n'est pas renseigné : `frontendUrl` retombe alors
-	 * sur le nom d'hôte du conteneur, et la comparaison « est-ce moi ? » ne veut
-	 * plus rien dire. On répond `true` plutôt que de bloquer — sans cette garde,
-	 * une instance PRINCIPALE mal configurée se déclarait « non reconnue » à
-	 * elle-même et n'affichait plus rien, là où seule sa connexion 42 était
-	 * cassée. On ne répond pas à une question qu'on ne sait pas trancher.
+	 * Cette instance fait-elle autorité sur la question ? Voir l'en-tête : faux
+	 * quand elle ignore son propre domaine, ou quand une autre instance décidera
+	 * réellement du retour de connexion.
 	 */
-	identiteEtablie = true
-): Promise<boolean> {
-	if (!identiteEtablie) return true;
+	faitAutorite = true
+): Promise<boolean | null> {
+	// Paramètre absent : l'appelant ne pose pas la question, il n'y a rien à
+	// bloquer. C'est le cas de toute sonde et de tout frontend antérieur à ce
+	// contrôle — y compris celui de l'instance principale elle-même.
+	if (origin === undefined) return true;
 
-	// Paramètre absent, ou d'un type inattendu (`?origin=a&origin=b` donne un
-	// tableau) : on ne bloque pas ce qu'on n'a pas su lire comme une question.
-	if (typeof origin !== 'string') return true;
+	// Présent mais pas une chaîne : `?origin=a&origin=b` arrive en tableau. C'est
+	// une question MALFORMÉE, pas une absence de question — la traiter comme un
+	// silence donnait un contournement d'un seul caractère. Le dépôt a déjà
+	// tranché dans ce sens pour la même entrée (`admin.controller.ts` répond 400),
+	// et `initiateOAuth` lève sur un tableau : on ne va pas déclarer « autorisée »
+	// une valeur que le décideur ne sait même pas lire.
+	if (typeof origin !== 'string') return false;
 
-	// Chaîne vide : c'est une question, posée avec une réponse impossible. Elle
-	// ne peut pas valoir « pas de question » — sinon `?origin=` suffirait à
-	// contourner le contrôle.
+	// Illisible : même traitement. Une question MALFORMÉE se reconnaît sans aucune
+	// autorité — c'est un constat sur l'entrée, pas un verdict sur l'origine. La
+	// répondre `null` laisserait l'appelant croire qu'il a posé une vraie question
+	// restée sans réponse, alors qu'il a envoyé n'importe quoi.
 	const normalisee = normaliser(origin);
 	if (normalisee === null) return false;
+
+	// La question est bien formée, mais ce n'est pas à nous d'y répondre.
+	if (!faitAutorite) return null;
 
 	return estAutorisee(normalisee);
 }

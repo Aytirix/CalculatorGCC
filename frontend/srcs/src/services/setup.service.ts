@@ -4,6 +4,11 @@ import { config } from '../config/config';
 const api = axios.create({
   baseURL: config.backendUrl,
   withCredentials: true,
+  // Sans délai maximum, axios attend indéfiniment : une connexion pendue laissait
+  // l'application sur « Loading… » pour toujours, puisque ce service est sur le
+  // chemin du tout premier rendu. `admin.service.ts` avait déjà rencontré et
+  // corrigé exactement ce piège.
+  timeout: 10_000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,12 +18,13 @@ export interface SetupStatus {
   configured: boolean;
   message: string;
   /**
-   * Cette instance-ci reconnaît-elle l'origine d'où on l'interroge ?
+   * Cette instance reconnaît-elle l'origine d'où on l'interroge ?
    *
-   * Absent quand l'instance principale est antérieure à ce contrôle : on ne
-   * conclut alors rien plutôt que de bloquer à tort. Voir `useSetupCheck`.
+   * Trois valeurs, et la troisième compte autant que les deux autres :
+   * `true`, `false`, et `null` quand l'instance ne fait pas autorité. Absent
+   * quand elle est antérieure à ce contrôle — traité comme `null`.
    */
-  origin_allowed?: boolean;
+  origin_allowed?: boolean | null;
 }
 
 /**
@@ -41,31 +47,6 @@ class SetupService {
       params: { origin: window.location.origin },
     });
     return response.data;
-  }
-
-  /**
-   * Ce site est-il servi par un MIROIR ?
-   *
-   * `/api/health` est la seule route qu'un miroir traite LUI-MÊME, sans relayer :
-   * son nginx y répond `{"mode":"mirror"}`, là où l'instance principale renvoie la
-   * réponse de Fastify, sans ce champ. C'est donc une preuve positive, et non une
-   * déduction.
-   *
-   * Elle sert à ne bloquer l'affichage que là où le blocage a un sens. Sans elle,
-   * un `origin_allowed: false` coupait aussi une instance PRINCIPALE dont
-   * l'`APP_DOMAIN` ne correspond pas au domaine réellement servi — le cas du dev
-   * de ce dépôt, servi sur :3000 avec un APP_DOMAIN en :3100. Le remède aurait
-   * été bien pire que le mal : site entièrement noir contre login cassé.
-   *
-   * Toute erreur vaut `false` : on ne bloque jamais sur une incertitude.
-   */
-  async estMiroir(): Promise<boolean> {
-    try {
-      const response = await api.get<{ mode?: string }>('/health');
-      return response.data?.mode === 'mirror';
-    } catch {
-      return false;
-    }
   }
 }
 

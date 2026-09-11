@@ -138,10 +138,14 @@ service `nginx` du miroir **remplacerait** celui de l'environnement en place.
 ### Ce que nginx vérifie au démarrage
 
 Il refuse de se lancer si la cible ne répond pas comme une API CalculatorGCC :
-injoignable, code autre que 200, réponse HTML au lieu de JSON (le `/api` oublié),
-ou corps qui n'est pas `{"status":"ok"}`. Sans panneau d'administration ici, une
-URL erronée donnerait un site mort qu'on ne pourrait corriger qu'en redéployant
-à l'aveugle.
+code autre que 200, réponse HTML au lieu de JSON (le `/api` oublié), ou corps qui
+n'est pas `{"status":"ok"}`. Sans panneau d'administration ici, une URL erronée
+donnerait un site mort qu'on ne pourrait corriger qu'en redéployant à l'aveugle.
+
+Une cible simplement **injoignable** ne fait PAS échouer le démarrage : la
+configuration est bonne, elle le redeviendra, et refuser ici donnerait un
+crash-loop sans même le site statique. Le miroir démarre après quelques tentatives
+et sert `api-indisponible.html` en 503 jusqu'à son retour.
 
 Il refuse aussi une cible **qui est elle-même un miroir**, reconnue à son
 `"mode":"mirror"`. La chaîne passait sans bruit, puisqu'un miroir répond bien
@@ -149,23 +153,40 @@ Il refuse aussi une cible **qui est elle-même un miroir**, reconnue à son
 ne voyait plus que l'adresse du premier — journaux et rate-limit de l'instance
 principale comptaient alors tous les visiteurs de la chaîne comme un seul.
 
-Enfin — et c'est le contrôle qui manquait le plus — il refuse de démarrer si
-l'instance principale **ne reconnaît pas ce miroir**. Il lui présente `APP_DOMAIN`
-sur `/setup/status?origin=…` et lit `origin_allowed`. `APP_DOMAIN` est donc
-obligatoire en mode miroir.
+`APP_DOMAIN` est obligatoire en mode miroir, et sa **forme** est contrôlée :
+schéma `http://` ou `https://` exigé. Sans schéma, l'instance principale ne sait
+pas lire la valeur comme une origine, et le panneau d'administration refuse la
+même chaîne en 400 — l'exploitant recevait une consigne impossible à suivre.
+
+### L'instance principale nous rendra-t-elle la main ?
+
+Le contrôle qui manquait le plus. Le miroir ne demande pas un avis : il **rejoue
+le parcours**. Il appelle `/auth/42?origin=<lui-même>` et lit le paramètre `state`
+de la redirection renvoyée, qui scelle l'origine de retour. Si ce n'est pas la
+sienne, ses visiteurs atterriront ailleurs.
+
+Pourquoi cette méthode et pas une autre : c'est le **comportement réel** qui est
+mesuré, pas une opinion collatérale. C'est déjà ce que fait `checkReturnOrigin()`
+dans `mirror.service.ts` pour le miroir applicatif, et c'est ce qui a servi à
+diagnostiquer la panne. Un premier jet interrogeait `/setup/status?origin=` : cette
+route est servie **localement** par un miroir applicatif, qui s'auto-autorise —
+elle rendait donc un feu vert sur la panne même qu'on cherchait à signaler.
 
 Pourquoi c'est vital : la connexion 42 part d'ici avec `?origin=<ce miroir>`, mais
 c'est la principale qui tranche, et quand l'origine n'est pas déclarée chez elle,
 `initiateOAuth` retombe **en silence** sur son propre domaine. Le miroir démarrait
 sans broncher, le site s'affichait — et le visiteur qui cliquait « Se connecter »
 atterrissait sur le site principal, sans un mot. Constaté le 2026-09-11 sur
-`testmirror.theomouty.fr` : le `state` OAuth scellait `https://rncp.theomouty.fr`
-alors que le miroir avait bien transmis sa propre origine.
+`testmirror.theomouty.fr` : le `state` scellait `https://rncp.theomouty.fr` alors
+que le miroir avait bien transmis sa propre origine.
 
-Si la principale ne renvoie **pas** ce champ (version antérieure au contrôle), le
-miroir démarre avec un avertissement plutôt qu'un refus : le relais, lui,
-fonctionne, et bloquer ici rendrait tout miroir indéployable tant que la
-principale n'est pas à jour.
+**Le miroir démarre quand même**, avec un avertissement très visible. L'origine
+est un état **distant**, révocable par quelqu'un d'autre et réparable sans toucher
+au miroir : refuser de démarrer mettrait le conteneur en boucle au premier
+redémarrage suivant une révocation (`restart: unless-stopped`), et il ne servirait
+alors plus rien — pas même le bandeau qui explique la situation. C'est la doctrine
+déjà écrite plus haut : on ne refuse de démarrer que si un redéploiement est
+nécessaire pour corriger.
 
 Si l'URL n'a pas de chemin, `/api` est ajouté automatiquement.
 
@@ -209,23 +230,35 @@ l'adresse journalisée.
 
 ### Quand l'instance principale ne reconnaît plus ce miroir
 
-Le contrôle de démarrage ne voit qu'un instant : une origine **révoquée** depuis
-le panneau prend effet immédiatement, miroir déjà lancé. Le frontend joint donc
-sa propre origine à chaque appel de `/setup/status`, et affiche la page
-« Ce site n'est pas relié » dès que la réponse dit `origin_allowed: false`.
+Le contrôle de démarrage ne voit qu'un instant : une origine peut être **révoquée**
+alors que le miroir tourne. Le frontend joint donc sa propre origine à chaque appel
+de `/setup/status`, au plus une fois toutes les 30 secondes, et affiche un
+**bandeau** dès que la réponse dit `origin_allowed: false`. Le bouton « Se
+connecter » est alors désactivé, avec la raison.
 
-Deux nuances volontaires :
+Un bandeau, et non un écran plein. L'écran plein a été livré puis retiré en audit :
+il suffisait que le miroir soit servi sur un port ou un schéma différent de son
+`APP_DOMAIN` — le cas par défaut de `docker-compose.mirror.yml`, qui publie un port
+en clair — pour que **tout le site** s'éteigne alors que seule la connexion était
+cassée. Le remède était pire que le mal.
 
-- **`false` strict.** Une réponse absente ou muette vaut « on ne sait pas » et ne
-  bloque rien — sinon un hoquet réseau, ou une principale pas encore à jour,
-  couperaient le site.
-- **Seulement pour les visiteurs anonymes.** Le hook ne pose pas la question quand
-  un jeton est présent, et c'est correct : l'origine ne sert qu'au retour de la
-  connexion 42. Une personne déjà connectée continue d'utiliser le miroir
-  normalement, seul le prochain login serait concerné.
+Trois précisions qui comptent :
 
-`/admin/*` est épargné, comme pour l'écran « non configurée » : c'est la seule
-porte qui reste ouverte à qui administre.
+- **`false` strict.** `null` et l'absence de champ valent « on ne sait pas » et
+  n'affichent rien — sinon un hoquet réseau, ou une principale pas encore à jour,
+  déclencheraient une alerte infondée.
+- **Les visiteurs connectés aussi.** Une version antérieure ne posait pas la
+  question quand un jeton était présent. C'est pourtant le porteur de jeton qui
+  subit le plus la panne : il se déconnecte dans l'onglet, reclique, et repart
+  chez l'autre instance.
+- **Le libellé ne parle pas de « miroir ».** La même réponse survient sur une
+  instance principale dont l'`APP_DOMAIN` ne correspond pas au domaine servi.
+
+Une instance qui **ne fait pas autorité** répond `origin_allowed: null` plutôt que
+`true` : c'est le cas quand `APP_DOMAIN` est absent, et quand elle est elle-même en
+miroir applicatif — sa propre liste blanche ne prouve alors rien. Une non-réponse
+ne doit pas s'écrire comme un accord ; c'est exactement le mensonge silencieux
+qu'on cherche à supprimer.
 
 ### Quand la cible ne répond plus
 

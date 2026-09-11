@@ -20,7 +20,8 @@ import HolyGraph from '@/pages/HolyGraph/HolyGraph';
 import MyProjects from '@/pages/MyProjects/MyProjects';
 import AdminLogin from '@/pages/Admin/AdminLogin';
 import NotConfigured from '@/pages/NotConfigured/NotConfigured';
-import OriginNotAllowed from '@/pages/OriginNotAllowed/OriginNotAllowed';
+import OriginWarning from '@/components/OriginWarning/OriginWarning';
+import { OriginStatusContext } from '@/contexts/OriginStatusContext';
 import AdminPanel from '@/pages/Admin/AdminPanel';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
@@ -66,23 +67,21 @@ const AppRoutes: React.FC = () => {
 		return <NotConfigured />;
 	}
 
-	// Miroir que l'instance principale ne reconnaît pas.
+	// Adresse non déclarée sur le serveur qui traite la connexion 42 : on AVERTIT,
+	// on ne coupe pas.
 	//
-	// Sans cet écran, le site paraissait fonctionner jusqu'au clic sur « Se
-	// connecter » : l'instance principale, ne trouvant pas l'origine dans sa liste,
-	// retombait en silence sur son propre domaine et déposait le visiteur là-bas.
+	// Un écran plein a été livré ici, puis retiré en audit : il suffisait qu'un
+	// miroir soit servi sur un port ou un schéma différent de son APP_DOMAIN pour
+	// que tout le site s'éteigne, alors que seule la connexion était cassée. Le
+	// bandeau dit la même chose sans rien casser, et couvre en plus les visiteurs
+	// connectés, que l'écran plein épargnait — or ce sont eux qui subissent la
+	// redirection silencieuse en se reconnectant.
 	//
-	// `false` STRICT : `null` veut dire « on ne sait pas » (réseau muet, ou instance
-	// principale antérieure à ce contrôle) et ne doit rien bloquer.
-	//
-	// `/admin/*` épargné pour la même raison que ci-dessus : c'est la seule porte
-	// qui reste ouverte à qui administre.
-	if (originAllowed === false && !location.pathname.startsWith('/admin')) {
-		return <OriginNotAllowed />;
-	}
-
+	// `false` STRICT : `null` veut dire « on ne sait pas » (réseau muet, instance
+	// antérieure à ce contrôle, ou instance qui ne fait pas autorité).
 	return (
-		<>
+		<OriginStatusContext.Provider value={{ originAllowed }}>
+			{originAllowed === false && <OriginWarning />}
 			<PrivacyGate />
 			<GithubLink />
 			<Routes>
@@ -153,7 +152,7 @@ const AppRoutes: React.FC = () => {
 			/>
 				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>
-		</>
+		</OriginStatusContext.Provider>
 	);
 };
 
