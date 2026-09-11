@@ -33,17 +33,22 @@ export function useSetupCheck() {
 	const dernierInstant = useRef(0);
 
 	const checkSetupStatus = useCallback(async (forcer = false) => {
-		const numero = ++dernierAppel.current;
 		const maintenant = Date.now();
-		const aInterroge = await rafraichirStatut({
+		await rafraichirStatut({
 			maintenant,
 			dernierInstant: dernierInstant.current,
 			forcer,
+			// Instant et numéro d'ordre posés au MOMENT DE LA DÉCISION, pas après la
+			// lecture : c'est ce qui fait que le plafond couvre la requête en vol, et
+			// qu'un appel plafonné ne périme pas la réponse d'un autre.
+			commencer: () => {
+				dernierInstant.current = maintenant;
+				return ++dernierAppel.current;
+			},
 			lire: () => setupService.getStatus(),
-			estPerime: () => numero !== dernierAppel.current,
+			estPerime: (numero) => numero !== dernierAppel.current,
 			setters: { setIsChecking, setIsConfigured, setOriginAllowed },
 		});
-		if (aInterroge) dernierInstant.current = maintenant;
 	}, []);
 
 	// Revérifié à chaque changement de route, y compris une fois l'instance connue

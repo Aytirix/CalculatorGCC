@@ -76,6 +76,10 @@ verifier() { # verifier <nom> <sortie> contient|absent <motif> ...
 			# A quitté dans la phase miroir, sans atteindre nginx.
 			quitte)   { grep -qF -- "$MARQUE_DEMARRAGE" <<<"$sortie" || [ "$RC" != 1 ]; } \
 				&& { ok=0; raison="aurait dû quitter en 1 (rc=$RC)"; }; shift ;;
+			# Sans cette branche, un mot-clé mal orthographié ne consommait aucun
+			# argument : la boucle tournait pour toujours et `make test` pendait
+			# sans une ligne de sortie.
+			*) echo "  ERREUR de test : assertion inconnue « $1 »"; exit 2 ;;
 		esac
 	done
 	TOTAL=$((TOTAL + 1))
@@ -108,9 +112,12 @@ echo "== state : alphabet base64url et remplissage =="
 # l'alphabet et ne couvrait rien — surestimation de couverture relevée en audit.
 # D'où une origine biscornue : aucune charge ASCII réaliste ne produit ces
 # caractères, mais le chemin de code, lui, doit rester juste.
-ETRANGE="https://a>>>b.exemple.fr"
+# Choisie pour produire `-` ET `_` : la version précédente n'en produisait que
+# l'un des deux, et supprimer la moitié du `tr` passait au vert.
+ETRANGE="https://a>>>>>?b.exemple.fr"
 CHARGE="$(b64url "{\"o\":\"$ETRANGE\",\"t\":1}")"
-grep -q '[-_]' <<<"$CHARGE" || echo "  (note : ni - ni _ dans la charge, alphabet non exercé)"
+grep -q -- '-' <<<"$CHARGE" || echo "  (note : pas de - dans la charge, moitié d'alphabet non exercée)"
+grep -q '_' <<<"$CHARGE" || echo "  (note : pas de _ dans la charge, moitié d'alphabet non exercée)"
 [ $(( ${#CHARGE} % 4 )) -ne 0 ] || echo "  (note : charge déjà alignée, remplissage non exercé)"
 export FAUX_REDIRECT="https://api.intra.42.fr/oauth/authorize?state=${CHARGE}.sig&client_id=u"
 lancer "$ETRANGE"

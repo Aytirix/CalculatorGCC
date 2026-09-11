@@ -125,20 +125,34 @@ export async function rafraichirStatut(params: {
 	maintenant: number;
 	dernierInstant: number;
 	forcer: boolean;
+	/**
+	 * Appelé UNE SEULE fois, dès la décision d'interroger prise, AVANT la lecture :
+	 * mémorise l'instant et rend le numéro d'ordre de cet appel.
+	 *
+	 * Le moment compte. Une version antérieure laissait l'appelant mémoriser
+	 * l'instant APRÈS la lecture : le plafond ne couvrait donc pas la requête en
+	 * vol, et deux navigations rapprochées émettaient deux appels — « une requête
+	 * par navigation », précisément ce que le plafond existe pour éviter. Elle
+	 * incrémentait aussi le numéro d'ordre avant la garde, si bien qu'un appel
+	 * PLAFONNÉ, n'émettant rien, périmait quand même la réponse en vol : une
+	 * révocation d'origine pouvait être perdue pour ce tour.
+	 */
+	commencer: () => number;
 	lire: () => Promise<SetupStatus>;
 	/** La réponse qui arrive est-elle celle d'un appel dépassé ? */
-	estPerime: () => boolean;
+	estPerime: (numero: number) => boolean;
 	setters: Setters;
 }): Promise<boolean> {
-	const { maintenant, dernierInstant, forcer, lire, estPerime, setters } = params;
+	const { maintenant, dernierInstant, forcer, commencer, lire, estPerime, setters } = params;
 	if (!doitInterroger(maintenant, dernierInstant, forcer)) return false;
 
+	const numero = commencer();
 	const verdict = await lireVerdictSetup(lire);
 
 	// Relâché AVANT la garde d'ancienneté : sinon une réponse périmée sortait sans
 	// jamais lever l'écran de chargement, et « Loading… » restait à vie.
 	setters.setIsChecking(false);
-	if (estPerime()) return true;
+	if (estPerime(numero)) return true;
 
 	setters.setIsConfigured((precedent) => prochainConfigured(precedent, verdict.configured));
 	setters.setOriginAllowed(verdict.originAllowed);

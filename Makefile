@@ -50,16 +50,14 @@ test: ## Lancer les tests unitaires (backend + frontend)
 # le shell en échec privait du backend. C'est la leçon déjà écrite plus haut,
 # réintroduite un cran plus loin — une suite muette est pire qu'une suite partielle.
 	@rc=0; \
-	echo "$(BLUE)🧪 Tests frontend...$(RESET)"; \
-	docker exec calculatorGCC_frontend_dev npm test || rc=1; \
-	echo "$(BLUE)🧪 Tests du démarrage miroir...$(RESET)"; \
-	bash nginx/entrypoint.test.sh || rc=1; \
-	echo "$(BLUE)🧪 Tests backend...$(RESET)"; \
+	suite() { echo "$(BLUE)🧪 $$1...$(RESET)"; shift; "$$@" || rc=1; }; \
+	suite "Tests frontend" docker exec calculatorGCC_frontend_dev npm test; \
+	suite "Tests du démarrage miroir" bash nginx/entrypoint.test.sh; \
 	if docker exec calculatorGCC_backend_dev test -x node_modules/.bin/vitest 2>/dev/null; then \
-		docker exec calculatorGCC_backend_dev npm test || rc=1; \
+		suite "Tests backend" docker exec calculatorGCC_backend_dev npm test; \
 	else \
 		echo "$(BLUE)   vitest absent du conteneur backend, repli sur l'hôte (« make build-dev » pour l'y ajouter).$(RESET)"; \
-		( cd backend/srcs && npx vitest run ) || rc=1; \
+		suite "Tests backend (hôte)" sh -c 'cd backend/srcs && npx vitest run'; \
 	fi; \
 	exit $$rc
 

@@ -173,6 +173,7 @@ describe('rafraichirStatut', () => {
 		const { etat, setters } = espions();
 		await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => 1,
 			lire: repond(false), estPerime: () => false, setters,
 		});
 		expect(etat.originAllowed).toBe(false);
@@ -183,6 +184,7 @@ describe('rafraichirStatut', () => {
 			const { etat, setters } = espions();
 			await rafraichirStatut({
 				maintenant: 1e6, dernierInstant: 0, forcer: false,
+				commencer: () => 1,
 				lire: repond(attendu), estPerime: () => false, setters,
 			});
 			expect(etat.originAllowed).toBe(attendu);
@@ -193,6 +195,7 @@ describe('rafraichirStatut', () => {
 		const { etat, setters } = espions();
 		await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => 1,
 			lire: repond(true), estPerime: () => false, setters,
 		});
 		expect(etat.isChecking).toBe(false);
@@ -201,14 +204,18 @@ describe('rafraichirStatut', () => {
 	it('RESPECTE le plafond : n’interroge pas et ne touche à rien', async () => {
 		// Sans cette garde, chaque navigation coûte une requête à tout le monde.
 		let lu = 0;
+		let commence = 0;
 		const { etat, setters } = espions();
 		const aInterroge = await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 1e6, forcer: false,
+			commencer: () => 1,
 			lire: async () => { lu++; return { configured: true, message: 'ok', origin_allowed: false }; },
 			estPerime: () => false, setters,
 		});
 		expect(aInterroge).toBe(false);
 		expect(lu).toBe(0);
+		// Et surtout : l'instant n'est PAS mémorisé pour un appel qui n'a rien émis.
+		expect(commence).toBe(0);
 		expect(etat.originAllowed).toBeUndefined();
 		expect(etat.isChecking).toBe(true);
 	});
@@ -217,6 +224,7 @@ describe('rafraichirStatut', () => {
 		const { etat, setters } = espions();
 		const aInterroge = await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 1e6, forcer: true,
+			commencer: () => 1,
 			lire: repond(false), estPerime: () => false, setters,
 		});
 		expect(aInterroge).toBe(true);
@@ -229,6 +237,7 @@ describe('rafraichirStatut', () => {
 		const { etat, setters } = espions();
 		await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => 1,
 			lire: repond(false), estPerime: () => true, setters,
 		});
 		expect(etat.originAllowed).toBeUndefined();
@@ -240,8 +249,39 @@ describe('rafraichirStatut', () => {
 		etat.isConfigured = true;
 		await rafraichirStatut({
 			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => 1,
 			lire: repond(true, false), estPerime: () => false, setters,
 		});
 		expect(etat.isConfigured).toBe(true);
+	});
+
+	it('MÉMORISE l’instant AVANT la lecture, pas après', async () => {
+		// Le plafond doit couvrir la requête EN VOL. Mémoriser après l'attente
+		// laissait deux navigations rapprochées émettre deux appels — « une requête
+		// par navigation », exactement ce que le plafond existe pour éviter.
+		const ordre: string[] = [];
+		const { setters } = espions();
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => { ordre.push('commencer'); return 1; },
+			lire: async () => { ordre.push('lire'); return { configured: true, message: 'ok', origin_allowed: true }; },
+			estPerime: () => false, setters,
+		});
+		expect(ordre).toEqual(['commencer', 'lire']);
+	});
+
+	it('confronte la réponse au numéro d’ordre de SON appel', async () => {
+		// `estPerime` reçoit le numéro rendu par `commencer` : sans ce lien, un
+		// appel plafonné — qui n'émet rien — pouvait périmer la réponse en vol.
+		let recu = -1;
+		const { setters } = espions();
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			commencer: () => 7,
+			lire: repond(false),
+			estPerime: (numero) => { recu = numero; return false; },
+			setters,
+		});
+		expect(recu).toBe(7);
 	});
 });
