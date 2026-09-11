@@ -76,6 +76,26 @@ describe('OriginWarning', () => {
 	});
 });
 
+describe('LienSitePrincipal', () => {
+	const rendreLien = async (site: string | null) => {
+		const { LienSitePrincipal } = await import('./OriginWarning');
+		return renderToStaticMarkup(React.createElement(LienSitePrincipal, { site }));
+	};
+
+	it('propose l’adresse du site principal', async () => {
+		// L'issue concrète : sans elle, le bandeau constate sans rien proposer.
+		const html = await rendreLien('https://rncp.theomouty.fr');
+		expect(html).toContain('href="https://rncp.theomouty.fr"');
+		expect(html).toContain('Pour vous connecter');
+	});
+
+	it('ne rend RIEN quand l’adresse est inconnue', async () => {
+		// Pas de phrase orpheline, et surtout pas de lien mort sur un bandeau qui
+		// existe justement pour éviter d'envoyer les gens quelque part sans le dire.
+		expect(await rendreLien(null)).toBe('');
+	});
+});
+
 describe('câblage', () => {
 	it('App affiche le bandeau sur un refus EXPLICITE', async () => {
 		expect(appSource).toMatch(/import OriginWarning from/);

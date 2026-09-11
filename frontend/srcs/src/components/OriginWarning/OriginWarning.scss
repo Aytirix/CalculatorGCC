@@ -46,6 +46,20 @@
 		font-size: 0.82rem;
 	}
 
+	/* Souligné, et non seulement coloré : sur un fond orange soutenu, la couleur
+	   seule ne suffit pas à distinguer un lien pour qui perçoit mal les contrastes. */
+	&__lien {
+		color: #fff;
+		font-weight: 600;
+		text-decoration: underline;
+		overflow-wrap: anywhere;
+
+		&:hover,
+		&:focus-visible {
+			text-decoration-thickness: 2px;
+		}
+	}
+
 	code {
 		padding: 0.1rem 0.3rem;
 		border-radius: 4px;

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { config } from '../config/config';
+import { siteDepuisApi } from './originVerdict';
 
 const api = axios.create({
   baseURL: config.backendUrl,
@@ -47,6 +48,26 @@ class SetupService {
       params: { origin: window.location.origin },
     });
     return response.data;
+  }
+
+  /**
+   * L'adresse du site principal, quand ce site-ci est un miroir.
+   *
+   * `/api/health` est la seule route qu'un miroir traite lui-même : son nginx y
+   * répond `mode: mirror` et `target`, l'API relayée. Appelée UNIQUEMENT par le
+   * bandeau d'avertissement, donc jamais sur le chemin du premier rendu — une
+   * version antérieure interrogeait cette route pour tout le monde et pouvait
+   * figer l'écran de chargement.
+   *
+   * `null` sur toute erreur : le bandeau se passe alors du lien.
+   */
+  async sitePrincipal(): Promise<string | null> {
+    try {
+      const response = await api.get<{ mode?: string; target?: string }>('/health');
+      return response.data?.mode === 'mirror' ? siteDepuisApi(response.data.target) : null;
+    } catch {
+      return null;
+    }
   }
 }
 
