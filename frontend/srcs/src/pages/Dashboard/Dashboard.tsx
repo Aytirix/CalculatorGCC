@@ -317,6 +317,27 @@ const Dashboard: React.FC = () => {
 		saveToBackend();
 	}, [saveToBackend]);
 
+	/**
+	 * Écrit les expériences professionnelles en BASE, immédiatement.
+	 *
+	 * `saveToBackend` ne les couvre pas : ses dépendances ne contiennent ni
+	 * `manualExperiences` ni `manualExpVersion`, si bien qu'ajouter, modifier ou
+	 * supprimer une expérience ne déclenchait AUCUNE sauvegarde. L'édition vivait
+	 * dans le localStorage jusqu'au prochain chargement, où le Dashboard relisait
+	 * la base et l'écrasait par la copie serveur.
+	 *
+	 * Route dédiée, et non `save()` : celle-ci remplace la simulation entière.
+	 * Ici on ne veut toucher qu'aux expériences.
+	 */
+	const persisterExperiences = useCallback(async (liste: ProfessionalExperience[]) => {
+		if (isReadOnlyMode()) return; // jamais écrire en consultant le profil d'un autre
+		try {
+			await simulationService.saveManualExperiences(liste);
+		} catch (err) {
+			console.warn('[Dashboard] Sauvegarde des expériences échouée :', err);
+		}
+	}, []);
+
 	// Nettoyer le timer de sauvegarde au démontage (évite une fuite / un save perdu).
 	useEffect(() => () => {
 		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -1338,9 +1359,11 @@ const Dashboard: React.FC = () => {
 							localStorage.setItem('api_exp_percentages', JSON.stringify(updated));
 						}}
 						onDeleteManual={(id) => {
-							professionalExperienceStorage.remove(id);
-							setManualExperiences(professionalExperienceStorage.getAll());
+							if (isViewingOther) return;
+							const restantes = professionalExperienceStorage.remove(id);
+							setManualExperiences(restantes);
 							setManualExpVersion(v => v + 1);
+							void persisterExperiences(restantes);
 						}}
 						onEditManual={(exp) => {
 							setEditingExperience(exp);
@@ -1392,15 +1415,18 @@ const Dashboard: React.FC = () => {
 					editingExperience={editingExperience}
 					onClose={() => { setShowProfExpForm(null); setEditingExperience(null); }}
 					onAdd={(exp) => {
+						if (isViewingOther) return;
 						if (editingExperience) {
 							professionalExperienceStorage.update({ ...exp, id: editingExperience.id });
 						} else {
 							professionalExperienceStorage.add({ ...exp, id: `manual-${Date.now()}` });
 						}
-						setManualExperiences(professionalExperienceStorage.getAll());
+						const aJour = professionalExperienceStorage.getAll();
+						setManualExperiences(aJour);
 						setShowProfExpForm(null);
 						setEditingExperience(null);
 						setManualExpVersion(v => v + 1);
+						void persisterExperiences(aJour);
 					}}
 				/>
 			</div>

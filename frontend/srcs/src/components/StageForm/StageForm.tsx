@@ -93,7 +93,14 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
       duration: initialValues?.duration ?? 0, // les mois ne servent plus au stage (cf. carte)
       validationPercentage: predictedNote,
       coalitionBoost: coalitionBoost ? 4.2 : 0,
-      isSimulation: false,
+      // Saisie à la main = SIMULATION. Ce drapeau était codé en dur à `false` dans
+      // les deux formulaires, et rien ne le mettait jamais à `true` : la carte
+      // « XP Simulé » affichait 0 en permanence, le badge n'apparaissait jamais,
+      // et surtout `realCount()` comptait ces expériences comme RÉELLEMENT
+      // acquises — elles faisaient donc passer au vert le prérequis d'expérience
+      // professionnelle du RNCP, que le code décrit pourtant comme « ce qui est
+      // réellement acquis, et ce qui doit décider d'un validé ».
+      isSimulation: true,
       xpEarned: finalXP,
       subNotes: notes,
       predictedNote,
