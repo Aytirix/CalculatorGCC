@@ -125,11 +125,43 @@ Fastify qui relaie. Le **miroir autonome** s'en passe — nginx relaie seul.
 
 ### Déploiement
 
+**Deux fichiers, selon l'hôte.** Ils s'excluent : la variante Coolify déclare le
+réseau `coolify` en `external: true`, ce qui fait échouer `docker compose up` sur
+une machine qui ne l'a pas — or l'intranet d'école, cible d'origine du miroir, ne
+l'a pas.
+
+Sur une **machine nue** (intranet, pas de reverse proxy) — le port est publié, et
+c'est la bonne façon de faire là-bas :
+
 ```bash
 export APP_DOMAIN=https://mon-miroir.fr
 export MIRROR_API_URL=https://rncp.theomouty.fr/api
 docker compose -f docker-compose.mirror.yml up -d --build
 ```
+
+Sur **Coolify** — rien n'est publié, Traefik route le domaine :
+
+```bash
+docker compose -f docker-compose.mirror.coolify.yml up -d --build
+```
+
+Déployé avec le mauvais fichier, le miroir répond **504 Gateway Timeout** : Traefik
+route bien le domaine mais ne joint pas le conteneur, resté sur un bridge interne
+au projet. Constaté le 2026-09-11 sur `testmirror.theomouty.fr`. Un port publié y
+pose d'ailleurs un second problème : il entre en collision avec les autres piles de
+l'hôte, qui tiennent déjà `127.0.0.1:3000`.
+
+`APP_DOMAIN` doit porter son **schéma** (`https://…`). Sans lui, l'instance
+principale ne sait pas lire la valeur comme une origine et l'entrypoint refuse de
+démarrer, avec le motif.
+
+`MIRROR_TRUSTED_PROXY` accepte **plusieurs plages**, séparées par des espaces ou
+des virgules. Derrière Traefik, le sous-réseau Docker n'est pas connu d'avance :
+se tromper de plage ne casse rien de visible, mais `X-Real-IP` vaut alors
+l'adresse du proxy pour tous les visiteurs, et l'instance principale les compte
+comme un seul dans son rate-limit. Sur une machine nue en revanche, le défaut
+`127.0.0.1/32` — c'est-à-dire personne — est le bon : les visiteurs d'un intranet
+sont eux-mêmes en IP privée et pourraient forger leur adresse.
 
 Le fichier déclare `name: calculatorgcc-mirror`. Sans ce nom de projet distinct,
 Compose le déduirait du dossier — le même que pour `dev` et `prod` — et le
