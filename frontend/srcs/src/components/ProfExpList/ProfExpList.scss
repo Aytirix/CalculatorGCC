@@ -1,0 +1,14 @@
+
+/* Expérience SIMULÉE : projetée, pas acquise. Sans ce marqueur, deux lignes
+   identiques étaient comptées différemment par le calcul RNCP sans que rien ne
+   le montre à l'écran. */
+.prof-exp-item__simule {
+	flex: 0 0 auto;
+	padding: 0.1rem 0.45rem;
+	border-radius: 999px;
+	border: 1px solid rgba(168, 85, 247, 0.45);
+	background: rgba(168, 85, 247, 0.14);
+	color: #c084fc;
+	font-size: 0.72rem;
+	white-space: nowrap;
+}

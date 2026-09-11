@@ -25,7 +25,15 @@ export interface SimulationData {
 	simulatedProjects: SimulatedProjectData[];
 	simulatedSubProjects: Record<string, string[]>;
 	customProjects: unknown[];
-	manualExperiences: unknown[];
+	/**
+	 * `undefined` = « ne touche pas à cette colonne ».
+	 *
+	 * Elle valait toujours un tableau, et la remettre à `[]` quand le client ne
+	 * l'envoyait pas effaçait les expériences. Depuis qu'elles ont leur route
+	 * dédiée, le Dashboard ne les transporte plus ici — sans cette distinction,
+	 * chaque sauvegarde générale les aurait supprimées.
+	 */
+	manualExperiences?: unknown[];
 	apiExpPercentages: Record<string, number>;
 	hasSeenTour: boolean;
 	/**
@@ -408,7 +416,9 @@ export const simulationRepository = {
 				lastName: lastName ?? null,
 				simulatedSubProjects: subProjectsToStore as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
-				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				...(data.manualExperiences !== undefined && {
+					manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				}),
 				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
 			},
 			update: {
@@ -418,7 +428,9 @@ export const simulationRepository = {
 				...(lastName !== undefined && { lastName }),
 				simulatedSubProjects: subProjectsToStore as Prisma.InputJsonValue,
 				customProjects: data.customProjects as Prisma.InputJsonValue,
-				manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				...(data.manualExperiences !== undefined && {
+					manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
+				}),
 				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
 			},
 		});

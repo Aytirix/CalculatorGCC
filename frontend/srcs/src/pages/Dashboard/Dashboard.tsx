@@ -71,6 +71,14 @@ const getApiEntryDefaultPercentage = (entry: Project42, evals: Project42[]): num
 	return Math.min(100, averageOutOf100);
 };
 
+/**
+ * Marque qu'au moins une synchronisation des expériences a eu lieu sur ce
+ * navigateur. Tant qu'elle est absente, une liste vide venue du serveur ne peut
+ * pas effacer des expériences qui n'existaient qu'ici — c'était le cas de tout le
+ * monde avant que cette page ne les enregistre en base.
+ */
+const CLE_SYNC_EXPERIENCES = 'professional_experiences_synced';
+
 const Dashboard: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -166,9 +174,31 @@ const Dashboard: React.FC = () => {
 					: [];
 				if (viewingOther) {
 					setManualExperiences(remoteExperiences);
-				} else if (remoteExperiences.length > 0) {
-					professionalExperienceStorage.saveAll(remoteExperiences);
-					setManualExperiences(professionalExperienceStorage.getAll());
+				} else {
+					// La BASE fait autorité, liste vide comprise.
+					//
+					// La règle précédente était asymétrique : une liste vide venue du
+					// serveur n'était jamais appliquée, alors que le local était repoussé
+					// sans condition. Une suppression faite sur un appareil ressuscitait
+					// donc au prochain chargement d'un autre appareil resté ouvert — et
+					// repartait ensuite en base, annulant définitivement le geste.
+					//
+					// Exception : la toute PREMIÈRE synchronisation. Tant que ce navigateur
+					// n'a jamais rien poussé, ses expériences peuvent être les seules à
+					// exister (elles ne vivaient qu'en localStorage avant ce correctif) :
+					// on les fait alors monter au lieu de les effacer.
+					const dejaSynchronise = localStorage.getItem(CLE_SYNC_EXPERIENCES) === 'true';
+					const locales = professionalExperienceStorage.getAll();
+					if (!dejaSynchronise && remoteExperiences.length === 0 && locales.length > 0) {
+						setManualExperiences(locales);
+						void simulationService.saveManualExperiences(locales).catch((err) => {
+							console.warn('[Dashboard] Première synchronisation des expériences échouée :', err);
+						});
+					} else {
+						professionalExperienceStorage.saveAll(remoteExperiences);
+						setManualExperiences(remoteExperiences);
+					}
+					localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true');
 				}
 				syncTourSeen(data.hasSeenTour === true, data.seenTourSteps);
 				console.log('[Dashboard] Simulation chargée depuis le backend');
@@ -301,7 +331,12 @@ const Dashboard: React.FC = () => {
 					})),
 					simulatedSubProjects,
 					customProjects,
-					manualExperiences: professionalExperienceStorage.getAll(),
+					// Les expériences ne partent PLUS d'ici : elles ont leur route dédiée,
+					// et deux écrivains sur le même champ se écrasaient l'un l'autre. La
+					// sauvegarde générale étant retardée de 2 s, elle transportait un
+					// instantané périmé : supprimer une expérience juste après avoir touché
+					// un projet la faisait réapparaître. Le serveur, lui, ne remet plus la
+					// colonne à vide quand la clé est absente du corps.
 					apiExpPercentages,
 					hasSeenTour: localStorage.getItem('gcc_tour_seen_v1') === 'true',
 				};

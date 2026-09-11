@@ -38,12 +38,15 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 			validationPercentage: validationNum,
 			coalitionBoost: coalitionBoost ? 4.2 : 0,
 			// Saisie à la main = SIMULATION. Ce drapeau était codé en dur à `false` dans
-			// les deux formulaires, et rien ne le mettait jamais à `true` : la carte
-			// « XP Simulé » affichait 0 en permanence, le badge n'apparaissait jamais,
-			// et surtout `realCount()` comptait ces expériences comme RÉELLEMENT
-			// acquises — elles faisaient donc passer au vert le prérequis d'expérience
-			// professionnelle du RNCP, que le code décrit pourtant comme « ce qui est
-			// réellement acquis, et ce qui doit décider d'un validé ».
+			// les deux formulaires et rien ne le mettait jamais à `true` : `realCount()`
+			// comptait donc ces expériences comme RÉELLEMENT acquises, et elles faisaient
+			// passer au vert le prérequis d'expérience professionnelle du RNCP — que le code
+			// décrit pourtant comme « ce qui est réellement acquis, et ce qui doit décider
+			// d'un validé ».
+			//
+			// Le marqueur visuel correspondant vit dans `ProfExpList` (« 🔮 Simulé »). Une
+			// version antérieure de ce commentaire invoquait un badge et une carte
+			// « XP Simulé » qui n'existent plus : ils appartenaient à un écran supprimé.
 			isSimulation: true,
 			xpEarned: calculatedXP,
 		});

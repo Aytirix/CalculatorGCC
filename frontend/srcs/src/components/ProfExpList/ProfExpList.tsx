@@ -133,7 +133,22 @@ const ProfExpList: React.FC<ProfExpListProps> = ({
 						<span className="prof-exp-item__mark prof-exp-item__mark--sub">⚡</span>
 					)}
 				</div>
-				<span className="prof-exp-item__status validated">{exp.validationPercentage}%</span>
+				{/* Marqueur de SIMULATION. Il n'existait nulle part sur cette liste — le
+				    seul badge du dépôt vivait dans `ExperienceCard`, dont l'unique
+				    consommateur était une page sans lien, supprimée depuis. Deux
+				    expériences visuellement identiques pouvaient donc être comptées
+				    différemment sans que rien ne le montre. */}
+				{exp.isSimulation && (
+					<span className="prof-exp-item__simule" title="Expérience simulée : elle ne compte pas comme acquise">
+						🔮 Simulé
+					</span>
+				)}
+				{/* `validated` (vert) UNIQUEMENT sur une expérience acquise : l'afficher
+				    sur une simulation revenait à contredire, sur la même page, le
+				    calcul qui venait de la déclasser en projection. */}
+				<span className={`prof-exp-item__status${exp.isSimulation ? '' : ' validated'}`}>
+					{exp.validationPercentage}%
+				</span>
 				{!readOnly && (
 					<>
 						<button className="prof-exp-item__edit" onClick={() => onEditManual(exp)} title="Modifier">✎</button>

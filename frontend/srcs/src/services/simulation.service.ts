@@ -28,7 +28,13 @@ export interface SimulationData {
 	simulatedProjects: SimulatedProjectData[];
 	simulatedSubProjects: Record<string, string[]>;
 	customProjects: unknown[];
-	manualExperiences: unknown[];
+	/**
+	 * Facultatif : les expériences ont leur propre route (`saveManualExperiences`).
+	 * Les omettre ici est le comportement NORMAL depuis qu'un second écrivain sur
+	 * le même champ effaçait les écritures de l'autre. Le serveur laisse alors la
+	 * colonne intacte. Toujours renvoyé par `load()`.
+	 */
+	manualExperiences?: unknown[];
 	apiExpPercentages: Record<string, number>;
 	hasSeenTour: boolean;
 	/**

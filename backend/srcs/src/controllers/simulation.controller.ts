@@ -190,7 +190,11 @@ export const SimulationController = {
 			simulatedProjects: Array.isArray(body.simulatedProjects) ? body.simulatedProjects : [],
 			simulatedSubProjects: body.simulatedSubProjects ?? {},
 			customProjects: Array.isArray(body.customProjects) ? body.customProjects : [],
-			manualExperiences: Array.isArray(body.manualExperiences) ? body.manualExperiences : [],
+			// `undefined` et NON `[]` quand la clé est absente : le dépôt laisse alors
+			// la colonne intacte. La remettre à vide effaçait les expériences dès
+			// qu'un client ne les transportait pas — ce que fait désormais le
+			// Dashboard, qui les enregistre par leur route dédiée.
+			manualExperiences: Array.isArray(body.manualExperiences) ? body.manualExperiences : undefined,
 			apiExpPercentages: body.apiExpPercentages ?? {},
 			hasSeenTour: body.hasSeenTour === true,
 		};
