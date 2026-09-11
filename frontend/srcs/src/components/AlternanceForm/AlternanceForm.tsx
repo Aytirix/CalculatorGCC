@@ -18,6 +18,12 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 		String(Math.min(125, initialValues?.validationPercentage ?? 100))
 	);
 	const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
+	// Défaut : SIMULATION. Le drapeau était codé en dur et aucune interface ne
+	// proposait le choix ; une expérience réellement faite mais absente de l'API 42
+	// n'avait alors aucun moyen d'être déclarée acquise.
+	const [dejaAcquise, setDejaAcquise] = useState(
+		initialValues?.simulationExplicite === true ? !initialValues.isSimulation : false
+	);
 	const [calculatedXP, setCalculatedXP] = useState(0);
 
 	const validationNum = Math.min(125, Math.max(0, parseInt(validationPercentage) || 0));
@@ -47,7 +53,8 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 			// Le marqueur visuel correspondant vit dans `ProfExpList` (« 🔮 Simulé »). Une
 			// version antérieure de ce commentaire invoquait un badge et une carte
 			// « XP Simulé » qui n'existent plus : ils appartenaient à un écran supprimé.
-			isSimulation: true,
+			isSimulation: !dejaAcquise,
+			simulationExplicite: true,
 			xpEarned: calculatedXP,
 		});
 	};
@@ -121,6 +128,17 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 					checked={coalitionBoost}
 					onCheckedChange={setCoalitionBoost}
 				/>
+			</div>
+
+			<div className="form-group switch-group">
+				<div className="switch-label-container">
+					<Label htmlFor="acquise">Expérience déjà acquise</Label>
+					<p className="switch-description">
+						Activez si vous l'avez réellement faite&nbsp;: elle comptera alors comme un
+						acquis pour le RNCP. Sinon, elle reste une projection.
+					</p>
+				</div>
+				<Switch id="acquise" checked={dejaAcquise} onCheckedChange={setDejaAcquise} />
 			</div>
 
 			<div className="xp-preview">

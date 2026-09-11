@@ -42,6 +42,11 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
 
   const [notes, setNotes] = useState<StageSubNotes>(initialNotes);
   const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
+  // Défaut : SIMULATION. Voir `AlternanceForm` — un stage réellement fait mais
+  // absent de l'API 42 doit pouvoir être déclaré acquis.
+  const [dejaAcquise, setDejaAcquise] = useState(
+    initialValues?.simulationExplicite === true ? !initialValues.isSimulation : false
+  );
   const [showInfo, setShowInfo] = useState(false);
 
   const isLocked = (key: StageNoteKey) => knownNotes?.[key] != null;
@@ -103,7 +108,8 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
       // Le marqueur visuel correspondant vit dans `ProfExpList` (« 🔮 Simulé »). Une
       // version antérieure de ce commentaire invoquait un badge et une carte
       // « XP Simulé » qui n'existent plus : ils appartenaient à un écran supprimé.
-      isSimulation: true,
+      isSimulation: !dejaAcquise,
+      simulationExplicite: true,
       xpEarned: finalXP,
       subNotes: notes,
       predictedNote,
@@ -256,6 +262,17 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
           </div>
         );
       })}
+
+      <div className="form-group switch-group">
+        <div className="switch-label-container">
+          <Label htmlFor="acquise">Expérience déjà acquise</Label>
+          <p className="switch-description">
+            Activez si vous l'avez réellement faite&nbsp;: elle comptera alors comme un acquis
+            pour le RNCP. Sinon, elle reste une projection.
+          </p>
+        </div>
+        <Switch id="acquise" checked={dejaAcquise} onCheckedChange={setDejaAcquise} />
+      </div>
 
       <div className="form-group switch-group">
         <div className="switch-label-container">

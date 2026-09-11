@@ -1,4 +1,5 @@
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
+import { normaliserExperiences } from './experienceMigration';
 
 const STORAGE_KEY = 'professional_experiences';
 
@@ -55,7 +56,9 @@ export const professionalExperienceStorage = {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (!data) return [];
-      return JSON.parse(data) as ProfessionalExperience[];
+      // Normalisé à la LECTURE : les enregistrements antérieurs à l'interrupteur
+      // portent un `isSimulation: false` que personne n'a choisi.
+      return normaliserExperiences(JSON.parse(data) as ProfessionalExperience[]);
     } catch (error) {
       console.error('Error loading professional experiences:', error);
       return [];

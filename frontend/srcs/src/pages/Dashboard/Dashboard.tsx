@@ -11,6 +11,7 @@ import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import { normaliserExperiences } from '@/utils/experienceMigration';
 import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
@@ -169,9 +170,13 @@ const Dashboard: React.FC = () => {
 					setApiExpPercentages(remotePercentages);
 				}
 
-				const remoteExperiences = Array.isArray(data.manualExperiences)
-					? (data.manualExperiences as ProfessionalExperience[])
-					: [];
+				// Normalisées comme celles du stockage : la base contient les mêmes
+				// `isSimulation: false` subis, écrits avant que l'interrupteur existe.
+				const remoteExperiences = normaliserExperiences(
+					Array.isArray(data.manualExperiences)
+						? (data.manualExperiences as ProfessionalExperience[])
+						: []
+				);
 				if (viewingOther) {
 					setManualExperiences(remoteExperiences);
 				} else {

@@ -17,6 +17,18 @@ export interface ProfessionalExperience {
   validationPercentage: number;
   coalitionBoost: number;
   isSimulation: boolean;
+  /**
+   * L'utilisateur a-t-il RÉELLEMENT choisi la valeur d'`isSimulation` ci-dessus ?
+   *
+   * Sans ce marqueur, impossible de distinguer un `false` subi — le drapeau était
+   * codé en dur dans les deux formulaires, aucune interface n'a jamais proposé le
+   * choix — d'un `false` voulu, depuis que l'interrupteur existe. La migration
+   * ferait alors basculer en « simulation » une expérience délibérément marquée
+   * acquise, à chaque chargement et sur chaque appareil.
+   *
+   * Absent = enregistrement antérieur à l'interrupteur, à normaliser une fois.
+   */
+  simulationExplicite?: boolean;
   xpEarned: number;
   subNotes?: StageSubNotes; // stage : les 4 notes de sous-projets ayant servi à la prédiction
   predictedNote?: number;   // stage : note finale prédite (0-125)
