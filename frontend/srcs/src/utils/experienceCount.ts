@@ -36,3 +36,83 @@ export function anneesDepuisNom(nom: string): number {
 	const trouve = nom.toLowerCase().match(/(\d+)\s*an/);
 	return trouve ? parseInt(trouve[1], 10) : 1;
 }
+
+/** Une expérience telle que l'API 42 la décrit, réduite à ce qui décide du décompte. */
+export interface EntreeApi {
+	nom: string;
+	slug: string;
+	validated: boolean;
+}
+
+/**
+ * Ligne à ne JAMAIS compter : l'API 42 expose les sous-projets d'un stage
+ * — « Duration », « Peer Video », « Contract Upload », les évaluations — comme des
+ * projets à part entière, dont le slug répète celui du parent
+ * (`work-experience-i-work-experience-i-duration`). Les compter ajoutait quatre
+ * expériences professionnelles par stage.
+ *
+ * Les deux compteurs, validé et en cours, appliquaient cette exclusion chacun de
+ * leur côté, dans un ordre différent : deux copies à maintenir pour une seule règle.
+ */
+export function estSousProjetOuEvaluation(nom: string, slug: string): boolean {
+	const n = nom.toLowerCase();
+	const s = slug.toLowerCase();
+	if (n.includes('évaluation') || n.includes('evaluation')) return true;
+	if (s.startsWith('work-experience-') && s.includes('-work-experience-', 16)) return true;
+	return n.includes('peer video') || n.includes('contract upload') || n.includes('duration');
+}
+
+/** Cette ligne parle-t-elle d'un stage ou d'une alternance, validé ou non ? */
+export function estExperienceApi(nom: string, slug: string): boolean {
+	const n = nom.toLowerCase();
+	const s = slug.toLowerCase();
+	return (
+		s.includes('stage') || s.includes('alternance') || s.includes('internship') ||
+		s.startsWith('work-experience') || s.startsWith('fr-alternance') ||
+		n.includes('stage') || n.includes('alternance') || n.includes('internship') ||
+		n.includes('work experience')
+	);
+}
+
+/** Une expérience professionnelle EN COURS : reconnue, non validée, pas un sous-projet. */
+export function estExperienceEnCours(entree: EntreeApi): boolean {
+	if (entree.validated) return false;
+	if (estSousProjetOuEvaluation(entree.nom, entree.slug)) return false;
+	const nom = entree.nom.toLowerCase();
+	const slug = entree.slug.toLowerCase();
+	return (
+		nom.includes('alternance') || nom.includes('stage') || nom.includes('internship') ||
+		slug.startsWith('work-experience-')
+	);
+}
+
+/** Une expérience professionnelle ACQUISE selon l'API. */
+export function estExperienceValidee(entree: EntreeApi): boolean {
+	if (!entree.validated) return false;
+	if (!estExperienceApi(entree.nom, entree.slug)) return false;
+	return !estSousProjetOuEvaluation(entree.nom, entree.slug);
+}
+
+/** Le décompte d'un lot d'entrées, règle des années comprise. */
+function compter(entrees: EntreeApi[]): number {
+	return entrees.reduce((total, entree) => {
+		const nom = entree.nom.toLowerCase();
+		return total + nombreExperiences(nom.includes('alternance'), anneesDepuisNom(nom));
+	}, 0);
+}
+
+/** Les expériences EN COURS côté API. */
+export function compterExperiencesApi(entrees: EntreeApi[]): number {
+	return compter(entrees.filter(estExperienceEnCours));
+}
+
+/**
+ * Les expériences ACQUISES côté API.
+ *
+ * `.length` comptait une alternance de 2 ans pour UNE expérience, là où les trois
+ * autres compteurs en voyaient deux : son titulaire perdait un point de prérequis
+ * RNCP, sans aucun recours.
+ */
+export function compterExperiencesApiValidees(entrees: EntreeApi[]): number {
+	return compter(entrees.filter(estExperienceValidee));
+}

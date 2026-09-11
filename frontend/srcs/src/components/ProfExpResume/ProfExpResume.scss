@@ -1,0 +1,46 @@
+/* Trois chiffres qui doivent rester lisibles côte à côte, y compris sur un
+   téléphone : sans le `minmax(0, 1fr)`, un total à sept chiffres débordait de sa
+   carte au lieu de la faire grandir. */
+.prof-exp-resume {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 0.6rem;
+	margin-bottom: 0.9rem;
+
+	&__carte {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+		padding: 0.6rem 0.8rem;
+		border-radius: 10px;
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+	}
+
+	&__carte--reel {
+		border-color: rgba(34, 197, 94, 0.35);
+	}
+
+	&__carte--simule {
+		border-color: rgba(168, 85, 247, 0.35);
+	}
+
+	&__label {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-muted);
+	}
+
+	&__valeur {
+		font-size: 1.05rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	&__detail {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+	}
+}

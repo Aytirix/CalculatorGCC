@@ -239,12 +239,12 @@
     font-size: 0.85rem;
   }
 
-  // Ligne de note : vert = officiel (verrouillé), bleu = simulé
+  // Ligne de note. Le variant « officiel » (vert, verrouillé) a été retiré avec la
+  // mécanique de notes connues : aucune ne pouvait l'être ici.
   .note-group {
     padding-left: $spacing-md;
     border-left: 3px solid transparent;
 
-    &.note-official { border-left-color: var(--success); }
     &.note-simulated { border-left-color: var(--color-primary); }
 
     .note-tag {
@@ -257,11 +257,9 @@
       border-radius: 10px;
       vertical-align: middle;
 
-      &.official { color: var(--success); background: rgba(var(--success-rgb), 0.14); }
       &.sim { color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.14); }
     }
 
-    &.note-official input:not([type="range"]) { border-color: rgba(var(--success-rgb), 0.45); }
     &.note-simulated input:not([type="range"]) { border-color: rgba(var(--color-primary-rgb), 0.35); }
   }
 

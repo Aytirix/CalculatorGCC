@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import StageForm from '@/components/StageForm/StageForm';
 import AlternanceForm from '@/components/AlternanceForm/AlternanceForm';
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
-import type { StageSubNotes, WorkExperienceLevel } from '@/utils/stageModel';
+import type { WorkExperienceLevel } from '@/utils/stageModel';
 import './AddExperienceModal.scss';
 
 interface AddExperienceModalProps {
@@ -13,8 +13,6 @@ interface AddExperienceModalProps {
   onAdd: (experience: Omit<ProfessionalExperience, 'id'>) => void;
   editingExperience?: ProfessionalExperience | null;
   initialType?: 'stage' | 'alternance';
-  /** Vraies notes de sous-projets connues (API) : verrouillées dans le formulaire stage. */
-  knownStageNotes?: Partial<StageSubNotes>;
 }
 
 type ExperienceType = 'stage' | 'alternance' | null;
@@ -25,7 +23,6 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
   onAdd,
   editingExperience,
   initialType,
-  knownStageNotes,
 }) => {
   const [selectedType, setSelectedType] = useState<ExperienceType>(
     editingExperience?.type || initialType || null
@@ -129,7 +126,6 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
                 onSubmit={handleAdd}
                 onCancel={editingExperience ? handleClose : () => setSelectedStageLevel(null)}
                 initialValues={editingExperience}
-                knownNotes={knownStageNotes}
                 we={selectedStageLevel ?? 1}
               />
             ) : (

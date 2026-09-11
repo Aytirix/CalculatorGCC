@@ -17,40 +17,45 @@ import {
   predictStageNote,
   applyCoalitionBoost,
 } from '@/utils/stageModel';
-import { noteEffective, notesEffectives } from '@/utils/stageNoteBuffer';
+import { bornerNote, noteEffective, notesEffectives } from '@/utils/stageNoteBuffer';
+import { dejaAcquiseInitiale } from '@/utils/experienceForm';
 import './StageForm.scss';
 
 interface StageFormProps {
   onSubmit: (experience: Omit<ProfessionalExperience, 'id'>) => void;
   onCancel: () => void;
   initialValues?: ProfessionalExperience | null;
-  /** Vraies notes déjà connues (API) : ces champs sont pré-remplis et verrouillés. */
-  knownNotes?: Partial<StageSubNotes>;
   /** Niveau du stage à simuler (Work Experience I ou II). Défaut : I. */
   we?: WorkExperienceLevel;
 }
 
 const DEFAULT_NOTES: StageSubNotes = { duration: 100, mid: 100, final: 100, peer: 100 };
 
-const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues, knownNotes, we = 1 }) => {
+/**
+ * Le verrouillage des notes « officielles » a été retiré.
+ *
+ * Le formulaire acceptait des notes réelles venues de l'API 42 pour les afficher
+ * verrouillées (🔒). Personne ne les lui a jamais transmises : il n'est ouvert que
+ * pour saisir une expérience ABSENTE de l'API — c'est sa raison d'être. Les
+ * expériences que 42 connaît sont affichées par `ProfExpList`, qui lit `evalsByParent`
+ * et n'utilise pas ce formulaire. Restait donc une mécanique inatteignable, et
+ * surtout une promesse fausse à l'écran : « les notes déjà connues sont
+ * verrouillées », dans un formulaire où aucune ne pouvait l'être.
+ */
+const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues, we = 1 }) => {
   const model = STAGE_MODELS[we];
-  // Notes de départ : défauts <- valeurs éditées <- notes réelles connues (prioritaires)
+  // Notes de départ : défauts, puis valeurs déjà éditées.
   const initialNotes: StageSubNotes = {
     ...DEFAULT_NOTES,
     ...(initialValues?.subNotes ?? {}),
-    ...(knownNotes ?? {}),
   };
 
   const [notes, setNotes] = useState<StageSubNotes>(initialNotes);
   const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
   // Défaut : SIMULATION. Voir `AlternanceForm` — un stage réellement fait mais
   // absent de l'API 42 doit pouvoir être déclaré acquis.
-  const [dejaAcquise, setDejaAcquise] = useState(
-    initialValues?.simulationExplicite === true ? !initialValues.isSimulation : false
-  );
+  const [dejaAcquise, setDejaAcquise] = useState(dejaAcquiseInitiale(initialValues));
   const [showInfo, setShowInfo] = useState(false);
-
-  const isLocked = (key: StageNoteKey) => knownNotes?.[key] != null;
 
   /**
    * Texte en cours de frappe, par sous-note.
@@ -64,14 +69,11 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
   const [saisie, setSaisie] = useState<Partial<Record<StageNoteKey, string>>>({});
 
   const setNote = (key: StageNoteKey, value: number) => {
-    if (isLocked(key)) return; // note réelle : non éditable
-    const clamped = Math.max(STAGE_NOTE_MIN[key], Math.min(STAGE_NOTE_MAX[key], value || 0));
-    setNotes((prev) => ({ ...prev, [key]: clamped }));
+    setNotes((prev) => ({ ...prev, [key]: bornerNote(key, value) }));
   };
 
   /** Frappe libre : on retient le texte, sans borner ni convertir. */
   const saisirNote = (key: StageNoteKey, texte: string) => {
-    if (isLocked(key)) return;
     setSaisie((prev) => ({ ...prev, [key]: texte.replace(/[^0-9]/g, '') }));
   };
 
@@ -130,8 +132,6 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
     });
   };
 
-  const hasKnown = knownNotes && Object.values(knownNotes).some((v) => v != null);
-
   /**
    * Enregistrement ANTÉRIEUR au modèle à quatre sous-notes : il porte une note
    * finale mais aucune sous-note.
@@ -141,8 +141,12 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
    * lit deux chiffres contradictoires sans savoir lequel fait foi. On le dit,
    * plutôt que de laisser deviner, et on rappelle la note d'origine.
    */
+  // `type === 'stage'` en plus : en éditant une ALTERNANCE, revenir à l'écran de
+  // choix puis cliquer « Stage » monte ce formulaire avec une alternance en
+  // `initialValues`. L'encart annonçait alors « enregistrée avant le détail par
+  // sous-notes », ce qui est faux : une alternance n'en a jamais eu.
   const noteOrpheline =
-    initialValues != null && initialValues.subNotes == null
+    initialValues != null && initialValues.type === 'stage' && initialValues.subNotes == null
       ? initialValues.validationPercentage
       : null;
 
@@ -170,7 +174,6 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
         <h3>🎓 Stage — {model.label}</h3>
         <p className="form-description">
           Estime les notes des sous-projets pour prédire l'XP et la note finale.
-          {hasKnown && ' Les notes déjà connues sont verrouillées 🔒.'}
         </p>
         {model.preliminary && model.info.sampleNote && (
           <p className="form-description" style={{ color: '#d29922' }}>⚠️ {model.info.sampleNote}</p>
@@ -185,7 +188,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             <p>
               On estime les 4 notes des sous-projets du stage. Une <b>régression linéaire</b> — entraînée
               sur les vrais stages validés ({model.info.trainingWindow}) — prédit l'<b>XP réel</b> et
-              la <b>note finale</b>. Les notes déjà connues (via l'API) sont verrouillées 🔒.
+              la <b>note finale</b>.
             </p>
 
             <h5>Les 4 notes</h5>
@@ -224,13 +227,12 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
         const info = STAGE_NOTE_INFO[key];
         const max = STAGE_NOTE_MAX[key];
         const min = STAGE_NOTE_MIN[key];
-        const locked = isLocked(key);
         return (
-          <div className={`form-group note-group ${locked ? 'note-official' : 'note-simulated'}`} key={key}>
+          <div className="form-group note-group note-simulated" key={key}>
             <Label htmlFor={`note-${key}`}>
               {info.label}
               <span className="note-scale"> / {max}</span>
-              <span className={`note-tag ${locked ? 'official' : 'sim'}`}>{locked ? '🔒 officiel' : 'simulé'}</span>
+              <span className="note-tag sim">simulé</span>
             </Label>
             <p className="note-help">{info.help} <span className="note-min">Min : {min}.</span></p>
             <div className="note-weight" title="Part de ce paramètre dans ce qui fait varier l'XP / la note (les 4 somment à 100 %)">
@@ -253,11 +255,15 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
             <div className="percentage-input">
               <Input
                 id={`note-${key}`}
-                type="number"
-                min={min}
-                max={max}
+                /* Champ TEXTE avec clavier numérique, et non `type="number"` — c'est déjà le
+                   choix fait ailleurs dans le dépôt (`ProfExpList`). Le champ numérique natif
+                   apportait trois défauts : la molette modifie la valeur quand le champ a le
+                   focus, les flèches et les boutons contournent le tampon de saisie (ni le
+                   slider ni l'aperçu ne suivaient), et `badInput` vide `e.target.value` côté DOM
+                   en laissant « 12e » VISIBLE — l'application croyait alors le champ vide. */
+                type="text"
+                inputMode="numeric"
                 value={saisie[key] ?? notes[key]}
-                disabled={locked}
                 onChange={(e) => saisirNote(key, e.target.value)}
                 onBlur={() => validerNote(key)}
               />
@@ -268,7 +274,6 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
               min={min}
               max={max}
               value={effectives[key]}
-              disabled={locked}
               onChange={(e) => setNote(key, parseInt(e.target.value))}
               className="percentage-slider"
             />

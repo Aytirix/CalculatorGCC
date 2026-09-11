@@ -645,3 +645,17 @@
     }
   }
 }
+
+/* Sauvegarde des expériences impossible : l'édition reste à l'écran, pas en base.
+   Le dire, plutôt que de laisser repartir en croyant avoir enregistré — c'était
+   très exactement le bug que ce chemin vient de corriger. */
+.prof-exp-erreur {
+	margin: 0 0 0.75rem;
+	padding: 0.7rem 0.9rem;
+	border-radius: 10px;
+	border: 1px solid rgba(180, 83, 9, 0.4);
+	background: rgba(180, 83, 9, 0.12);
+	color: var(--text-primary, #fff);
+	font-size: 0.88rem;
+	line-height: 1.5;
+}

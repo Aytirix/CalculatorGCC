@@ -27,6 +27,19 @@ export function notesEffectives(
 }
 
 /**
+ * Ramène une note dans les bornes de SA sous-note — elles diffèrent : `duration`
+ * part de 100, les autres de 0, et le plafond n'est pas le même partout.
+ *
+ * Exportée parce que la sortie de champ la réappliquait de son côté, avec sa
+ * propre copie du `Math.max(min, Math.min(max, …))` : deux écritures de la même
+ * règle, dont une seule était éprouvée.
+ */
+export function bornerNote(cle: StageNoteKey, valeur: number): number {
+	if (!Number.isFinite(valeur)) return STAGE_NOTE_MIN[cle];
+	return Math.max(STAGE_NOTE_MIN[cle], Math.min(STAGE_NOTE_MAX[cle], valeur));
+}
+
+/**
  * Une note : le tampon s'il contient quelque chose d'exploitable, sinon la valeur
  * courante. Un champ vidé conserve la valeur précédente plutôt que de tomber au
  * minimum — `duration` commençant à 100, effacer pour retaper aurait sinon
@@ -40,5 +53,5 @@ export function noteEffective(
 	if (tampon === undefined || tampon === '') return courante;
 	const saisi = parseInt(tampon, 10);
 	if (!Number.isFinite(saisi)) return courante;
-	return Math.max(STAGE_NOTE_MIN[cle], Math.min(STAGE_NOTE_MAX[cle], saisi));
+	return bornerNote(cle, saisi);
 }

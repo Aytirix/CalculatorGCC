@@ -4,6 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
+import {
+	POURCENTAGE_MAX,
+	POURCENTAGE_MIN,
+	bornerPourcentage,
+	dejaAcquiseInitiale,
+	pourcentageEffectif,
+	xpAlternance,
+} from '@/utils/experienceForm';
 import './AlternanceForm.scss';
 
 interface AlternanceFormProps {
@@ -15,34 +23,25 @@ interface AlternanceFormProps {
 const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, initialValues }) => {
 	const [duration, setDuration] = useState<1 | 2>((initialValues?.duration as 1 | 2) || 1);
 	const [validationPercentage, setValidationPercentage] = useState(
-		String(Math.min(125, initialValues?.validationPercentage ?? 100))
+		String(bornerPourcentage(initialValues?.validationPercentage ?? 100))
 	);
 	const [coalitionBoost, setCoalitionBoost] = useState(initialValues?.coalitionBoost ? true : false);
 	// Défaut : SIMULATION. Le drapeau était codé en dur et aucune interface ne
 	// proposait le choix ; une expérience réellement faite mais absente de l'API 42
 	// n'avait alors aucun moyen d'être déclarée acquise.
-	const [dejaAcquise, setDejaAcquise] = useState(
-		initialValues?.simulationExplicite === true ? !initialValues.isSimulation : false
-	);
+	const [dejaAcquise, setDejaAcquise] = useState(dejaAcquiseInitiale(initialValues));
 	const [calculatedXP, setCalculatedXP] = useState(0);
 
 	// Un champ VIDÉ garde la valeur précédente au lieu de tomber à 0 : « tout
 	// sélectionner, effacer, regarder ailleurs » faisait sinon chuter le
 	// pourcentage à 0 % et l'XP à 0. Le formulaire de stage restaure déjà la valeur
 	// courante dans ce cas ; les deux se comportent enfin pareil.
-	const dernierePourcentage = useRef(
-		Math.min(125, initialValues?.validationPercentage ?? 100)
-	);
-	const saisi = parseInt(validationPercentage);
-	const validationNum = Number.isFinite(saisi)
-		? Math.min(125, Math.max(0, saisi))
-		: dernierePourcentage.current;
+	const dernierePourcentage = useRef(bornerPourcentage(initialValues?.validationPercentage ?? 100));
+	const validationNum = pourcentageEffectif(validationPercentage, dernierePourcentage.current);
 	dernierePourcentage.current = validationNum;
 
 	useEffect(() => {
-		const baseXP = 90000 * duration * (validationNum / 100);
-		const finalXP = baseXP + (coalitionBoost ? (baseXP * 4.2 / 100) : 0);
-		setCalculatedXP(Math.round(finalXP));
+		setCalculatedXP(xpAlternance(duration, validationNum, coalitionBoost));
 	}, [duration, validationNum, coalitionBoost]);
 
 	const handleSubmit = (e: React.FormEvent) => {
@@ -100,13 +99,18 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 			</div>
 
 			<div className="form-group">
-				<Label htmlFor="validation">Pourcentage de validation (0% - 125%)</Label>
+				<Label htmlFor="validation">Pourcentage de validation ({POURCENTAGE_MIN}% - {POURCENTAGE_MAX}%)</Label>
 				<div className="percentage-input">
 					<Input
 						id="validation"
-						type="number"
-						min="0"
-						max="125"
+						/* Champ TEXTE avec clavier numérique, et non `type="number"` — c'est déjà le
+						   choix fait ailleurs dans le dépôt (`ProfExpList`). Le champ numérique natif
+						   apportait trois défauts : la molette modifie la valeur quand le champ a le
+						   focus, les flèches et les boutons contournent le tampon de saisie (ni le
+						   slider ni l'aperçu ne suivaient), et `badInput` vide `e.target.value` côté DOM
+						   en laissant « 12e » VISIBLE — l'application croyait alors le champ vide. */
+						type="text"
+						inputMode="numeric"
 						value={validationPercentage}
 						// On borne à la SORTIE du champ, pas à chaque frappe. Borner en
 						// cours de saisie rendait la valeur inatteignable : depuis 100,
@@ -119,8 +123,8 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 				</div>
 				<input
 					type="range"
-					min="0"
-					max="125"
+					min={POURCENTAGE_MIN}
+					max={POURCENTAGE_MAX}
 					value={validationNum}
 					onChange={(e) => setValidationPercentage(e.target.value)}
 					className="percentage-slider"
@@ -162,7 +166,9 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 					Annuler
 				</Button>
 				<Button type="submit">
-					Ajouter l'alternance
+					{/* En édition, « Ajouter » était mensonger — le formulaire de stage
+					    disait déjà « Enregistrer » dans le même cas. */}
+					{initialValues ? 'Enregistrer' : "Ajouter l'alternance"}
 				</Button>
 			</div>
 		</form>

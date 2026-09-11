@@ -11,8 +11,10 @@ import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
+import ProfExpResume from '@/components/ProfExpResume/ProfExpResume';
+import { resoudreExperiences } from '@/utils/experienceLoad';
 import { normaliserExperiences } from '@/utils/experienceMigration';
-import { anneesDepuisNom, nombreExperiences } from '@/utils/experienceCount';
+import { compterExperiencesApi, compterExperiencesApiValidees, estExperienceApi } from '@/utils/experienceCount';
 import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
@@ -110,6 +112,8 @@ const Dashboard: React.FC = () => {
 		isReadOnlyMode() ? [] : professionalExperienceStorage.getAll()
 	);
 	const [manualExpVersion, setManualExpVersion] = useState(0);
+	/** Sauvegarde des expériences impossible : l'édition reste à l'écran, pas en base. */
+	const [erreurExperiences, setErreurExperiences] = useState<string | null>(null);
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
 
 	const { startTour, hasPendingSteps, syncTourSeen } = useTour();
@@ -178,41 +182,29 @@ const Dashboard: React.FC = () => {
 						? (data.manualExperiences as ProfessionalExperience[])
 						: []
 				);
-				if (viewingOther) {
-					setManualExperiences(remoteExperiences);
-				} else {
-					// La BASE fait autorité, liste vide comprise.
-					//
-					// La règle précédente était asymétrique : une liste vide venue du
-					// serveur n'était jamais appliquée, alors que le local était repoussé
-					// sans condition. Une suppression faite sur un appareil ressuscitait
-					// donc au prochain chargement d'un autre appareil resté ouvert — et
-					// repartait ensuite en base, annulant définitivement le geste.
-					//
-					// Exception : la toute PREMIÈRE synchronisation. Tant que ce navigateur
-					// n'a jamais rien poussé, ses expériences peuvent être les seules à
-					// exister (elles ne vivaient qu'en localStorage avant ce correctif) :
-					// on les fait alors monter au lieu de les effacer.
-					const dejaSynchronise = localStorage.getItem(CLE_SYNC_EXPERIENCES) === 'true';
-					const locales = professionalExperienceStorage.getAll();
-					if (!dejaSynchronise && remoteExperiences.length === 0 && locales.length > 0) {
-						setManualExperiences(locales);
-						// Le drapeau n'est posé QUE si la montée réussit. Posé d'office
-						// après une promesse non attendue, il transformait un échec réseau
-						// en perte définitive : au chargement suivant, la base toujours
-						// vide faisait autorité et vidait le localStorage. Tant qu'il est
-						// absent, on retentera.
-						void simulationService
-							.saveManualExperiences(locales)
-							.then(() => localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true'))
-							.catch((err) => {
-								console.warn('[Dashboard] Première synchronisation des expériences échouée :', err);
-							});
-					} else {
-						professionalExperienceStorage.saveAll(remoteExperiences);
-						setManualExperiences(remoteExperiences);
-						localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true');
-					}
+				// Qui fait autorité, et ce qu'on écrit : décidé par `resoudreExperiences`,
+				// hors du composant, parce que c'est exactement là que le bug d'origine
+				// et chacune de ses rechutes se sont logés.
+				const verdict = resoudreExperiences({
+					viewingOther,
+					distantes: remoteExperiences,
+					locales: viewingOther ? [] : professionalExperienceStorage.getAll(),
+					dejaSynchronise: localStorage.getItem(CLE_SYNC_EXPERIENCES) === 'true',
+				});
+				setManualExperiences(verdict.afficher);
+				if (verdict.ecrireLocal) professionalExperienceStorage.saveAll(verdict.afficher);
+				if (verdict.marquerSynchronise) localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true');
+				if (verdict.monter) {
+					// Le drapeau n'est posé QUE si la montée réussit. Posé d'office après
+					// une promesse non attendue, il transformait un échec réseau en perte
+					// définitive : au chargement suivant, la base toujours vide faisait
+					// autorité et vidait le localStorage. Tant qu'il est absent, on retentera.
+					void simulationService
+						.saveManualExperiences(verdict.monter)
+						.then(() => localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true'))
+						.catch((err) => {
+							console.warn('[Dashboard] Première synchronisation des expériences échouée :', err);
+						});
 				}
 				syncTourSeen(data.hasSeenTour === true, data.seenTourSteps);
 				console.log('[Dashboard] Simulation chargée depuis le backend');
@@ -382,8 +374,16 @@ const Dashboard: React.FC = () => {
 		if (isReadOnlyMode()) return; // jamais écrire en consultant le profil d'un autre
 		try {
 			await simulationService.saveManualExperiences(liste);
+			setErreurExperiences(null);
 		} catch (err) {
 			console.warn('[Dashboard] Sauvegarde des expériences échouée :', err);
+			// DIT à l'écran. Avalée dans un `console.warn`, la panne laissait croire
+			// que c'était enregistré : on voyait sa modification, on rechargeait, elle
+			// avait disparu — le symptôme d'origine, sur un chemin qui ne peut plus
+			// être rattrapé par hasard.
+			setErreurExperiences(
+				"Modification visible sur cet appareil seulement : le serveur n'a pas répondu. Elle sera perdue au prochain chargement."
+			);
 		}
 	}, []);
 
@@ -472,36 +472,18 @@ const Dashboard: React.FC = () => {
 		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
 	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData]);
 
-	const stageFilter = (p: Project42) => {
-		const slug = p.project.slug?.toLowerCase() || '';
-		const name = p.project.name?.toLowerCase() || '';
-		return slug.includes('stage') || slug.includes('alternance') ||
-			slug.includes('internship') || slug.startsWith('work-experience') ||
-			slug.startsWith('fr-alternance') ||
-			name.includes('stage') || name.includes('alternance') ||
-			name.includes('internship') || name.includes('work experience');
-	};
+	/** Un projet 42 ramené à ce qui décide du décompte des expériences. */
+	const entreeApi = (p: Project42) => ({
+		nom: p.project.name ?? '',
+		slug: p.project.slug ?? '',
+		validated: p.validated,
+	});
+
+	const stageFilter = (p: Project42) => estExperienceApi(p.project.name ?? '', p.project.slug ?? '');
 
 	// Compte les stages/alternances API principaux validés
-	const countApiProfExp = (allProjects: Project42[]) => {
-		return allProjects.filter(p => {
-			if (!stageFilter(p)) return false;
-			if (!p.validated) return false;
-			const slug = p.project.slug?.toLowerCase() || '';
-			const name = p.project.name.toLowerCase();
-			// Exclure les sous-évaluations
-			if (slug.startsWith('work-experience-') && slug.includes('-work-experience-', 16)) return false;
-			if (name.includes('évaluation') || name.includes('evaluation')) return false;
-			if (name.includes('peer video') || name.includes('contract upload') || name.includes('duration')) return false;
-			return true;
-		}).reduce((total, p) => {
-			// `.length` comptait une alternance de 2 ans pour UNE expérience, là où
-			// les trois autres compteurs en voyaient deux. Son titulaire perdait un
-			// point de prérequis RNCP, sans aucun recours.
-			const nom = p.project.name.toLowerCase();
-			return total + nombreExperiences(nom.includes('alternance'), anneesDepuisNom(nom));
-		}, 0);
-	};
+	const countApiProfExp = (allProjects: Project42[]) =>
+		compterExperiencesApiValidees(allProjects.map(entreeApi));
 
 	// Calcule quels sous-projets sont validés individuellement via l'API
 	const computeCompletedSubProjects = (completedProjectSlugs: string[]): Record<string, string[]> => {
@@ -979,20 +961,7 @@ const Dashboard: React.FC = () => {
 	// `duration === 2 ? 2 : 1` comptait une alternance de 3 ans pour UNE.
 	const simulatedManualProfExpCount = professionalExperienceMath.simulatedCount(manualExperiences);
 
-	const apiEnCoursProfExpCount = apiStages
-		.filter(p => {
-			if (p.validated) return false;
-			const slug = p.project.slug?.toLowerCase() || '';
-			const name = p.project.name.toLowerCase();
-			if (name.includes('évaluation') || name.includes('evaluation')) return false;
-			if (slug.startsWith('work-experience-') && slug.includes('-work-experience-', 16)) return false;
-			if (name.includes('peer video') || name.includes('contract upload') || name.includes('duration')) return false;
-			return name.includes('alternance') || name.includes('stage') || name.includes('internship') || slug.startsWith('work-experience-');
-		})
-		.reduce((count, p) => {
-			const nom = p.project.name.toLowerCase();
-			return count + nombreExperiences(nom.includes('alternance'), anneesDepuisNom(nom));
-		}, 0);
+	const apiEnCoursProfExpCount = compterExperiencesApi(apiStages.map(entreeApi));
 
 	const projectedProfExp =
 		(userProgress?.professionalExperience ?? 0) +
@@ -1277,9 +1246,9 @@ const Dashboard: React.FC = () => {
 										{simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
 									</p>
 								)}
-	{professionalExperienceMath.totalXP(manualExperiences) > 0 && (
+	{manualExperiences.length > 0 && (
 									<p>
-										{manualExperiences.length} expérience{manualExperiences.length > 1 ? 's' : ''} professionnelle{manualExperiences.length > 1 ? 's' : ''}
+										{professionalExperienceMath.count(manualExperiences)} expérience{professionalExperienceMath.count(manualExperiences) > 1 ? 's' : ''} professionnelle{professionalExperienceMath.count(manualExperiences) > 1 ? 's' : ''}
 									</p>
 								)}
 							</div>
@@ -1341,7 +1310,7 @@ const Dashboard: React.FC = () => {
 								// La coche verte marque un diplôme RÉELLEMENT obtenu. Elle
 								// suivait la projection : simuler quelques projets suffisait à
 								// afficher « ✓ » sur un RNCP qu'on n'a pas.
-								className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallRealValid ? 'validated' : ''}${!validation.overallRealValid && validation.overallValid ? ' projected' : ''}`}
+								className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallRealValid ? 'validated' : ''}`}
 								onClick={() => setSelectedRNCPIndex(index)}
 								title={
 									validation.overallRealValid
@@ -1391,6 +1360,14 @@ const Dashboard: React.FC = () => {
 							</div>
 						)}
 					</div>
+
+					{erreurExperiences && (
+						<div className="prof-exp-erreur" role="alert">
+							⚠️ {erreurExperiences}
+						</div>
+					)}
+
+					<ProfExpResume experiences={manualExperiences} />
 
 					<ProfExpList
 						entries={profExpDisplayEntries}

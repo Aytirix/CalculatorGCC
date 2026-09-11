@@ -48,6 +48,21 @@ export const professionalExperienceMath = {
       .reduce((count, exp) => count + nombreExperiences(exp.type === 'alternance', exp.duration), 0);
   },
 
+  /**
+   * Le décompte de TOUTES les expériences, acquises et simulées confondues.
+   *
+   * Ce n'est pas `experiences.length` : une alternance de deux ans vaut deux
+   * expériences professionnelles au sens du RNCP. L'en-tête du tableau de bord
+   * annonçait la longueur du tableau, et affichait donc « 1 expérience » au-dessus
+   * d'un calcul qui en comptait deux.
+   */
+  count(experiences: ProfessionalExperience[]): number {
+    return experiences.reduce(
+      (count, exp) => count + nombreExperiences(exp.type === 'alternance', exp.duration),
+      0
+    );
+  },
+
   /** Le miroir exact de `realCount`, pour les expériences SIMULÉES. */
   simulatedCount(experiences: ProfessionalExperience[]): number {
     return experiences
@@ -115,82 +130,14 @@ export const professionalExperienceStorage = {
   },
 
   /**
-   * Exporte les expériences en JSON
+   * Les accesseurs `exportToJSON`, `importFromJSON`, `getTotalXP`, `getRealXP`,
+   * `getSimulatedXP`, `getRealMonths`, `getRealCount` et `clear` ont été retirés :
+   * aucun appelant depuis la suppression de la page « Expérience professionnelle ».
+   *
+   * `importFromJSON` était le plus dangereux : il appelait `saveAll()` sans jamais
+   * persister en base — c'était littéralement un troisième chemin d'écriture,
+   * inatteignable mais prêt à rejouer le bug que ce travail vient de corriger.
+   * Les calculs restent disponibles par `professionalExperienceMath`, qui prend la
+   * liste en argument et fonctionne donc aussi pour le profil d'un autre.
    */
-  exportToJSON(): string {
-    const experiences = this.getAll();
-    return JSON.stringify(experiences, null, 2);
-  },
-
-  /**
-   * Importe les expériences depuis un JSON
-   */
-  importFromJSON(jsonString: string): ProfessionalExperience[] {
-    try {
-      const experiences = JSON.parse(jsonString) as ProfessionalExperience[];
-      
-      // Validation basique
-      if (!Array.isArray(experiences)) {
-        throw new Error('Invalid format: expected an array');
-      }
-
-      // Valider chaque expérience
-      experiences.forEach((exp, index) => {
-        if (!exp.id || !exp.type || !exp.startDate || exp.xpEarned === undefined) {
-          throw new Error(`Invalid experience at index ${index}`);
-        }
-      });
-
-      this.saveAll(experiences);
-      return experiences;
-    } catch (error) {
-      console.error('Error importing professional experiences:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Calcule le total d'XP de toutes les expériences
-   */
-  getTotalXP(): number {
-    return professionalExperienceMath.totalXP(this.getAll());
-  },
-
-  /**
-   * Calcule le total d'XP réel (non simulé)
-   */
-  getRealXP(): number {
-    return professionalExperienceMath.realXP(this.getAll());
-  },
-
-  /**
-   * Calcule le total d'XP simulé
-   */
-  getSimulatedXP(): number {
-    return professionalExperienceMath.simulatedXP(this.getAll());
-  },
-
-  /**
-   * Compte le nombre total de mois d'expérience réelle
-   * Stage: compte les mois directement
-   * Alternance: 1 an = 12 mois
-   */
-  getRealMonths(): number {
-    return professionalExperienceMath.realMonths(this.getAll());
-  },
-
-  /**
-   * Compte le nombre d'expériences réelles (non simulées)
-   * Pour l'alternance de 2 ans, compte comme 2 expériences professionnelles
-   */
-  getRealCount(): number {
-    return professionalExperienceMath.realCount(this.getAll());
-  },
-
-  /**
-   * Efface toutes les expériences
-   */
-  clear(): void {
-    localStorage.removeItem(STORAGE_KEY);
-  }
 };
