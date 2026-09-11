@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { listDelegates } from '../db/adminRepository.js';
 import { simulationRepository } from '../db/simulationRepository.js';
+import { filtrerExperiences } from '../services/experienceValidation.js';
 import { prisma } from '../db/connection.js';
 
 export const SimulationController = {
@@ -244,11 +245,23 @@ export const SimulationController = {
 			return reply.code(400).send({ error: 'Too many experiences (max 100)' });
 		}
 
+		// Les entrées inexploitables sont ÉCARTÉES, pas rejetées en bloc : un
+		// enregistrement ancien et bancal ne doit pas empêcher d'enregistrer les
+		// autres. Ce blob ressort tel quel pour quiconque consulte un profil public,
+		// et une seule entrée tordue y faisait planter le rendu du VISITEUR.
+		const { gardees, ecartees } = filtrerExperiences(body.manualExperiences);
+		if (ecartees > 0) {
+			request.log.warn(
+				{ userId42: user_id_42, ecartees },
+				'[simulation] expériences manuelles écartées : forme invalide'
+			);
+		}
+
 		const saved = await simulationRepository.saveManualExperiences(
 			user_id_42,
 			login,
 			image_url ?? null,
-			body.manualExperiences,
+			gardees,
 			first_name,
 			last_name
 		);

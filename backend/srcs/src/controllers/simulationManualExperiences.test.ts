@@ -35,6 +35,13 @@ vi.mock('../db/simulationRepository.js', () => ({
 
 const { SimulationController } = await import('./simulation.controller.js');
 
+/** Une expérience complète et valide, telle que les formulaires l'émettent. */
+const experience = (extra: Record<string, unknown> = {}) => ({
+	id: 'a', type: 'stage', startDate: '', duration: 6,
+	validationPercentage: 115, coalitionBoost: 0, isSimulation: true,
+	simulationExplicite: true, xpEarned: 72_450, ...extra,
+});
+
 /** Répond comme Fastify : on inspecte le code et le corps. */
 const appeler = async (body: unknown) => {
 	let code = 200;
@@ -44,7 +51,7 @@ const appeler = async (body: unknown) => {
 		send(x: unknown) { corps = x; return x; },
 	};
 	await SimulationController.saveManualExperiences(
-		{ body, user: { user_id_42: 42, login: 'thmouty', image_url: null } } as never,
+		{ body, user: { user_id_42: 42, login: 'thmouty', image_url: null }, log: { warn: () => {} } } as never,
 		reply as never
 	);
 	return { code, corps: corps as Record<string, unknown> };
@@ -55,8 +62,8 @@ beforeEach(() => enregistrer.mockClear());
 describe('PUT /simulation/manual-experiences', () => {
 	it('enregistre la liste reçue', async () => {
 		const experiences = [
-			{ type: 'stage', validationPercentage: 125, xpEarned: 62_000, id: 'a' },
-			{ type: 'alternance', validationPercentage: 60, xpEarned: 54_000, id: 'b' },
+			experience({ id: 'a', validationPercentage: 125, xpEarned: 62_000 }),
+			experience({ id: 'b', type: 'alternance', duration: 1, validationPercentage: 60, xpEarned: 54_000 }),
 		];
 		const { code, corps } = await appeler({ manualExperiences: experiences });
 		expect(code).toBe(200);
@@ -82,27 +89,78 @@ describe('PUT /simulation/manual-experiences', () => {
 
 	it('refuse une liste démesurée', async () => {
 		// Ce tableau part en JSON dans une colonne ; rien ne bornerait sa taille.
-		const { code } = await appeler({ manualExperiences: new Array(101).fill({ type: 'stage' }) });
+		const { code } = await appeler({ manualExperiences: new Array(101).fill(experience()) });
 		expect(code).toBe(400);
 		expect(enregistrer).not.toHaveBeenCalled();
 	});
 
 	it('accepte exactement la limite', async () => {
-		const { code } = await appeler({ manualExperiences: new Array(100).fill({ type: 'stage' }) });
+		const { code } = await appeler({ manualExperiences: new Array(100).fill(experience()) });
 		expect(code).toBe(200);
 	});
 
 	it('ne transmet QUE les expériences au dépôt', async () => {
 		// La garantie qui compte : rien d'autre de la simulation ne doit partir
 		// d'ici. Un champ de plus dans le corps ne doit pas être propagé.
+		const une = experience();
 		await appeler({
-			manualExperiences: [{ id: 'a' }],
+			manualExperiences: [une],
 			simulatedProjects: [{ projectId: '1' }],
 			customProjects: [{ nom: 'x' }],
 		});
 		const argumentsRecus = enregistrer.mock.calls[0];
-		expect(argumentsRecus[3]).toEqual([{ id: 'a' }]);
+		expect(argumentsRecus[3]).toEqual([une]);
 		expect(JSON.stringify(argumentsRecus)).not.toContain('simulatedProjects');
 		expect(JSON.stringify(argumentsRecus)).not.toContain('customProjects');
+	});
+
+	describe('contenu invalide', () => {
+		// Ce blob ressort tel quel par `GET /simulation/user/:id` pour tout profil
+		// PUBLIC, et une seule entrée tordue faisait planter le rendu du VISITEUR :
+		// `STAGE_MODELS[3].label` lève, `null.toLocaleString()` lève, un objet donne
+		// « Objects are not valid as a React child ». L'ErrorBoundary remplaçait
+		// alors toute l'application de qui consultait le profil.
+		const tordues: [string, Record<string, unknown>][] = [
+			['stageLevel hors {1,2}', { stageLevel: 3 }],
+			['xpEarned nul', { xpEarned: null }],
+			['xpEarned en chaîne', { xpEarned: '999' }],
+			['xpEarned infini', { xpEarned: Infinity }],
+			['duration négative', { duration: -5 }],
+			['duration NaN', { duration: NaN }],
+			['pourcentage hors bornes', { validationPercentage: 1000 }],
+			['type inconnu', { type: 'freelance' }],
+			['id absent', { id: undefined }],
+			['isSimulation non booléen', { isSimulation: 'oui' }],
+			['sous-note aberrante', { subNotes: { duration: 9999 } }],
+			['champ rendu comme objet', { validationPercentage: { a: 1 } }],
+		];
+
+		for (const [nom, tordu] of tordues) {
+			it(`écarte une entrée : ${nom}`, async () => {
+				const { code } = await appeler({ manualExperiences: [experience(tordu)] });
+				expect(code).toBe(200);
+				expect(enregistrer.mock.calls[0][3]).toEqual([]);
+			});
+		}
+
+		it('écarte aussi ce qui n’est pas un objet', async () => {
+			await appeler({ manualExperiences: [null, 'texte', 42, []] });
+			expect(enregistrer.mock.calls[0][3]).toEqual([]);
+		});
+
+		it('GARDE les valides et n’écarte que les autres', async () => {
+			// Un enregistrement ancien et bancal ne doit pas empêcher d'enregistrer
+			// les autres : on écarte, on ne rejette pas tout le corps.
+			const bonne = experience({ id: 'ok' });
+			await appeler({ manualExperiences: [experience({ id: 'ko', stageLevel: 9 }), bonne] });
+			expect(enregistrer.mock.calls[0][3]).toEqual([bonne]);
+		});
+
+		it('écarte une entrée démesurée', async () => {
+			// La borne de 100 ne limitait que le NOMBRE : une seule entrée pouvait
+			// porter un méga-octet, reparti à chaque chargement et à chaque visiteur.
+			await appeler({ manualExperiences: [experience({ id: 'x'.repeat(63), startDate: 'y'.repeat(32), subNotes: Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`n${i}`, 100])) })] });
+			expect(enregistrer.mock.calls[0][3]).toEqual([]);
+		});
 	});
 });
