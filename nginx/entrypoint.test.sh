@@ -162,15 +162,6 @@ lancer " $MIROIR "
 verifier "tolère les espaces autour d'APP_DOMAIN" "$S" demarre \
 	contient "renverra bien les visiteurs sur $MIROIR" absent "ne reconnaît PAS"
 
-echo "== plages de proxy de confiance =="
-# `${VAR:-defaut}` ne rattrape pas une valeur faite d'espaces : elle est non vide,
-# donc le défaut ne s'applique pas, et la liste se retrouve vide après découpage.
-# Sans garde, nginx démarrerait alors SANS aucun `set_real_ip_from` — X-Real-IP
-# vaudrait l'adresse du proxy pour tout le monde, en silence.
-MIRROR_TRUSTED_PROXY="   " lancer "$MIROIR"
-unset MIRROR_TRUSTED_PROXY
-verifier "refuse une liste de plages vide" "$S" contient "MIRROR_TRUSTED_PROXY est vide" quitte
-
 echo "== cible mal configurée / injoignable =="
 export FAUX_REDIRECT="https://api.intra.42.fr/oauth/authorize?state=$(b64url "{\"o\":\"$MIROIR\",\"t\":1}").x"
 FAUX_BODY='<html>' FAUX_TYPE='text/html' lancer "$MIROIR"

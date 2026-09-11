@@ -141,22 +141,6 @@ if [ -n "$MIRROR_API_URL" ]; then
     # privée, et pourraient donc choisir l'IP qu'on journalise et qu'on transmet.
     MIRROR_TRUSTED_PROXY=${MIRROR_TRUSTED_PROXY:-127.0.0.1/32}
 
-    # Une directive `set_real_ip_from` par plage. La variable en acceptait une
-    # seule, or derrière un reverse proxy on ignore souvent si le réseau est en
-    # 172.16/12 ou en 10/8 : se tromper ne casse rien de visible, mais `X-Real-IP`
-    # vaut alors l'adresse du proxy pour TOUT LE MONDE — et l'instance principale
-    # compte tous les visiteurs du miroir comme un seul pour son rate-limit.
-    MIRROR_REAL_IP_FROM=""
-    for plage in $(printf '%s' "$MIRROR_TRUSTED_PROXY" | tr ',' ' '); do
-        MIRROR_REAL_IP_FROM="${MIRROR_REAL_IP_FROM}    set_real_ip_from ${plage};
-"
-    done
-    if [ -z "$MIRROR_REAL_IP_FROM" ]; then
-        echo "[miroir] ERREUR DE CONFIGURATION : MIRROR_TRUSTED_PROXY est vide."
-        echo "         Mettez 127.0.0.1/32 pour ne faire confiance à personne."
-        exit 1
-    fi
-
     echo "=========================================="
     echo "Mode MIROIR AUTONOME"
     echo "  API relayée : ${MIRROR_API_ORIGIN}${MIRROR_API_PATH}"
@@ -325,7 +309,7 @@ if [ -n "$MIRROR_API_URL" ]; then
         sleep 3
     done
 
-    export MIRROR_API_ORIGIN MIRROR_API_PATH MIRROR_API_HOST MIRROR_API_SNI MIRROR_RESOLVER MIRROR_REAL_IP_FROM
+    export MIRROR_API_ORIGIN MIRROR_API_PATH MIRROR_API_HOST MIRROR_API_SNI MIRROR_RESOLVER MIRROR_TRUSTED_PROXY
 fi
 
 # Déterminer le suffixe de configuration selon SSL
@@ -353,7 +337,7 @@ fi
 # connues qu'au démarrage. On liste les variables une à une pour ne pas toucher
 # aux `$remote_addr` et consorts, que nginx doit recevoir tels quels.
 if [ -n "$MIRROR_API_URL" ]; then
-    envsubst '$MIRROR_API_ORIGIN $MIRROR_API_PATH $MIRROR_API_HOST $MIRROR_API_SNI $MIRROR_RESOLVER $MIRROR_REAL_IP_FROM' \
+    envsubst '$MIRROR_API_ORIGIN $MIRROR_API_PATH $MIRROR_API_HOST $MIRROR_API_SNI $MIRROR_RESOLVER $MIRROR_TRUSTED_PROXY' \
         < "/etc/nginx/conf.d/$CONFIG_FILE" > /etc/nginx/active_frontend.conf
 else
     cp "/etc/nginx/conf.d/$CONFIG_FILE" /etc/nginx/active_frontend.conf
