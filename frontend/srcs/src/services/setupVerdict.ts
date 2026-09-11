@@ -75,3 +75,27 @@ export function prochainConfigured(
 	if (precedent === true) return true;
 	return verdict;
 }
+
+/**
+ * Faut-il réinterroger `/setup/status` maintenant ?
+ *
+ * Extrait du hook, comme tout ce qui décide : un audit par mutation a montré que
+ * la politique de rafraîchissement — la seule chose qui reste dans `useSetupCheck`
+ * — n'était gardée par aucun test, alors que chacun de ses réglages corrige un
+ * bug vécu.
+ *
+ * L'équilibre à tenir est étroit. La version d'origine n'interrogeait qu'UNE fois
+ * par onglet, et jamais quand un jeton était présent : une origine révoquée
+ * n'était donc jamais vue. Interroger à chaque clic ferait payer une requête par
+ * navigation à tout le monde. D'où un plafond, et non un sondage.
+ */
+export const INTERVALLE_MIN_MS = 30_000;
+
+export function doitInterroger(
+	maintenant: number,
+	dernierInstant: number,
+	forcer = false
+): boolean {
+	if (forcer) return true;
+	return maintenant - dernierInstant >= INTERVALLE_MIN_MS;
+}

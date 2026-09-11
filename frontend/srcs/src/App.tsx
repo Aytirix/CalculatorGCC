@@ -22,6 +22,7 @@ import AdminLogin from '@/pages/Admin/AdminLogin';
 import NotConfigured from '@/pages/NotConfigured/NotConfigured';
 import OriginWarning from '@/components/OriginWarning/OriginWarning';
 import { OriginStatusContext } from '@/contexts/OriginStatusContext';
+import { origineRefusee } from '@/services/originVerdict';
 import AdminPanel from '@/pages/Admin/AdminPanel';
 import AccountSettings from '@/pages/AccountSettings/AccountSettings';
 import PrivacyGate from '@/components/PrivacyChoiceModal/PrivacyGate';
@@ -29,7 +30,11 @@ import GithubLink from '@/components/GithubLink/GithubLink';
 import { useSetupCheck } from '@/hooks/useSetupCheck';
 import { useViewingUser } from '@/contexts/useViewingUser';
 
-const AppRoutes: React.FC = () => {
+// Exporté pour être RENDU en test. Sans cela, la seule garantie que le bandeau
+// s'affiche bien sur un refus était une expression régulière sur ce fichier, et
+// un audit par mutation a montré qu'il suffisait d'insérer `false &&` devant la
+// condition pour la rendre inatteignable sans toucher au texte épinglé.
+export const AppRoutes: React.FC = () => {
 	const { isAuthenticated } = useAuth();
 	const { isConfigured, isChecking, originAllowed } = useSetupCheck();
 	// `useLocation` et NON `window.location` : cette dernière n'est pas réactive.
@@ -81,7 +86,7 @@ const AppRoutes: React.FC = () => {
 	// antérieure à ce contrôle, ou instance qui ne fait pas autorité).
 	return (
 		<OriginStatusContext.Provider value={{ originAllowed }}>
-			{originAllowed === false && <OriginWarning />}
+			{origineRefusee(originAllowed) && <OriginWarning />}
 			<PrivacyGate />
 			<GithubLink />
 			<Routes>

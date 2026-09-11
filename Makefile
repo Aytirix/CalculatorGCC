@@ -47,6 +47,11 @@ test: ## Lancer les tests unitaires (backend + frontend)
 # AUCUN test ne s'exécutait — une cible de test muette est pire que partielle.
 	@echo "$(BLUE)🧪 Tests frontend...$(RESET)"
 	@docker exec calculatorGCC_frontend_dev npm test
+# Le démarrage du miroir est en shell : ni vitest ni tsc ne le voient, et c'est
+# pourtant là que vit le décodage du `state` et la doctrine « on avertit sans
+# refuser de démarrer ». Un audit l'a trouvé à 0 % de couverture.
+	@echo "$(BLUE)🧪 Tests du démarrage miroir...$(RESET)"
+	@bash nginx/entrypoint.test.sh
 	@echo "$(BLUE)🧪 Tests backend...$(RESET)"
 # `vitest` a été ajouté aux devDependencies après la construction de l'image : un
 # conteneur plus ancien ne l'a pas. Plutôt que d'échouer sur un « not found » sans

@@ -44,7 +44,10 @@ describe('OriginWarning', () => {
 		// de câblage au vert, bandeau invisible.
 		const html = await rendu();
 		expect(html.length).toBeGreaterThan(100);
-		expect(html).toContain('origin-warning');
+		// `class="…"` et non la sous-chaîne nue : `origin-warning__icon` la contient
+		// aussi, si bien qu'un renommage de la classe racine — qui ôterait tout le
+		// style, la feuille ciblant `.origin-warning` — laissait l'assertion verte.
+		expect(html).toContain('class="origin-warning"');
 	});
 
 	it('dit la conséquence concrète, pas seulement qu’il y a un problème', async () => {
@@ -76,7 +79,7 @@ describe('OriginWarning', () => {
 describe('câblage', () => {
 	it('App affiche le bandeau sur un refus EXPLICITE', async () => {
 		expect(appSource).toMatch(/import OriginWarning from/);
-		expect(appSource).toMatch(/originAllowed === false && <OriginWarning \/>/);
+		expect(appSource).toMatch(/origineRefusee\(originAllowed\) && <OriginWarning \/>/);
 	});
 
 	// Pas d'assertion « le plein écran ne revient pas » : elle ne peut être qu'une
@@ -87,7 +90,7 @@ describe('câblage', () => {
 	// qui garantit qu'un `null` ne devient jamais un `false`.
 
 	it('Login désactive le bouton plutôt que de mentir', async () => {
-		expect(loginSource).toMatch(/originAllowed === false/);
+		expect(loginSource).toMatch(/origineRefusee\(originAllowed\)/);
 		expect(loginSource).toMatch(/disabled=\{connexionImpossible\}/);
 	});
 });

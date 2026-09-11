@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lireVerdictSetup, prochainConfigured } from './setupVerdict';
+import { lireVerdictSetup, prochainConfigured, doitInterroger, INTERVALLE_MIN_MS } from './setupVerdict';
 import type { SetupStatus } from './setup.service';
 
 /**
@@ -106,5 +106,39 @@ describe('prochainConfigured', () => {
 	it('laisse « non configurée » devenir « configurée »', () => {
 		// Le sens utile : on renseigne les identifiants depuis le panneau, on revient.
 		expect(prochainConfigured(false, true)).toBe(true);
+	});
+});
+
+describe('doitInterroger', () => {
+	it('interroge à la toute première occasion', () => {
+		// `dernierInstant` vaut 0 au montage : la première vérification ne doit
+		// jamais être escamotée par le plafond.
+		expect(doitInterroger(Date.now(), 0)).toBe(true);
+	});
+
+	it('ne réinterroge pas dans la foulée', () => {
+		// Sinon chaque navigation coûte une requête à tout le monde.
+		const t = 1_000_000;
+		expect(doitInterroger(t + 1, t)).toBe(false);
+		expect(doitInterroger(t + INTERVALLE_MIN_MS - 1, t)).toBe(false);
+	});
+
+	it('réinterroge une fois le délai écoulé', () => {
+		// Sinon une origine révoquée reste invisible, ce qui était le bug.
+		const t = 1_000_000;
+		expect(doitInterroger(t + INTERVALLE_MIN_MS, t)).toBe(true);
+		expect(doitInterroger(t + INTERVALLE_MIN_MS * 10, t)).toBe(true);
+	});
+
+	it('obéit toujours à une demande explicite', () => {
+		// Un bouton « Réessayer » ne doit pas se heurter au plafond.
+		expect(doitInterroger(1_000_000, 1_000_000, true)).toBe(true);
+	});
+
+	it('garde un plafond utile — ni nul, ni d’une durée absurde', () => {
+		// Un plafond à zéro rétablit une requête par clic ; un plafond de plusieurs
+		// heures rétablit le bug qu'il corrige.
+		expect(INTERVALLE_MIN_MS).toBeGreaterThan(1_000);
+		expect(INTERVALLE_MIN_MS).toBeLessThanOrEqual(120_000);
 	});
 });

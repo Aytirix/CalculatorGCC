@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/useAuth';
 import { useOriginStatus } from '@/contexts/useOriginStatus';
+import { origineRefusee } from '@/services/originVerdict';
 import './Login.scss';
 
 /**
@@ -44,7 +45,7 @@ const Login: React.FC = () => {
 	// ment est pire qu'un bouton éteint. `false` STRICT — `null` veut dire « on ne
 	// sait pas » et ne doit rien désactiver.
 	const { originAllowed } = useOriginStatus();
-	const connexionImpossible = originAllowed === false;
+	const connexionImpossible = origineRefusee(originAllowed);
 
 	return (
 		<div className="auth-page login-page">

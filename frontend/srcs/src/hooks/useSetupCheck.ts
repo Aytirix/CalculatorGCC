@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setupService } from '../services/setup.service';
-import { lireVerdictSetup, prochainConfigured } from '../services/setupVerdict';
+import { lireVerdictSetup, prochainConfigured, doitInterroger } from '../services/setupVerdict';
 import { backendAuthService } from '../services/backend-auth.service';
 
 /**
@@ -16,18 +16,6 @@ import { backendAuthService } from '../services/backend-auth.service';
  * La DÉCISION vit dans `lireVerdictSetup`, testable sans DOM ; il ne reste ici que
  * le cycle de vie React.
  */
-
-/**
- * Intervalle minimal entre deux interrogations.
- *
- * La version précédente ne redemandait plus JAMAIS rien dès qu'une réponse
- * « configurée » était arrivée, ni même une première fois quand un jeton était
- * présent. Une origine révoquée n'était donc jamais vue. À l'inverse, interroger à
- * chaque clic ferait payer une requête par navigation à tout le monde. Trente
- * secondes : une révocation est prise en compte au changement de page suivant, et
- * un parcours normal n'émet qu'une poignée d'appels.
- */
-const INTERVALLE_MIN_MS = 30_000;
 
 export function useSetupCheck() {
 	const hasToken = backendAuthService.isAuthenticated();
@@ -44,7 +32,7 @@ export function useSetupCheck() {
 
 	const checkSetupStatus = useCallback(async (forcer = false) => {
 		const maintenant = Date.now();
-		if (!forcer && maintenant - dernierInstant.current < INTERVALLE_MIN_MS) return;
+		if (!doitInterroger(maintenant, dernierInstant.current, forcer)) return;
 		dernierInstant.current = maintenant;
 
 		const numero = ++dernierAppel.current;
