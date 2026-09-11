@@ -11,7 +11,6 @@ import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
-import ProfExpResume from '@/components/ProfExpResume/ProfExpResume';
 import { resoudreExperiences } from '@/utils/experienceLoad';
 import { normaliserExperiences } from '@/utils/experienceMigration';
 import { compterExperiencesApi, compterExperiencesApiValidees, estExperienceApi } from '@/utils/experienceCount';
@@ -1366,8 +1365,6 @@ const Dashboard: React.FC = () => {
 							⚠️ {erreurExperiences}
 						</div>
 					)}
-
-					<ProfExpResume experiences={manualExperiences} />
 
 					<ProfExpList
 						entries={profExpDisplayEntries}

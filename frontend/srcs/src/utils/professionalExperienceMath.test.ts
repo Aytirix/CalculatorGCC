@@ -111,4 +111,21 @@ describe('la règle des années — « alternance 2 ans = 2 expériences pro »'
 		expect(professionalExperienceMath.realCount(liste)).toBe(2);
 		expect(professionalExperienceMath.simulatedCount(liste)).toBe(2);
 	});
+
+	it('compte le tout — c’est ce qu’annonce l’en-tête du tableau de bord', () => {
+		// `count` n'est PAS `experiences.length` : l'en-tête affichait
+		// « 1 expérience professionnelle » au-dessus d'un calcul qui en comptait deux.
+		expect(professionalExperienceMath.count([alt(2, true)])).toBe(2);
+		expect(professionalExperienceMath.count([alt(1, false)])).toBe(1);
+		expect(professionalExperienceMath.count([stage(true)])).toBe(1);
+		expect(professionalExperienceMath.count([])).toBe(0);
+	});
+
+	it('count = acquis + simulé, sans oubli ni doublon', () => {
+		const liste = [alt(2, false), alt(1, true), stage(true)];
+		expect(professionalExperienceMath.count(liste)).toBe(
+			professionalExperienceMath.realCount(liste) + professionalExperienceMath.simulatedCount(liste)
+		);
+		expect(professionalExperienceMath.count(liste)).toBe(4);
+	});
 });
