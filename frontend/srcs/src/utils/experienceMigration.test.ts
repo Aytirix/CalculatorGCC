@@ -59,4 +59,26 @@ describe('normaliserExperiences', () => {
 	it('accepte une liste vide', () => {
 		expect(normaliserExperiences([])).toEqual([]);
 	});
+
+	it('NE LÈVE JAMAIS, quelle que soit l’entrée', () => {
+		// Le contenu n'est validé nulle part côté serveur et ressort tel quel pour
+		// tout profil public. Une seule entrée `null` faisait lever cette fonction,
+		// appelée dans le `try` du chargement : le Dashboard basculait alors sur son
+		// repli local, et le visiteur voyait SES données en croyant consulter celles
+		// d'un autre. Déclenchable à distance, en silence.
+		const tordu = [null, undefined, 'texte', 42, [], true] as unknown as ProfessionalExperience[];
+		expect(() => normaliserExperiences(tordu)).not.toThrow();
+	});
+
+	it('ÉCARTE les entrées qui ne sont pas des objets', () => {
+		// Les laisser passer produisait des expériences fantômes, comptées dans le
+		// total affiché : `normaliserExperiences(['a'])` rendait `{"0":"a", …}`.
+		const tordu = [null, 'a', 3, []] as unknown as ProfessionalExperience[];
+		expect(normaliserExperiences(tordu)).toEqual([]);
+	});
+
+	it('garde les entrées valides mêlées aux tordues', () => {
+		const melange = [null, exp({}), 'x'] as unknown as ProfessionalExperience[];
+		expect(normaliserExperiences(melange)).toHaveLength(1);
+	});
 });

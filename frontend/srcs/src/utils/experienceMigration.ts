@@ -21,9 +21,22 @@ import type { ProfessionalExperience } from '@/types/professionalExperience.type
 export function normaliserExperiences(
 	liste: ProfessionalExperience[]
 ): ProfessionalExperience[] {
-	return liste.map((exp) =>
-		exp.simulationExplicite === true
-			? exp
-			: { ...exp, isSimulation: true, simulationExplicite: true }
-	);
+	// TOTALE : elle ne lève sur aucune entrée, si tordue soit-elle.
+	//
+	// Le contenu des expériences n'est validé nulle part côté serveur, et il
+	// ressort tel quel par `GET /simulation/user/:id` pour tout profil public. Une
+	// seule entrée `null` suffisait à faire lever cette fonction — appelée DANS le
+	// `try` du chargement, elle envoyait alors le Dashboard sur son repli
+	// `loadFromLocalStorage()`, et le visiteur voyait SES PROPRES données en
+	// croyant consulter le profil d'un autre. Déclenchable à distance, en silence.
+	return liste
+		.filter(
+			(exp): exp is ProfessionalExperience =>
+				exp !== null && typeof exp === 'object' && !Array.isArray(exp)
+		)
+		.map((exp) =>
+			exp.simulationExplicite === true
+				? exp
+				: { ...exp, isSimulation: true, simulationExplicite: true }
+		);
 }

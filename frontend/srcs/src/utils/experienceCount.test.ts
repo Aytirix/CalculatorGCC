@@ -31,6 +31,14 @@ describe('nombreExperiences', () => {
 		}
 	});
 
+	it('PLAFONNE une durée absurde', () => {
+		// La durée n'est validée nulle part côté serveur : `duration: 1e9` affichait
+		// « 1 000 000 000 expériences projetées », y compris à qui consulte le profil.
+		expect(nombreExperiences(true, 1e9)).toBe(10);
+		expect(nombreExperiences(true, 11)).toBe(10);
+		expect(nombreExperiences(true, 10)).toBe(10);
+	});
+
 	it('tronque une durée fractionnaire', () => {
 		expect(nombreExperiences(true, 2.9)).toBe(2);
 	});

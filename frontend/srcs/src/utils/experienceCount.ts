@@ -19,7 +19,11 @@ export function nombreExperiences(estAlternance: boolean, annees: number): numbe
 	if (!estAlternance) return 1;
 	// Une durée absente, nulle ou aberrante vaut une année : mieux vaut compter
 	// l'expérience une fois que de la faire disparaître du décompte.
-	return Number.isFinite(annees) && annees >= 1 ? Math.floor(annees) : 1;
+	if (!Number.isFinite(annees) || annees < 1) return 1;
+	// Plafonné : la durée n'est pas validée côté serveur, et un `duration: 1e9`
+	// affichait « 1 000 000 000 expériences professionnelles projetées » — y compris
+	// à qui consulte le profil. Dix ans dépasse déjà tout parcours réel.
+	return Math.min(10, Math.floor(annees));
 }
 
 /**

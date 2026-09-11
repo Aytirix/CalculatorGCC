@@ -17,6 +17,7 @@ import {
   predictStageNote,
   applyCoalitionBoost,
 } from '@/utils/stageModel';
+import { noteEffective, notesEffectives } from '@/utils/stageNoteBuffer';
 import './StageForm.scss';
 
 interface StageFormProps {
@@ -78,7 +79,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
   const validerNote = (key: StageNoteKey) => {
     const texte = saisie[key];
     if (texte === undefined) return;
-    setNote(key, texte === '' ? notes[key] : parseInt(texte));
+    setNote(key, noteEffective(key, notes[key], texte));
     setSaisie((prev) => {
       const suite = { ...prev };
       delete suite[key];
@@ -86,12 +87,24 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
     });
   };
 
-  const baseXP = useMemo(() => predictStageXP(notes, we), [notes, we]);
+  /**
+   * Les notes EFFECTIVES : modèle plus tampon de saisie.
+   *
+   * Tout part d'ici — l'aperçu comme l'enregistrement. Une version antérieure
+   * n'alignait que la soumission : l'affichage continuait de lire `notes` seul, si
+   * bien qu'on LISAIT 29 019 XP et qu'on ENREGISTRAIT 45 145 XP. La source de
+   * vérité avait juste changé de côté, et c'était l'écran qui mentait.
+   */
+  const effectives = useMemo(() => notesEffectives(notes, saisie), [notes, saisie]);
+
+  const baseXP = useMemo(() => predictStageXP(effectives, we), [effectives, we]);
   const finalXP = useMemo(() => applyCoalitionBoost(baseXP, coalitionBoost), [baseXP, coalitionBoost]);
-  const predictedNote = useMemo(() => predictStageNote(notes, we), [notes, we]);
+  const predictedNote = useMemo(() => predictStageNote(effectives, we), [effectives, we]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // `effectives`, `predictedNote` et `finalXP` sont déjà calculés au rendu depuis
+    // le tampon : on enregistre EXACTEMENT ce qui est affiché, sans recalcul.
     onSubmit({
       type: 'stage',
       startDate: '',
@@ -111,7 +124,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
       isSimulation: !dejaAcquise,
       simulationExplicite: true,
       xpEarned: finalXP,
-      subNotes: notes,
+      subNotes: effectives,
       predictedNote,
       stageLevel: we,
     });
@@ -254,7 +267,7 @@ const StageForm: React.FC<StageFormProps> = ({ onSubmit, onCancel, initialValues
               type="range"
               min={min}
               max={max}
-              value={notes[key]}
+              value={effectives[key]}
               disabled={locked}
               onChange={(e) => setNote(key, parseInt(e.target.value))}
               className="percentage-slider"

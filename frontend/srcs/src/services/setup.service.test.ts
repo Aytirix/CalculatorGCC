@@ -26,6 +26,11 @@ const ORIGINE = 'https://copie.exemple.fr';
 // tomber les fichiers de rendu, qui ont besoin d'`addEventListener`.
 const fenetreAvant = (globalThis as Record<string, unknown>).window;
 beforeEach(() => {
+	// Sans cela, un autre fichier de test ayant déjà chargé `setup.service` avec le
+	// VRAI axios laisse le module en cache : le bouchon ne s'applique plus et l'URL
+	// relative `/api` devient invalide. Invisible en mode isolé — le défaut de
+	// vitest — mais reproductible avec `--no-isolate`.
+	vi.resetModules();
 	get.mockClear();
 	(globalThis as Record<string, unknown>).window = { location: { origin: ORIGINE } };
 });

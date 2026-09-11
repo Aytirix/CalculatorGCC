@@ -197,14 +197,22 @@ const Dashboard: React.FC = () => {
 					const locales = professionalExperienceStorage.getAll();
 					if (!dejaSynchronise && remoteExperiences.length === 0 && locales.length > 0) {
 						setManualExperiences(locales);
-						void simulationService.saveManualExperiences(locales).catch((err) => {
-							console.warn('[Dashboard] Première synchronisation des expériences échouée :', err);
-						});
+						// Le drapeau n'est posé QUE si la montée réussit. Posé d'office
+						// après une promesse non attendue, il transformait un échec réseau
+						// en perte définitive : au chargement suivant, la base toujours
+						// vide faisait autorité et vidait le localStorage. Tant qu'il est
+						// absent, on retentera.
+						void simulationService
+							.saveManualExperiences(locales)
+							.then(() => localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true'))
+							.catch((err) => {
+								console.warn('[Dashboard] Première synchronisation des expériences échouée :', err);
+							});
 					} else {
 						professionalExperienceStorage.saveAll(remoteExperiences);
 						setManualExperiences(remoteExperiences);
+						localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true');
 					}
-					localStorage.setItem(CLE_SYNC_EXPERIENCES, 'true');
 				}
 				syncTourSeen(data.hasSeenTour === true, data.seenTourSteps);
 				console.log('[Dashboard] Simulation chargée depuis le backend');

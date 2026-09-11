@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,7 +26,18 @@ const AlternanceForm: React.FC<AlternanceFormProps> = ({ onSubmit, onCancel, ini
 	);
 	const [calculatedXP, setCalculatedXP] = useState(0);
 
-	const validationNum = Math.min(125, Math.max(0, parseInt(validationPercentage) || 0));
+	// Un champ VIDÉ garde la valeur précédente au lieu de tomber à 0 : « tout
+	// sélectionner, effacer, regarder ailleurs » faisait sinon chuter le
+	// pourcentage à 0 % et l'XP à 0. Le formulaire de stage restaure déjà la valeur
+	// courante dans ce cas ; les deux se comportent enfin pareil.
+	const dernierePourcentage = useRef(
+		Math.min(125, initialValues?.validationPercentage ?? 100)
+	);
+	const saisi = parseInt(validationPercentage);
+	const validationNum = Number.isFinite(saisi)
+		? Math.min(125, Math.max(0, saisi))
+		: dernierePourcentage.current;
+	dernierePourcentage.current = validationNum;
 
 	useEffect(() => {
 		const baseXP = 90000 * duration * (validationNum / 100);

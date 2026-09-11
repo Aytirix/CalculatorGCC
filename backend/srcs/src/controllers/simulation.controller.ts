@@ -190,11 +190,15 @@ export const SimulationController = {
 			simulatedProjects: Array.isArray(body.simulatedProjects) ? body.simulatedProjects : [],
 			simulatedSubProjects: body.simulatedSubProjects ?? {},
 			customProjects: Array.isArray(body.customProjects) ? body.customProjects : [],
-			// `undefined` et NON `[]` quand la clé est absente : le dépôt laisse alors
-			// la colonne intacte. La remettre à vide effaçait les expériences dès
-			// qu'un client ne les transportait pas — ce que fait désormais le
-			// Dashboard, qui les enregistre par leur route dédiée.
-			manualExperiences: Array.isArray(body.manualExperiences) ? body.manualExperiences : undefined,
+			// TOUJOURS `undefined` : cette route ne touche JAMAIS aux expériences.
+			//
+			// Elles ont leur point d'entrée dédié, et deux écrivains sur le même champ
+			// s'écrasaient l'un l'autre — cette sauvegarde-ci étant retardée de deux
+			// secondes, elle transportait un instantané périmé. Se contenter d'ignorer
+			// la clé ABSENTE ne suffisait pas : un onglet resté ouvert sur une version
+			// antérieure du frontend continue de l'envoyer, et son instantané périmé
+			// écrasait ce que la route dédiée venait d'enregistrer. Une seule porte.
+			manualExperiences: undefined,
 			apiExpPercentages: body.apiExpPercentages ?? {},
 			hasSeenTour: body.hasSeenTour === true,
 		};
