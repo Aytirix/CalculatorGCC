@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { lireVerdictSetup, prochainConfigured, doitInterroger, INTERVALLE_MIN_MS } from './setupVerdict';
+import {
+	lireVerdictSetup,
+	prochainConfigured,
+	doitInterroger,
+	rafraichirStatut,
+	INTERVALLE_MIN_MS,
+} from './setupVerdict';
 import type { SetupStatus } from './setup.service';
 
 /**
@@ -140,5 +146,102 @@ describe('doitInterroger', () => {
 		// heures rétablit le bug qu'il corrige.
 		expect(INTERVALLE_MIN_MS).toBeGreaterThan(1_000);
 		expect(INTERVALLE_MIN_MS).toBeLessThanOrEqual(120_000);
+	});
+});
+
+describe('rafraichirStatut', () => {
+	/** Un espion pour chacun des trois états du hook. */
+	const espions = () => {
+		const etat = { isChecking: true, isConfigured: null as boolean | null, originAllowed: undefined as unknown };
+		return {
+			etat,
+			setters: {
+				setIsChecking: (v: boolean) => { etat.isChecking = v; },
+				setIsConfigured: (calcul: (p: boolean | null) => boolean | null) => {
+					etat.isConfigured = calcul(etat.isConfigured);
+				},
+				setOriginAllowed: (v: boolean | null) => { etat.originAllowed = v; },
+			},
+		};
+	};
+	const repond = (origin_allowed: boolean | null, configured = true) =>
+		async () => ({ configured, message: 'ok', origin_allowed });
+
+	it('POSE le verdict d’origine reçu — c’est toute la raison d’être du dispositif', async () => {
+		// Le mutant qui a imposé cette extraction : `setOriginAllowed(null)` au lieu
+		// du verdict laissait 137 tests verts en rétablissant la panne d'origine.
+		const { etat, setters } = espions();
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			lire: repond(false), estPerime: () => false, setters,
+		});
+		expect(etat.originAllowed).toBe(false);
+	});
+
+	it('transmet aussi un accord et une incertitude, sans les confondre', async () => {
+		for (const attendu of [true, null] as const) {
+			const { etat, setters } = espions();
+			await rafraichirStatut({
+				maintenant: 1e6, dernierInstant: 0, forcer: false,
+				lire: repond(attendu), estPerime: () => false, setters,
+			});
+			expect(etat.originAllowed).toBe(attendu);
+		}
+	});
+
+	it('lève l’écran de chargement', async () => {
+		const { etat, setters } = espions();
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			lire: repond(true), estPerime: () => false, setters,
+		});
+		expect(etat.isChecking).toBe(false);
+	});
+
+	it('RESPECTE le plafond : n’interroge pas et ne touche à rien', async () => {
+		// Sans cette garde, chaque navigation coûte une requête à tout le monde.
+		let lu = 0;
+		const { etat, setters } = espions();
+		const aInterroge = await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 1e6, forcer: false,
+			lire: async () => { lu++; return { configured: true, message: 'ok', origin_allowed: false }; },
+			estPerime: () => false, setters,
+		});
+		expect(aInterroge).toBe(false);
+		expect(lu).toBe(0);
+		expect(etat.originAllowed).toBeUndefined();
+		expect(etat.isChecking).toBe(true);
+	});
+
+	it('obéit à une demande explicite malgré le plafond', async () => {
+		const { etat, setters } = espions();
+		const aInterroge = await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 1e6, forcer: true,
+			lire: repond(false), estPerime: () => false, setters,
+		});
+		expect(aInterroge).toBe(true);
+		expect(etat.originAllowed).toBe(false);
+	});
+
+	it('ÉCARTE une réponse périmée, mais lève quand même le chargement', async () => {
+		// Une réponse lente d'un appel dépassé ne doit pas écraser la plus récente.
+		// Mais sortir sans relâcher `isChecking` figeait « Loading… » à vie.
+		const { etat, setters } = espions();
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			lire: repond(false), estPerime: () => true, setters,
+		});
+		expect(etat.originAllowed).toBeUndefined();
+		expect(etat.isChecking).toBe(false);
+	});
+
+	it('applique la règle de monotonie à `configured`', async () => {
+		const { etat, setters } = espions();
+		etat.isConfigured = true;
+		await rafraichirStatut({
+			maintenant: 1e6, dernierInstant: 0, forcer: false,
+			lire: repond(true, false), estPerime: () => false, setters,
+		});
+		expect(etat.isConfigured).toBe(true);
 	});
 });

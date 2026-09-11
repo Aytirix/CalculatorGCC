@@ -31,20 +31,23 @@ vi.mock('@/contexts/useViewingUser', () => ({ useViewingUser: () => ({ viewingUs
 vi.mock('@/components/PrivacyChoiceModal/PrivacyGate', () => ({ default: () => null }));
 vi.mock('@/components/GithubLink/GithubLink', () => ({ default: () => null }));
 
-let fenetreAjoutee = false;
+// `window` est TOUJOURS remplacé, puis restauré à l'identique. Une version
+// antérieure sautait quand `window` existait déjà : un autre fichier de test en
+// laissant un incomplet derrière lui (`setup.service.test.ts` le faisait), celui-ci
+// l'adoptait tel quel et tombait sur « addEventListener is not a function ». Le
+// garde transformait une fuite en panne dure au lieu de s'en protéger.
+const fenetreAvant = (globalThis as Record<string, unknown>).window;
 beforeAll(() => {
-	if (typeof (globalThis as Record<string, unknown>).window === 'undefined') {
-		(globalThis as Record<string, unknown>).window = {
-			location: { origin: 'https://copie.exemple.fr' },
-			addEventListener: () => {},
-			removeEventListener: () => {},
-			matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-		};
-		fenetreAjoutee = true;
-	}
+	(globalThis as Record<string, unknown>).window = {
+		location: { origin: 'https://copie.exemple.fr' },
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
+	};
 });
 afterAll(() => {
-	if (fenetreAjoutee) delete (globalThis as Record<string, unknown>).window;
+	if (fenetreAvant === undefined) delete (globalThis as Record<string, unknown>).window;
+	else (globalThis as Record<string, unknown>).window = fenetreAvant;
 });
 
 const rendu = async (valeur: boolean | null, configured: boolean | null = true) => {

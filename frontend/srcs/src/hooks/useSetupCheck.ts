@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setupService } from '../services/setup.service';
-import { lireVerdictSetup, prochainConfigured, doitInterroger } from '../services/setupVerdict';
+import { rafraichirStatut } from '../services/setupVerdict';
 import { backendAuthService } from '../services/backend-auth.service';
 
 /**
@@ -13,10 +13,13 @@ import { backendAuthService } from '../services/backend-auth.service';
  * déclaré chez elle, et sans cette déclaration la connexion 42 y renvoie les
  * visiteurs sans un mot.
  *
- * La DÉCISION vit dans `lireVerdictSetup`, testable sans DOM ; il ne reste ici que
- * le cycle de vie React.
+ * Il ne reste ici QUE du cycle de vie React. Toute la politique — faut-il
+ * interroger, que garder de la réponse, que faire d'une réponse périmée — vit
+ * dans `rafraichirStatut`, testable par son résultat. Ce découpage n'est pas un
+ * goût : un audit par mutation a montré que tant que la décision restait dans le
+ * hook, `setOriginAllowed(null)` rétablissait la panne d'origine sans faire
+ * tomber un seul test.
  */
-
 export function useSetupCheck() {
 	const hasToken = backendAuthService.isAuthenticated();
 	const [isConfigured, setIsConfigured] = useState<boolean | null>(hasToken ? true : null);
@@ -25,47 +28,32 @@ export function useSetupCheck() {
 
 	const location = useLocation();
 	// Numéro d'ordre : une réponse lente d'un appel périmé ne doit pas écraser
-	// celle d'un appel plus récent. Sans cela, un `false` arrivé en retard figeait
-	// un avertissement que la réponse suivante avait déjà levé.
+	// celle d'un appel plus récent.
 	const dernierAppel = useRef(0);
 	const dernierInstant = useRef(0);
 
 	const checkSetupStatus = useCallback(async (forcer = false) => {
-		const maintenant = Date.now();
-		if (!doitInterroger(maintenant, dernierInstant.current, forcer)) return;
-		dernierInstant.current = maintenant;
-
 		const numero = ++dernierAppel.current;
-		const verdict = await lireVerdictSetup(() => setupService.getStatus());
-		// Relâché AVANT la garde d'ancienneté : sinon une réponse périmée sortait
-		// sans jamais lever l'écran de chargement, et « Loading… » restait à vie.
-		setIsChecking(false);
-		if (numero !== dernierAppel.current) return;
-
-		// `configured` ne revient JAMAIS en arrière — et cette fois le code le fait
-		// vraiment. La version précédente n'écartait que `null`, si bien qu'un
-		// `false` explicite remplaçait l'application entière par « non configurée »
-		// en pleine session. Le trou est né de ce commit : avant, un porteur de
-		// jeton n'interrogeait jamais cette route, et deux chemins renvoient
-		// pourtant ce `false` — une instance en miroir applicatif, qui n'a par
-		// conception aucun credential 42, et une instance dont les credentials ne
-		// déchiffrent plus. Forme fonctionnelle pour ne pas lire un état périmé
-		// depuis la fermeture du `useCallback`.
-		// Forme fonctionnelle : ne pas lire un état périmé depuis la fermeture du
-		// `useCallback`, dont les dépendances sont vides.
-		setIsConfigured((precedent) => prochainConfigured(precedent, verdict.configured));
-		setOriginAllowed(verdict.originAllowed);
+		const maintenant = Date.now();
+		const aInterroge = await rafraichirStatut({
+			maintenant,
+			dernierInstant: dernierInstant.current,
+			forcer,
+			lire: () => setupService.getStatus(),
+			estPerime: () => numero !== dernierAppel.current,
+			setters: { setIsChecking, setIsConfigured, setOriginAllowed },
+		});
+		if (aInterroge) dernierInstant.current = maintenant;
 	}, []);
 
 	// Revérifié à chaque changement de route, y compris une fois l'instance connue
 	// configurée, et y compris avec un jeton en poche.
 	//
-	// La version précédente sortait sur `if (isConfigured === true) return`, et
+	// La version d'origine sortait sur `if (isConfigured === true) return`, et
 	// n'interrogeait rien du tout quand un jeton était présent. Le contrôle
 	// d'origine, greffé sur le même effet, héritait des deux court-circuits : une
-	// origine révoquée n'était donc jamais vue — ni par un visiteur connecté, ni
-	// par un anonyme après sa première réponse. C'est pourtant le porteur de jeton
-	// qui subit le plus la panne : il se déconnecte dans l'onglet, reclique
+	// origine révoquée n'était donc jamais vue. C'est pourtant le porteur de jeton
+	// qui subit le plus la panne — il se déconnecte dans l'onglet, reclique
 	// « Se connecter », et repart chez l'autre instance.
 	useEffect(() => {
 		checkSetupStatus();

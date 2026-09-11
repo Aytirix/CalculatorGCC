@@ -1,4 +1,4 @@
-.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status check check-build prisma-generate prisma-push prisma-migrate prisma-studio restart-backend
+.PHONY: help dev prod stop clean logs logs-dev logs-prod restart-dev restart-prod build-dev build-prod ps status check check-build prisma-generate prisma-push prisma-migrate prisma-studio restart-backend test
 
 # Détecter la commande docker compose disponible
 DOCKER_COMPOSE := $(shell docker compose version > /dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
@@ -45,23 +45,23 @@ test: ## Lancer les tests unitaires (backend + frontend)
 # Le FRONTEND D'ABORD : une première version lançait le backend en premier et
 # avortait la cible quand son conteneur n'avait pas `vitest`, si bien que plus
 # AUCUN test ne s'exécutait — une cible de test muette est pire que partielle.
-	@echo "$(BLUE)🧪 Tests frontend...$(RESET)"
-	@docker exec calculatorGCC_frontend_dev npm test
-# Le démarrage du miroir est en shell : ni vitest ni tsc ne le voient, et c'est
-# pourtant là que vit le décodage du `state` et la doctrine « on avertit sans
-# refuser de démarrer ». Un audit l'a trouvé à 0 % de couverture.
-	@echo "$(BLUE)🧪 Tests du démarrage miroir...$(RESET)"
-	@bash nginx/entrypoint.test.sh
-	@echo "$(BLUE)🧪 Tests backend...$(RESET)"
-# `vitest` a été ajouté aux devDependencies après la construction de l'image : un
-# conteneur plus ancien ne l'a pas. Plutôt que d'échouer sur un « not found » sans
-# rapport apparent, on se rabat sur les node_modules de l'hôte, qui eux l'ont.
-	@if docker exec calculatorGCC_backend_dev test -x node_modules/.bin/vitest 2>/dev/null; then \
-		docker exec calculatorGCC_backend_dev npm test; \
+# UNE SEULE recette, et l'échec agrégé à la fin. `make` avorte la cible à la
+# première ligne non nulle : le frontend en échec privait des deux autres suites,
+# le shell en échec privait du backend. C'est la leçon déjà écrite plus haut,
+# réintroduite un cran plus loin — une suite muette est pire qu'une suite partielle.
+	@rc=0; \
+	echo "$(BLUE)🧪 Tests frontend...$(RESET)"; \
+	docker exec calculatorGCC_frontend_dev npm test || rc=1; \
+	echo "$(BLUE)🧪 Tests du démarrage miroir...$(RESET)"; \
+	bash nginx/entrypoint.test.sh || rc=1; \
+	echo "$(BLUE)🧪 Tests backend...$(RESET)"; \
+	if docker exec calculatorGCC_backend_dev test -x node_modules/.bin/vitest 2>/dev/null; then \
+		docker exec calculatorGCC_backend_dev npm test || rc=1; \
 	else \
 		echo "$(BLUE)   vitest absent du conteneur backend, repli sur l'hôte (« make build-dev » pour l'y ajouter).$(RESET)"; \
-		cd backend/srcs && npx vitest run; \
-	fi
+		( cd backend/srcs && npx vitest run ) || rc=1; \
+	fi; \
+	exit $$rc
 
 # ATTENTION : le typecheck du frontend DOIT passer par « tsc -b ».
 # « tsc --noEmit » ne vérifie strictement RIEN ici (tsconfig racine avec

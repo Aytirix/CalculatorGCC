@@ -99,3 +99,48 @@ export function doitInterroger(
 	if (forcer) return true;
 	return maintenant - dernierInstant >= INTERVALLE_MIN_MS;
 }
+
+/** Les trois setters du hook, injectés pour que la politique soit testable. */
+export interface Setters {
+	setIsChecking: (valeur: boolean) => void;
+	setIsConfigured: (calcul: (precedent: boolean | null) => boolean | null) => void;
+	setOriginAllowed: (valeur: boolean | null) => void;
+}
+
+/**
+ * Un tour de rafraîchissement complet : décider s'il faut interroger, lire,
+ * écarter une réponse périmée, puis poser les trois états.
+ *
+ * Tout est ici et non dans le hook — c'est la quatrième fois que cette boucle
+ * d'audit applique le même remède, et la dernière place où la décision restait
+ * intestable. Le mutant qui l'a imposé tient en un mot : `setOriginAllowed(null)`
+ * au lieu du verdict laissait 137 tests verts tout en rétablissant la panne
+ * d'origine — bandeau jamais affiché, bouton jamais désactivé, visiteur déposé
+ * sur l'autre instance sans un mot.
+ *
+ * Rend `true` si l'appel a réellement eu lieu, pour que l'appelant sache s'il
+ * doit mémoriser l'instant.
+ */
+export async function rafraichirStatut(params: {
+	maintenant: number;
+	dernierInstant: number;
+	forcer: boolean;
+	lire: () => Promise<SetupStatus>;
+	/** La réponse qui arrive est-elle celle d'un appel dépassé ? */
+	estPerime: () => boolean;
+	setters: Setters;
+}): Promise<boolean> {
+	const { maintenant, dernierInstant, forcer, lire, estPerime, setters } = params;
+	if (!doitInterroger(maintenant, dernierInstant, forcer)) return false;
+
+	const verdict = await lireVerdictSetup(lire);
+
+	// Relâché AVANT la garde d'ancienneté : sinon une réponse périmée sortait sans
+	// jamais lever l'écran de chargement, et « Loading… » restait à vie.
+	setters.setIsChecking(false);
+	if (estPerime()) return true;
+
+	setters.setIsConfigured((precedent) => prochainConfigured(precedent, verdict.configured));
+	setters.setOriginAllowed(verdict.originAllowed);
+	return true;
+}

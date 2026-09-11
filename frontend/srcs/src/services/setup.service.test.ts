@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 
 /**
  * L'appel à `/setup/status` transporte-t-il bien la QUESTION ?
@@ -11,17 +11,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * TEXTE du fichier, qu'il suffisait de déplacer dans une variable morte.
  */
 
-const get = vi.fn(async (_url: string, _config?: { params?: Record<string, unknown> }) => ({
-	data: { configured: true, message: 'ok' },
-}));
+// Aucun paramètre déclaré : la règle `no-unused-vars` du dépôt n'admet pas même
+// un `_`. `toHaveBeenCalledWith` inspecte les arguments RÉELS, la signature n'y
+// change rien ; l'unique lecture indexée est typée sur place.
+const get = vi.fn(async () => ({ data: { configured: true, message: 'ok' } }));
+/** Les arguments du n-ième appel, tels qu'ils ont été passés. */
+const appel = (n: number) => get.mock.calls[n] as unknown as [string, { params?: unknown }];
 vi.mock('axios', () => ({
 	default: { create: () => ({ get }) },
 }));
 
 const ORIGINE = 'https://copie.exemple.fr';
+// Restauré en fin de fichier : laisser derrière soi un `window` incomplet faisait
+// tomber les fichiers de rendu, qui ont besoin d'`addEventListener`.
+const fenetreAvant = (globalThis as Record<string, unknown>).window;
 beforeEach(() => {
 	get.mockClear();
 	(globalThis as Record<string, unknown>).window = { location: { origin: ORIGINE } };
+});
+afterAll(() => {
+	if (fenetreAvant === undefined) delete (globalThis as Record<string, unknown>).window;
+	else (globalThis as Record<string, unknown>).window = fenetreAvant;
 });
 
 describe('setupService.getStatus', () => {
@@ -39,6 +49,6 @@ describe('setupService.getStatus', () => {
 		};
 		const { setupService } = await import('./setup.service');
 		await setupService.getStatus();
-		expect(get.mock.calls[0][1]).toEqual({ params: { origin: ORIGINE } });
+		expect(appel(0)[1]).toEqual({ params: { origin: ORIGINE } });
 	});
 });
