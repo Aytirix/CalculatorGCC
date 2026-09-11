@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Project42 } from '@/services/backend-api42.service';
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 import { STAGE_MODELS } from '@/utils/stageModel';
 
 interface ProfExpListProps {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import StageForm from '@/components/StageForm/StageForm';
 import AlternanceForm from '@/components/AlternanceForm/AlternanceForm';
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 import type { StageSubNotes, WorkExperienceLevel } from '@/utils/stageModel';
 import './AddExperienceModal.scss';
 

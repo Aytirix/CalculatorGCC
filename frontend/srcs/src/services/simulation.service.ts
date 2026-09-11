@@ -2,7 +2,7 @@ import { backendAuthService } from './backend-auth.service';
 import { config } from '@/config/config';
 // `import type` : effacé à la compilation, donc aucun cycle à l'exécution même si
 // la page importe ce service en retour.
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 
 const BACKEND_URL = config.backendUrl;
 

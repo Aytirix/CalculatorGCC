@@ -1,4 +1,4 @@
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 
 const STORAGE_KEY = 'professional_experiences';
 

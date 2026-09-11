@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 import './ExperienceCard.scss';
 
 interface ExperienceCardProps {

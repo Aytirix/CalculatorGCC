@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { professionalExperienceMath } from './professionalExperienceStorage';
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 
 /**
  * XP des expériences professionnelles.

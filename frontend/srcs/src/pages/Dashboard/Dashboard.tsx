@@ -15,7 +15,7 @@ import { isReadOnlyMode, simulationService } from '@/services/simulation.service
 import type { SimulationData } from '@/services/simulation.service';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
-import type { ProfessionalExperience } from '@/pages/ProfessionalExperience/ProfessionalExperience';
+import type { ProfessionalExperience } from '@/types/professionalExperience.types';
 import { useTour } from '@/contexts/TourContext';
 import { useRefresh } from '@/contexts/useRefresh';
 import { useViewingUser } from '@/contexts/useViewingUser';

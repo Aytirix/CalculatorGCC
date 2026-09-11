@@ -13,7 +13,6 @@ import ProtectedRoute from '@/components/ProtectedRoute/ProtectedRoute';
 import Login from '@/pages/Login/Login';
 import Callback from '@/pages/Callback/Callback';
 import Dashboard from '@/pages/Dashboard/Dashboard';
-import ProfessionalExperience from '@/pages/ProfessionalExperience/ProfessionalExperience';
 import Calendar from '@/pages/Calendar/Calendar';
 import ApiUsage from '@/pages/ApiUsage/ApiUsage';
 import HolyGraph from '@/pages/HolyGraph/HolyGraph';
@@ -104,14 +103,6 @@ export const AppRoutes: React.FC = () => {
 				element={
 					<ProtectedRoute>
 						<Dashboard key={viewKey} />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/professional-experience"
-				element={
-					<ProtectedRoute>
-						<ProfessionalExperience key={viewKey} />
 					</ProtectedRoute>
 				}
 			/>
