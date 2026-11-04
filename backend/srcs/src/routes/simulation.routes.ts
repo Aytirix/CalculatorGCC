@@ -92,6 +92,20 @@ export async function simulationRoutes(fastify: FastifyInstance) {
 		return SimulationController.saveChangelogSeen(request, reply);
 	});
 
+	// Le bandeau « Installer l'application » a-t-il été refusé (« Ne plus me le rappeler ») ?
+	fastify.get('/simulation/install-prompt', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.getInstallPrompt(request, reply);
+	});
+
+	// Mémoriser (ou annuler) « Ne plus me le rappeler » sur le bandeau d'installation
+	fastify.put('/simulation/install-prompt', {
+		preHandler: authenticate,
+	}, async (request: FastifyRequest, reply: FastifyReply) => {
+		return SimulationController.saveInstallPrompt(request, reply);
+	});
+
 	// Récupérer le statut privacy de l'utilisateur connecté (null = non choisi)
 	fastify.get('/simulation/me/privacy', {
 		preHandler: authenticate,

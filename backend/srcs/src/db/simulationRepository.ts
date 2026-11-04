@@ -642,6 +642,46 @@ export const simulationRepository = {
 		return version;
 	},
 
+	/** L'utilisateur a-t-il refusé le bandeau « Installer l'application » ? (false = jamais refusé / pas de ligne) */
+	async getInstallPromptDismissed(userId42: number): Promise<boolean> {
+		const rows = await prisma.$queryRaw<Array<{ installPromptDismissed: boolean | number | null }>>`
+			SELECT installPromptDismissed
+			FROM user_simulation
+			WHERE userId42 = ${userId42}
+			LIMIT 1
+		`;
+		// MariaDB renvoie un BOOLEAN (TINYINT(1)) en 0/1 via une requête brute.
+		return Boolean(rows[0]?.installPromptDismissed);
+	},
+
+	/** Enregistre le choix « Ne plus me le rappeler » du bandeau d'installation (upsert la ligne au besoin). */
+	async saveInstallPromptDismissed(userId42: number, login: string, imageUrl: string | null, dismissed: boolean, firstName?: string | null, lastName?: string | null): Promise<boolean> {
+		await prisma.userSimulation.upsert({
+			where: { userId42 },
+			create: {
+				userId42,
+				login,
+				imageUrl,
+				firstName: firstName ?? null,
+				lastName: lastName ?? null,
+			},
+			update: {
+				login,
+				imageUrl,
+				...(firstName !== undefined && { firstName }),
+				...(lastName !== undefined && { lastName }),
+			},
+		});
+
+		await prisma.$executeRaw`
+			UPDATE user_simulation
+			SET installPromptDismissed = ${dismissed}
+			WHERE userId42 = ${userId42}
+		`;
+
+		return dismissed;
+	},
+
 	/**
 	 * Combien d'utilisateurs ont simulé chacun de ces projets.
 	 *

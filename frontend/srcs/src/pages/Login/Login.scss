@@ -113,3 +113,13 @@
 		grid-template-columns: 1fr;
 	}
 }
+
+// Bouton « Installer l'application » (téléphone / tablette uniquement).
+.login-install {
+	margin-top: 12px;
+	width: 100%;
+	max-width: 320px;
+	background: transparent;
+	color: inherit;
+	border: 1px solid currentColor;
+}

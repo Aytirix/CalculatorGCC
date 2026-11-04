@@ -241,4 +241,19 @@ export const simulationService = {
 			body: JSON.stringify({ version }),
 		});
 	},
+
+	/**
+	 * « Ne plus me le rappeler » sur le bandeau d'installation de l'application
+	 * (stocké côté serveur : vaut pour tous les appareils du compte).
+	 */
+	async getInstallPromptDismissed(): Promise<{ dismissed: boolean }> {
+		return request<{ dismissed: boolean }>('/simulation/install-prompt');
+	},
+
+	async saveInstallPromptDismissed(dismissed: boolean): Promise<{ dismissed: boolean }> {
+		return request<{ dismissed: boolean }>('/simulation/install-prompt', {
+			method: 'PUT',
+			body: JSON.stringify({ dismissed }),
+		});
+	},
 };

@@ -55,6 +55,9 @@ model UserSimulation {
   // il faut savoir lesquelles montrer sans rejouer tout le parcours.
   seenTourSteps         String?  @db.Text
   lastSeenChangelog     String?  @db.VarChar(32) // version du dernier changelog acquitté (null = jamais)
+  // L'utilisateur a cliqué « Ne plus me le rappeler » sur le bandeau
+  // « Installer l'application » : le bandeau ne doit plus lui être proposé.
+  installPromptDismissed Boolean @default(false)
   simulatedSubProjects  Json?    // Record<string, string[]>
   customProjects        Json?    // SimulatorProject[]
   manualExperiences     Json?    // ProfessionalExperience[]

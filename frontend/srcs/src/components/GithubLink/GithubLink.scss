@@ -1,6 +1,7 @@
 .github-link {
   position: fixed;
-  bottom: 20px;
+  // Au-dessus de la barre de navigation du bas (téléphone), sinon il couvrait « Stats ».
+  bottom: calc(20px + var(--app-bottom-offset, 0px));
   right: 20px;
   z-index: 9000;
   display: inline-flex;

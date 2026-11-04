@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/useAuth';
 import { useOriginStatus } from '@/contexts/useOriginStatus';
 import { origineRefusee } from '@/services/originVerdict';
+import { InstallAppButton } from '@/components/InstallApp/InstallApp';
 import './Login.scss';
 
 /**
@@ -93,6 +94,9 @@ const Login: React.FC = () => {
 					>
 						Se connecter avec 42
 					</motion.button>
+
+					{/* Téléphone / tablette : installer l'appli avant même de se connecter. */}
+					<InstallAppButton className="login-install" />
 
 					<p className="auth-note login-note" id="login-note">
 						{connexionImpossible

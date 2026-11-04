@@ -337,4 +337,37 @@ export const SimulationController = {
 
 		return reply.send({ lastSeenChangelog });
 	},
+
+	/**
+	 * GET /simulation/install-prompt - L'utilisateur a-t-il refusé le bandeau « Installer l'application » ?
+	 */
+	async getInstallPrompt(request: FastifyRequest, reply: FastifyReply) {
+		const dismissed = await simulationRepository.getInstallPromptDismissed(request.user.user_id_42);
+		return reply.send({ dismissed });
+	},
+
+	/**
+	 * PUT /simulation/install-prompt - Mémorise « Ne plus me le rappeler » (ou l'annule).
+	 * Toujours sur le compte du JWT : jamais sur un profil consulté.
+	 */
+	async saveInstallPrompt(request: FastifyRequest, reply: FastifyReply) {
+		const { user_id_42, login, image_url, first_name, last_name } = request.user;
+		const body = request.body as { dismissed?: unknown } | undefined;
+
+		// Strict : un vrai booléen JSON, pas "true", 1 ni null.
+		if (!body || typeof body !== 'object' || typeof body.dismissed !== 'boolean') {
+			return reply.code(400).send({ error: 'dismissed must be a boolean' });
+		}
+
+		const dismissed = await simulationRepository.saveInstallPromptDismissed(
+			user_id_42,
+			login,
+			image_url ?? null,
+			body.dismissed,
+			first_name,
+			last_name
+		);
+
+		return reply.send({ dismissed });
+	},
 };

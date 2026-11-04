@@ -1,0 +1,158 @@
+// Installation de l'application : bouton, bandeau, marche à suivre.
+
+.install-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 0 18px;
+	border: 0;
+	border-radius: 12px;
+	background: #2563eb;
+	color: #ffffff;
+	font: inherit;
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+
+	&:hover { filter: brightness(1.08); }
+
+	&:focus-visible {
+		outline: 2px solid #2563eb;
+		outline-offset: 2px;
+	}
+
+	&--small {
+		min-height: 40px;
+		padding: 0 14px;
+		font-size: 14px;
+	}
+}
+
+.install-banner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px 12px;
+	padding: 10px 16px;
+	background: var(--bg-card);
+	border-bottom: 1px solid var(--border-color);
+	color: var(--text-primary);
+
+	&__icon {
+		width: 36px;
+		height: 36px;
+		border-radius: 9px;
+		flex-shrink: 0;
+	}
+
+	&__text {
+		flex: 1 1 180px;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		line-height: 1.3;
+
+		strong { font-size: 14px; }
+		span { font-size: 13px; color: var(--text-muted); }
+	}
+
+	&__actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px 10px;
+	}
+
+	&__dismiss {
+		min-height: 40px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 10px;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+
+		&:hover { background: var(--bg-accent); color: var(--text-primary); }
+		&:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+	}
+
+	@media (max-width: 480px) {
+		&__actions { width: 100%; }
+		&__actions .install-btn { flex: 1; }
+	}
+}
+
+.install-help {
+	width: min(420px, calc(100vw - 32px));
+	padding: 0;
+	border: 1px solid var(--border-color);
+	border-radius: 16px;
+	background: var(--bg-card);
+	color: var(--text-primary);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+
+	&::backdrop { background: rgba(0, 0, 0, 0.45); }
+
+	&__body {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 18px 20px calc(20px + env(safe-area-inset-bottom));
+	}
+
+	&__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+
+		h2 { margin: 0; font-size: 18px; }
+	}
+
+	&__close {
+		width: 40px;
+		height: 40px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-radius: 10px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	ol {
+		margin: 0;
+		padding-left: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		font-size: 15px;
+		line-height: 1.45;
+	}
+
+	&__icon { vertical-align: -3px; }
+
+	&__note {
+		margin: 0;
+		font-size: 13px;
+		line-height: 1.45;
+		color: var(--text-muted);
+	}
+
+	@media (max-width: 640px) {
+		width: 100%;
+		max-width: 100%;
+		margin: auto 0 0;
+		border-radius: 20px 20px 0 0;
+		border-bottom: 0;
+	}
+}

@@ -1,5 +1,7 @@
 .holy-graph-page {
   height: 100vh;
+  // Téléphone : la barre de navigation du bas prend le bas de l'écran.
+  height: calc(100dvh - var(--app-bottom-offset, 0px));
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
