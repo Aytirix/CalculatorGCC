@@ -91,6 +91,44 @@ export function replayOps(base: PlacedProject[], ops: ProjectsOp[]): PlacedProje
 	return ops.reduce((acc, op) => op(acc), base);
 }
 
+export interface CalendarSnapshot {
+	projects: PlacedProject[];
+	dateRange: DateRange;
+	alternanceDays: Record<string, string>;
+}
+
+/**
+ * Ce que la page doit afficher (et enregistrer) une fois la réponse de la base
+ * arrivée : les projets de la base avec les modifications du chargement
+ * rejouées ; période et planning locaux seulement si l'utilisateur les a
+ * lui-même changés. Base vide (`null`) : la copie locale, qui contient déjà
+ * ces modifications. Sert aussi quand on quitte la page avant la réponse :
+ * on attend la base, on fusionne, PUIS on enregistre — jamais l'état local seul.
+ */
+export function mergeAfterLoad(
+	db: { placedProjects?: unknown; dateRange?: unknown; alternanceDays?: unknown } | null,
+	local: CalendarSnapshot,
+	ops: ProjectsOp[],
+	touched: { range: boolean; alternance: boolean },
+): CalendarSnapshot {
+	if (!db) return local;
+	const dbRange = parseDateRange(db.dateRange);
+	const dbAlternance = sanitizeAlternanceDays(db.alternanceDays);
+	return {
+		projects: replayOps(deserializeProjects(db.placedProjects), ops),
+		dateRange: touched.range || !dbRange ? local.dateRange : dbRange,
+		alternanceDays: touched.alternance || Object.keys(dbAlternance).length === 0 ? local.alternanceDays : dbAlternance,
+	};
+}
+
+function toPayload(snap: CalendarSnapshot) {
+	return {
+		placedProjects: serializeProjects(snap.projects),
+		dateRange: { start: formatDateKey(snap.dateRange.start), end: formatDateKey(snap.dateRange.end) },
+		alternanceDays: snap.alternanceDays,
+	};
+}
+
 export type LoadStatus = 'loading' | 'ready' | 'empty' | 'error';
 
 export function useCalendarData(readOnly: boolean) {
@@ -120,11 +158,20 @@ export function useCalendarData(readOnly: boolean) {
 	const alternanceTouchedRef = useRef(false);
 	const pastLengthRef = useRef(past.length);
 	pastLengthRef.current = past.length;
+	// Chargement échoué : on n'enregistre plus rien (la copie locale peut être
+	// vide ou périmée, l'envoyer écraserait la base) et on le dit à l'utilisateur.
+	const loadFailedRef = useRef(false);
+	const [syncError, setSyncError] = useState(false);
+	const loadPromiseRef = useRef<Promise<unknown> | null>(null);
+	const latestRef = useRef<CalendarSnapshot>({ projects, dateRange, alternanceDays });
+	latestRef.current = { projects, dateRange, alternanceDays };
 
 	// ── Chargement depuis la base ──────────────────────────────────────────
 	useEffect(() => {
 		let cancelled = false;
-		calendarService.load().then(data => {
+		const loading = calendarService.load();
+		loadPromiseRef.current = loading;
+		loading.then(data => {
 			if (cancelled) return;
 			if (!data) {
 				needsFirstSaveRef.current = !readOnly;
@@ -135,19 +182,19 @@ export function useCalendarData(readOnly: boolean) {
 			// rejouées par-dessus (et seront enregistrées, dirtyRef étant vrai).
 			const ops = opsDuringLoadRef.current;
 			opsDuringLoadRef.current = [];
-			dispatch({ type: 'replace', projects: replayOps(deserializeProjects(data.placedProjects), ops) });
-			if (!rangeTouchedRef.current) {
-				const range = parseDateRange(data.dateRange);
-				if (range) setDateRangeState(range);
-			}
-			if (!alternanceTouchedRef.current) {
-				const days = sanitizeAlternanceDays(data.alternanceDays);
-				if (Object.keys(days).length > 0) setAlternanceDays(days);
-			}
+			const merged = mergeAfterLoad(data, latestRef.current, ops, {
+				range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current,
+			});
+			dispatch({ type: 'replace', projects: merged.projects });
+			setDateRangeState(merged.dateRange);
+			setAlternanceDays(merged.alternanceDays);
 			setStatus('ready');
 		}).catch(() => {
 			if (cancelled) return;
-			// Propriétaire : on garde la copie locale. Consultation : rien à montrer.
+			// Propriétaire : on garde la copie locale à l'écran, mais on n'enregistre
+			// plus rien. Consultation : rien à montrer.
+			loadFailedRef.current = true;
+			if (!readOnly) setSyncError(true);
 			setStatus(readOnly ? 'error' : 'ready');
 		}).finally(() => {
 			if (cancelled) return;
@@ -187,18 +234,13 @@ export function useCalendarData(readOnly: boolean) {
 	// ── Enregistrement en base (différé, vidé au démontage) ────────────────
 	const pendingRef = useRef<(() => void) | null>(null);
 	useEffect(() => {
-		if (readOnly) return;
-		// Une modification part même si la base n'a pas encore répondu (sinon, quitter
-		// la page avant la réponse la perdait) ; la première création, elle, attend de
-		// savoir que la base est vide.
-		const firstSave = dbSynced && needsFirstSaveRef.current;
-		if (!dirtyRef.current && !firstSave) return;
+		// Jamais avant la réponse de la base : l'état local seul (vide sur un nouvel
+		// appareil) l'écraserait. Jamais après un chargement en échec, pour la même
+		// raison. Quitter la page avant la réponse : voir l'effet de démontage.
+		if (readOnly || !dbSynced || loadFailedRef.current) return;
+		if (!dirtyRef.current && !needsFirstSaveRef.current) return;
 		needsFirstSaveRef.current = false;
-		const payload = {
-			placedProjects: serializeProjects(projects),
-			dateRange: { start: formatDateKey(dateRange.start), end: formatDateKey(dateRange.end) },
-			alternanceDays,
-		};
+		const payload = toPayload({ projects, dateRange, alternanceDays });
 		const run = () => {
 			pendingRef.current = null;
 			// saveOwn : cette instance est propriétaire depuis son montage (la garde
@@ -209,7 +251,25 @@ export function useCalendarData(readOnly: boolean) {
 		const timer = setTimeout(run, SAVE_DELAY_MS);
 		return () => clearTimeout(timer);
 	}, [projects, dateRange, alternanceDays, dbSynced, readOnly]);
-	useEffect(() => () => { pendingRef.current?.(); }, []);
+	useEffect(() => () => {
+		if (pendingRef.current) {
+			pendingRef.current();
+			return;
+		}
+		// Page quittée AVANT la réponse de la base, avec des modifications : on
+		// attend la base, on rejoue dessus, puis on enregistre le résultat fusionné.
+		if (readOnly || !dirtyRef.current || loadedRef.current || !loadPromiseRef.current) return;
+		const ops = [...opsDuringLoadRef.current];
+		const local = latestRef.current;
+		const touched = { range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current };
+		loadPromiseRef.current
+			.then(data => {
+				const merged = mergeAfterLoad(data as Parameters<typeof mergeAfterLoad>[0], local, ops, touched);
+				return calendarService.saveOwn(toPayload(merged));
+			})
+			.catch(() => { /* chargement en échec : surtout ne rien écraser */ });
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	// ── API ────────────────────────────────────────────────────────────────
 	const apply = useCallback((fn: ProjectsOp) => {
@@ -249,6 +309,7 @@ export function useCalendarData(readOnly: boolean) {
 		alternanceDays,
 		alternanceLegend,
 		status,
+		syncError,
 		apply,
 		undo,
 		setDateRange,

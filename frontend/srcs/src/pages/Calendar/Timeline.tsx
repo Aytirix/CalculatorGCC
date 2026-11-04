@@ -459,7 +459,7 @@ const Timeline: React.FC<TimelineProps> = ({
 							const width = m.days * dayWidth;
 							return (
 								<div key={m.startDay} className="cal-tl-month" style={{ left: m.startDay * dayWidth, width }} title={m.label}>
-									{width >= 72 ? m.label : ''}
+									{width >= 72 && <span className="cal-tl-month-label">{m.label}</span>}
 								</div>
 							);
 						})}

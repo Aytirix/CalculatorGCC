@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HISTORY_LIMIT, projectsReducer, replayOps, type ProjectsState } from './useCalendarData';
+import { HISTORY_LIMIT, mergeAfterLoad, projectsReducer, replayOps, type ProjectsState } from './useCalendarData';
 import { parseDateKey, type PlacedProject } from './calendarModel';
 
 /**
@@ -80,5 +80,45 @@ describe('replayOps (modifications faites pendant le chargement)', () => {
 	it('sans modification, la base est prise telle quelle', () => {
 		const db = [P('a')];
 		expect(replayOps(db, [])).toBe(db);
+	});
+});
+
+describe('mergeAfterLoad (ce qui est affiché ET enregistré après la réponse de la base)', () => {
+	const local = {
+		projects: [P('local')],
+		dateRange: { start: parseDateKey('2026-11-01'), end: parseDateKey('2027-04-30') },
+		alternanceDays: { '2026-11-02': '#111111' },
+	};
+	const db = {
+		placedProjects: [
+			{ id: 'db1', projectId: 'db1', name: 'db1', xp: 1, row: 0, startDate: '2026-10-01T00:00:00', endDate: '2026-10-10T00:00:00' },
+		],
+		dateRange: { start: '2025-09-01', end: '2027-08-31' },
+		alternanceDays: { '2026-10-05': '#222222' },
+	};
+	const untouched = { range: false, alternance: false };
+
+	it('nouvel appareil : jamais l\u2019état local seul — la base, plus la modification rejouée', () => {
+		const ops = [(prev: PlacedProject[]) => [...prev, P('placé')]];
+		const m = mergeAfterLoad(db, { ...local, projects: [P('placé')] }, ops, untouched);
+		expect(m.projects.map(p => p.id)).toEqual(['db1', 'placé']);
+		expect(m.dateRange.start.getFullYear()).toBe(2025);
+		expect(m.alternanceDays).toEqual({ '2026-10-05': '#222222' });
+	});
+
+	it('période / planning locaux seulement si l\u2019utilisateur les a changés', () => {
+		const m = mergeAfterLoad(db, local, [], { range: true, alternance: true });
+		expect(m.dateRange).toBe(local.dateRange);
+		expect(m.alternanceDays).toBe(local.alternanceDays);
+		expect(m.projects.map(p => p.id)).toEqual(['db1']);
+	});
+
+	it('base vide : la copie locale (première création)', () => {
+		expect(mergeAfterLoad(null, local, [], untouched)).toBe(local);
+	});
+
+	it('période invalide en base : on garde la période locale', () => {
+		const m = mergeAfterLoad({ ...db, dateRange: { start: '1000-01-01', end: '9999-12-31' } }, local, [], untouched);
+		expect(m.dateRange).toBe(local.dateRange);
 	});
 });

@@ -513,7 +513,9 @@
 	color: var(--cal-accent-text);
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 
-	&:hover:not(:disabled) { background: var(--cal-accent-soft); }
+	@media (hover: hover) {
+		&:hover:not(:disabled) { background: var(--cal-accent-soft); }
+	}
 
 	&:disabled {
 		background: transparent;
@@ -532,7 +534,9 @@
 	font-size: 14px;
 	font-weight: 600;
 
-	&:hover { background: var(--cal-surface); }
+	@media (hover: hover) {
+		&:hover { background: var(--cal-surface); }
+	}
 }
 
 .cal-group-label {
@@ -595,8 +599,8 @@
 
 // Pas de `position: sticky` sur la colonne « À placer » ni sur la fiche : le CSS
 // global (`body { overflow-x: hidden }`, styles/main.scss) en fait un conteneur
-// de défilement, et rien n'y colle jamais. La fiche se ramène elle-même à
-// l'écran quand on sélectionne un projet (ProjectDetail, scrollIntoView).
+// de défilement, et rien n'y colle jamais. (Un scrollIntoView de la fiche a été
+// essayé puis retiré : il faisait sortir de l'écran l'élément qu'on venait de toucher.)
 .cal-tray--column { align-self: start; }
 
 .cal-tray-head {
@@ -929,10 +933,23 @@
 	font-size: 12px;
 	font-weight: 700;
 	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	// `clip` et non `hidden` : `hidden` ferait de la case un conteneur de
+	// défilement, et le nom du mois ne pourrait plus « coller » au bord.
+	overflow: clip;
 
 	&:first-child { border-left: 0; }
+}
+
+// Nom du mois : il reste collé au bord gauche de la frise (juste après la
+// colonne des libellés) tant que le mois est visible — comme le nom des projets.
+.cal-tl-month-label {
+	position: sticky;
+	left: calc(var(--cal-label-w) + 8px);
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: top;
 }
 
 .cal-tl-week {
@@ -1055,9 +1072,10 @@
 .cal-tl-weekline { width: 1px; background: var(--cal-border-soft); }
 // Séparation des mois : trait épais et foncé, sur toute la hauteur de la frise
 // (en-tête, semaines, rythme, projets) — on voit d'un coup où change le mois.
+// Même position que la bordure gauche de l'en-tête du mois (.cal-tl-month :
+// de x à x+2) : le trait est continu de l'en-tête jusqu'aux projets.
 .cal-tl-monthline {
 	width: 2px;
-	margin-left: -1px;
 	background: var(--cal-month-line);
 }
 
@@ -1724,8 +1742,7 @@ summary.cal-section-title {
 
 // Tablette au doigt : les pastilles nommées de la vue Mois (20 px) sont trop
 // petites ; on montre les points et on touche le jour (projets listés dessous).
-// Sur un grand écran tactile (≥ 1024 px), les cases sont assez larges : on garde
-// les noms, en pastilles plus hautes.
+// Sur un grand écran tactile (≥ 1024 px), on garde les noms (pastilles de 28 px).
 @media (pointer: coarse) and (max-width: 1023px) {
 	.cal-month-chips { display: none; }
 	.cal-month-dots { display: flex; gap: 2px; height: 6px; }
@@ -1733,7 +1750,7 @@ summary.cal-section-title {
 }
 
 @media (pointer: coarse) and (min-width: 1024px) {
-	.cal-chip { min-height: 28px; }
+	.cal-chip-more { min-height: 28px; }
 }
 
 // ── Cibles de focus programmé (titre de la fiche, titre de la page) ────────
@@ -1743,3 +1760,13 @@ summary.cal-section-title {
 .calendar-page .cal-head h1[tabindex]:focus-visible,
 .calendar-page .cal-detail-title h2[tabindex]:focus,
 .calendar-page .cal-head h1[tabindex]:focus { outline: none; }
+
+// Erreur de synchronisation (chargement depuis le serveur en échec).
+.cal-sync-error {
+	padding: 12px 16px;
+	border-radius: 12px;
+	background: var(--cal-danger-soft);
+	color: var(--cal-danger);
+	font-size: 14px;
+	line-height: 1.45;
+}

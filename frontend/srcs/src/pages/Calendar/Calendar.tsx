@@ -196,7 +196,9 @@ const Calendar: React.FC = () => {
 		// Rien ne change (« Fin −1 » au minimum, durée déjà choisie) : pas d'entrée
 		// d'historique vide, qui rendrait Ctrl+Z apparemment inopérant.
 		if (current && current.startDate.getTime() === next.startDate.getTime() && current.endDate.getTime() === next.endDate.getTime()) return;
-		apply(prev => prev.map(p => (p.id === next.id ? next : p)));
+		// Seulement les dates : rejouée sur les données de la base (fin de
+		// chargement), l'opération ne doit pas réimposer les autres champs locaux.
+		apply(prev => prev.map(p => (p.id === next.id ? { ...p, startDate: next.startDate, endDate: next.endDate } : p)));
 		setToast(null);
 	}, [apply, projects]);
 
@@ -448,6 +450,12 @@ const Calendar: React.FC = () => {
 						</div>
 					)}
 				</div>
+
+				{data.syncError && (
+					<div className="cal-sync-error" role="alert">
+						Impossible de joindre le serveur : tu vois ta copie locale, mais tes modifications ne seront pas enregistrées. Recharge la page pour réessayer.
+					</div>
+				)}
 
 				<div className="cal-kpis">
 					<div className="cal-kpi">
