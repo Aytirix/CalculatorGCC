@@ -133,6 +133,26 @@ function toPayload(snap: CalendarSnapshot) {
 
 export type LoadStatus = 'loading' | 'ready' | 'empty' | 'error';
 
+/**
+ * File des enregistrements, PARTAGÉE entre les montages de la page (niveau
+ * module). Quitter la page puis y revenir crée une nouvelle instance : sans
+ * file, son chargement pouvait lire la base AVANT que l'ancienne n'y ait écrit
+ * (la modification disparaissait), ou l'ancienne écraser ce que la nouvelle
+ * venait d'enregistrer. Tous les PUT passent par cette file, dans l'ordre, et
+ * le chargement propriétaire attend qu'elle soit vide — au plus quelques
+ * secondes, pour qu'un envoi bloqué ne fige jamais la page.
+ */
+let saveQueue: Promise<void> = Promise.resolve();
+const SAVE_QUEUE_WAIT_MAX_MS = 5000;
+
+function enqueueSave(task: () => Promise<unknown>): void {
+	saveQueue = saveQueue.then(task).then(() => undefined, () => undefined);
+}
+
+function waitForSaveQueue(): Promise<void> {
+	return Promise.race([saveQueue, new Promise<void>(resolve => setTimeout(resolve, SAVE_QUEUE_WAIT_MAX_MS))]);
+}
+
 export function useCalendarData(readOnly: boolean) {
 	const [{ projects, past }, dispatch] = useReducer(projectsReducer, undefined, () => ({
 		projects: readOnly ? [] : deserializeProjects(readJson(STORAGE_KEY)),
@@ -169,11 +189,16 @@ export function useCalendarData(readOnly: boolean) {
 	latestRef.current = { projects, dateRange, alternanceDays };
 	const legendRef = useRef(alternanceLegend);
 	legendRef.current = alternanceLegend;
+	// Fusion avec la base faite, mais l'enregistrement pas encore programmé (il
+	// l'est au rendu suivant) : si la page se démonte entre les deux, c'est ce
+	// résultat-là qu'on enregistre — surtout pas latestRef, encore pré-fusion.
+	const unsavedMergeRef = useRef<CalendarSnapshot | null>(null);
 
 	// ── Chargement depuis la base ──────────────────────────────────────────
 	useEffect(() => {
 		let cancelled = false;
-		const loading = calendarService.load();
+		// Propriétaire : attendre les enregistrements d'une instance précédente.
+		const loading = (readOnly ? Promise.resolve() : waitForSaveQueue()).then(() => calendarService.load());
 		loadPromiseRef.current = loading;
 		loading.then(data => {
 			if (cancelled) return;
@@ -189,9 +214,11 @@ export function useCalendarData(readOnly: boolean) {
 			const merged = mergeAfterLoad(data, latestRef.current, ops, {
 				range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current,
 			});
-			dispatch({ type: 'replace', projects: merged.projects });
-			setDateRangeState(merged.dateRange);
-			setAlternanceDays(normalizeAlternanceDays(merged.alternanceDays, legendRef.current));
+			const finalSnap = { ...merged, alternanceDays: normalizeAlternanceDays(merged.alternanceDays, legendRef.current) };
+			if (dirtyRef.current && !readOnly) unsavedMergeRef.current = finalSnap;
+			dispatch({ type: 'replace', projects: finalSnap.projects });
+			setDateRangeState(finalSnap.dateRange);
+			setAlternanceDays(finalSnap.alternanceDays);
 			setStatus('ready');
 		}).catch(() => {
 			if (cancelled) return;
@@ -244,12 +271,13 @@ export function useCalendarData(readOnly: boolean) {
 		if (readOnly || !dbSynced || loadFailedRef.current) return;
 		if (!dirtyRef.current && !needsFirstSaveRef.current) return;
 		needsFirstSaveRef.current = false;
+		unsavedMergeRef.current = null;
 		const payload = toPayload({ projects, dateRange, alternanceDays });
 		const run = () => {
 			pendingRef.current = null;
 			// saveOwn : cette instance est propriétaire depuis son montage (la garde
 			// « profil consulté » de save() annulait l'enregistrement du démontage).
-			calendarService.saveOwn(payload).catch(() => { /* la copie locale garde les données */ });
+			enqueueSave(() => calendarService.saveOwn(payload));
 		};
 		pendingRef.current = run;
 		const timer = setTimeout(run, SAVE_DELAY_MS);
@@ -260,18 +288,23 @@ export function useCalendarData(readOnly: boolean) {
 			pendingRef.current();
 			return;
 		}
+		if (unsavedMergeRef.current && !loadFailedRef.current && !readOnly) {
+			const snap = unsavedMergeRef.current;
+			enqueueSave(() => calendarService.saveOwn(toPayload(snap)));
+			return;
+		}
 		// Page quittée AVANT la réponse de la base, avec des modifications : on
 		// attend la base, on rejoue dessus, puis on enregistre le résultat fusionné.
 		if (readOnly || !dirtyRef.current || loadedRef.current || !loadPromiseRef.current) return;
 		const ops = [...opsDuringLoadRef.current];
 		const local = latestRef.current;
 		const touched = { range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current };
-		loadPromiseRef.current
-			.then(data => {
-				const merged = mergeAfterLoad(data as Parameters<typeof mergeAfterLoad>[0], local, ops, touched);
-				return calendarService.saveOwn(toPayload(merged));
-			})
-			.catch(() => { /* chargement en échec : surtout ne rien écraser */ });
+		const loading = loadPromiseRef.current;
+		const legend = legendRef.current;
+		enqueueSave(() => loading.then(data => {
+			const merged = mergeAfterLoad(data as Parameters<typeof mergeAfterLoad>[0], local, ops, touched);
+			return calendarService.saveOwn(toPayload({ ...merged, alternanceDays: normalizeAlternanceDays(merged.alternanceDays, legend) }));
+		})); // chargement en échec : la file avale l'erreur, rien n'est écrasé
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 

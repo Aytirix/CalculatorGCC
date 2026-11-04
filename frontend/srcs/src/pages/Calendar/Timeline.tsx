@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AlternanceLegend } from './alternanceParser';
 import {
-	ALTERNANCE_LABELS, addDays, diffDays, formatShort, getAlternanceRuns,
+	ALTERNANCE_LABELS, addDays, diffDays, formatDateKey, formatShort, getAlternanceRuns,
 	getHolidayMarks, getMonthSegments, moveProject, packLanes, plural, readableTextColor,
 	resizeProject,
 	type AlternanceRun, type HolidayMark, type MonthSegment, type PlacedProject, type TimelineGrid,
@@ -49,6 +49,9 @@ function getAutoScrollSpeed(distanceFromEdge: number, zone: number): number {
 	const t = 1 - Math.max(0, distanceFromEdge) / zone;
 	return AUTO_SCROLL_MAX_SPEED * (zone / AUTO_SCROLL_MAX_ZONE_PX) * t * t;
 }
+
+/** Couleur des jours fériés dans la ligne Rythme (même teinte que --cal-holiday). */
+const HOLIDAY_RUN_COLOR = '#b56a86';
 
 export const PROJECT_DRAG_TYPE = 'application/x-calendar-project';
 
@@ -161,10 +164,18 @@ const Timeline: React.FC<TimelineProps> = ({
 
 	const months = useMemo(() => getMonthSegments(gridStart, totalDays), [gridStart, totalDays]);
 	const holidays = useMemo(() => getHolidayMarks(gridStart, totalDays), [gridStart, totalDays]);
-	const runs = useMemo(
-		() => getAlternanceRuns(alternanceDays, alternanceLegend, gridStart, totalDays),
-		[alternanceDays, alternanceLegend, gridStart, totalDays],
-	);
+	// Ligne Rythme : les jours fériés sont des segments comme les autres (même
+	// forme, même hauteur) qui coupent le segment école/entreprise, au lieu d'une
+	// fine marque posée par-dessus qui en masquait le texte.
+	const rhythmRuns = useMemo(() => {
+		if (Object.keys(alternanceDays).length === 0) return [];
+		const withHolidays = { ...alternanceDays };
+		for (const h of holidays) withHolidays[formatDateKey(h.date)] = HOLIDAY_RUN_COLOR;
+		return getAlternanceRuns(withHolidays, alternanceLegend, gridStart, totalDays);
+	}, [alternanceDays, alternanceLegend, holidays, gridStart, totalDays]);
+	// Sous les barres : seulement l'alternance (les fériés ont déjà leur colonne).
+	const runs = useMemo(() => rhythmRuns.filter(r => r.color !== HOLIDAY_RUN_COLOR), [rhythmRuns]);
+	const holidayName = (startDay: number) => holidays.find(h => h.day === startDay)?.name;
 
 	// Les lignes suivent le brouillon : on voit le rangement final pendant le glisser.
 	const displayed = useMemo(() => projects.map(p =>
@@ -487,30 +498,31 @@ const Timeline: React.FC<TimelineProps> = ({
 					</div>
 				</div>
 
-				{runs.length > 0 && (
+				{rhythmRuns.length > 0 && (
 					<div className="cal-tl-row cal-tl-row--rhythm">
 						<div className="cal-tl-label"><span>Rythme</span></div>
 						<div className="cal-tl-track" style={trackStyle}>
 							{months.filter(m => m.startDay > 0).map(m => (
 								<div key={`mlx-${m.startDay}`} className="cal-tl-monthline cal-tl-monthline--row" style={{ left: m.startDay * dayWidth }} aria-hidden="true" />
 							))}
-							{runs.map(r => {
+							{rhythmRuns.map(r => {
 								const width = r.days * dayWidth;
-								const label = r.kind ? ALTERNANCE_LABELS[r.kind] : '';
+								const isHoliday = r.color === HOLIDAY_RUN_COLOR;
+								const label = isHoliday ? 'Férié' : r.kind ? ALTERNANCE_LABELS[r.kind] : '';
+								const title = isHoliday
+									? `Férié · ${holidayName(r.startDay) ?? ''}`
+									: label ? `${label} · ${plural(r.days, 'jour')}` : plural(r.days, 'jour');
 								return (
 									<div
 										key={r.startDay}
 										className="cal-tl-run"
 										style={{ left: r.startDay * dayWidth, width, background: r.color, color: readableTextColor(r.color) }}
-										title={label ? `${label} · ${plural(r.days, 'jour')}` : plural(r.days, 'jour')}
+										title={title}
 									>
 										{width >= 56 ? label : ''}
 									</div>
 								);
 							})}
-							{holidays.map(h => (
-								<div key={h.day} className="cal-tl-holiday-mark" style={{ left: h.day * dayWidth, width: dayWidth }} title={`Férié · ${h.name}`} />
-							))}
 						</div>
 					</div>
 				)}

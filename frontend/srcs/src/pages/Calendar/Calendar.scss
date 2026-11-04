@@ -988,15 +988,6 @@
 	overflow: hidden;
 }
 
-.cal-tl-holiday-mark {
-	position: absolute;
-	top: 3px;
-	bottom: 3px;
-	z-index: 1;
-	border-radius: 3px;
-	background: var(--cal-holiday);
-}
-
 // Téléphone : la frise prend toute la largeur de l'écran (bord à bord) et la
 // colonne des libellés disparaît ; « Rythme » devient une petite étiquette dans
 // le coin de sa ligne. Placé APRÈS les règles de base de la frise : à
@@ -1042,7 +1033,6 @@
 	.cal-tl-row--rhythm .cal-tl-track { height: 44px; }
 	// Sous l'étiquette « RYTHME » (2 → 16 px), sans la chevaucher.
 	.cal-tl-row--rhythm .cal-tl-run { top: 19px; }
-	.cal-tl-row--rhythm .cal-tl-holiday-mark { top: 17px; }
 }
 
 .cal-tl-bg {
