@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { getAvatar, parseAvatarUrl } from '../services/avatarProxy.service.js';
+import { AvatarBusyError, getAvatar, parseAvatarUrl } from '../services/avatarProxy.service.js';
 
 /**
  * GET /avatar?u=<URL d'une photo du CDN 42>
@@ -20,7 +20,10 @@ export async function avatarRoutes(fastify: FastifyInstance) {
 		let image;
 		try {
 			image = await getAvatar(url);
-		} catch {
+		} catch (error) {
+			if (error instanceof AvatarBusyError) {
+				return reply.code(503).header('Retry-After', '5').send({ error: 'Avatar service busy' });
+			}
 			return reply.code(502).send({ error: 'Avatar unavailable' });
 		}
 		if (!image) return reply.code(404).send({ error: 'Avatar not found' });

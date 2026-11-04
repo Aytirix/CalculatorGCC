@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import Fastify from 'fastify';
-import { __setAvatarDeps, getAvatar, parseAvatarUrl } from './avatarProxy.service.js';
+import { __avatarCacheBytes, __setAvatarDeps, AvatarBusyError, getAvatar, parseAvatarUrl } from './avatarProxy.service.js';
 import { avatarRoutes } from '../routes/avatar.routes.js';
 
 const GOOD = 'https://cdn.intra.42.fr/users/fe48abd92cbb4edfffed3b38c717f129/small_thmouty.jpg';
@@ -47,12 +47,43 @@ describe('getAvatar', () => {
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 	});
 
-	it('403 / 404 de 42 : null, et pas de mise en cache', async () => {
+	it('403 / 404 de 42 : null, mémorisé un moment (pas de nouvel appel vers 42)', async () => {
 		const fetcher = vi.fn(async () => ({ status: 403, body: Buffer.alloc(0), contentType: 'text/html' }));
 		__setAvatarDeps({ fetcher, getToken: async () => 't' });
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
+
+	it('erreur 5xx de 42 : pas mémorisée (on réessaiera)', async () => {
+		const fetcher = vi.fn(async () => ({ status: 502, body: Buffer.alloc(0), contentType: '' }));
+		__setAvatarDeps({ fetcher, getToken: async () => 't' });
+		await getAvatar(parseAvatarUrl(GOOD)!);
+		await getAvatar(parseAvatarUrl(GOOD)!);
 		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+
+	it('cache borné en octets (50 Mo), pas seulement en nombre de photos', async () => {
+		const big = Buffer.alloc(3 * 1024 * 1024 - 10, 1);
+		__setAvatarDeps({ fetcher: async () => ({ status: 200, body: big, contentType: 'image/jpeg' }), getToken: async () => 't' });
+		for (let i = 0; i < 30; i++) {
+			const hash = i.toString(16).padStart(32, '0');
+			await getAvatar(parseAvatarUrl(`https://cdn.intra.42.fr/users/${hash}/a.jpg`)!);
+		}
+		expect(__avatarCacheBytes()).toBeLessThanOrEqual(50 * 1024 * 1024);
+		expect(__avatarCacheBytes()).toBeGreaterThan(40 * 1024 * 1024);
+	});
+
+	it('plafond global d\u2019appels vers 42 : au-delà, AvatarBusyError (503)', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(r => { release = r; });
+		__setAvatarDeps({ fetcher: async () => { await gate; return { status: 200, body: JPEG, contentType: 'image/jpeg' }; }, getToken: async () => 't' });
+		const urls = Array.from({ length: 5 }, (_, i) => parseAvatarUrl(`https://cdn.intra.42.fr/users/${String(i).padStart(32, 'a')}/a.jpg`)!);
+		const running = urls.slice(0, 4).map(u => getAvatar(u));
+		await expect(getAvatar(urls[4])).rejects.toBeInstanceOf(AvatarBusyError);
+		release();
+		await Promise.all(running);
+		await expect(getAvatar(urls[4])).resolves.not.toBeNull();
 	});
 });
 
