@@ -1671,7 +1671,8 @@ summary.cal-section-title {
 .cal-toast {
 	position: fixed;
 	left: 50%;
-	bottom: calc(24px + env(safe-area-inset-bottom));
+	// Au-dessus de la barre de navigation du bas (téléphone).
+	bottom: calc(24px + max(env(safe-area-inset-bottom), var(--app-bottom-offset, 0px)));
 	z-index: 1100;
 	transform: translateX(-50%);
 	max-width: calc(100vw - 32px);

@@ -143,14 +143,26 @@ export type LoadStatus = 'loading' | 'ready' | 'empty' | 'error';
  * secondes, pour qu'un envoi bloqué ne fige jamais la page.
  */
 let saveQueue: Promise<void> = Promise.resolve();
-const SAVE_QUEUE_WAIT_MAX_MS = 5000;
+// Chaque tâche est BORNÉE (les requêtes elles-mêmes expirent à 15 s) : une
+// tâche pendue bloquait tous les envois suivants. Le chargement peut donc
+// attendre la file entière, sans plafond séparé (un plafond le laissait lire la
+// base avant l'écriture de l'instance précédente).
+const SAVE_TASK_MAX_MS = 20_000;
+
+function withTimeout(promise: Promise<unknown>, ms: number): Promise<unknown> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		promise,
+		new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); }),
+	]).finally(() => clearTimeout(timer));
+}
 
 function enqueueSave(task: () => Promise<unknown>): void {
-	saveQueue = saveQueue.then(task).then(() => undefined, () => undefined);
+	saveQueue = saveQueue.then(() => withTimeout(task(), SAVE_TASK_MAX_MS)).then(() => undefined, () => undefined);
 }
 
 function waitForSaveQueue(): Promise<void> {
-	return Promise.race([saveQueue, new Promise<void>(resolve => setTimeout(resolve, SAVE_QUEUE_WAIT_MAX_MS))]);
+	return saveQueue;
 }
 
 export function useCalendarData(readOnly: boolean) {

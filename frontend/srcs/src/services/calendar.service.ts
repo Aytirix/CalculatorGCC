@@ -20,11 +20,19 @@ export interface CalendarData {
 	alternanceDays: Record<string, string>;
 }
 
+// Une requête qui ne répond jamais (réseau mobile figé) ne doit rien bloquer :
+// les enregistrements du calendrier passent par une file, un envoi pendu
+// empêchait tous les suivants de partir.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 	const jwtToken = backendAuthService.getToken();
 	if (!jwtToken) throw new Error('Not authenticated');
 
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 	const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+		signal: controller.signal,
 		...options,
 		headers: {
 			Authorization: `Bearer ${jwtToken}`,
@@ -33,6 +41,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 		},
 	});
 
+	clearTimeout(timer);
 	if (response.status === 204) return null as T;
 
 	if (!response.ok) {

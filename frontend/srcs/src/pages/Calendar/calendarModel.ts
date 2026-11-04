@@ -301,7 +301,7 @@ export function classifyAlternanceColor(color: string | undefined, legend: Alter
  * 2. sinon, les couleurs restantes sont rattachées par fréquence : la plus
  *    présente devient Entreprise (l'alternance compte plus de jours en
  *    entreprise qu'à l'école), puis École, puis Distanciel. Au-delà de trois
- *    couleurs, les jours en trop sont ignorés.
+ *    couleurs, les jours en trop gardent leur couleur (sans libellé).
  * Déterministe : le même planning donne le même résultat sur tous les appareils.
  */
 const AUTO_ASSIGN_ORDER: AlternanceKind[] = ['entreprise', 'ecole', 'distanciel'];
@@ -323,8 +323,8 @@ export function normalizeAlternanceDays(days: Record<string, string>, legend: Al
 	const out: Record<string, string> = {};
 	for (const [key, color] of Object.entries(days)) {
 		const kind = mapping.get(color.toLowerCase());
-		if (!kind) { changed = true; continue; } // 4ᵉ couleur et suivantes : ignorée
-		const next = ALTERNANCE_COLORS[kind];
+		// 4ᵉ couleur et suivantes : gardées telles quelles (jamais supprimées en base).
+		const next = kind ? ALTERNANCE_COLORS[kind] : color;
 		if (next !== color) changed = true;
 		out[key] = next;
 	}

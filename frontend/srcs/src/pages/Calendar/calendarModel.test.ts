@@ -269,11 +269,11 @@ describe('couleurs de l\u2019app pour le rythme (plus celles du .xlsx)', () => {
 		expect(out).toEqual({ a: ALTERNANCE_COLORS.ecole, b: ALTERNANCE_COLORS.entreprise, c: ALTERNANCE_COLORS.entreprise });
 	});
 
-	it('au-delà de trois couleurs, la plus rare est ignorée', () => {
+	it('au-delà de trois couleurs, la plus rare garde sa couleur (aucun jour supprimé)', () => {
 		const days = { a: '#111111', b: '#111111', c: '#222222', d: '#222222', e: '#333333', f: '#333333', g: '#444444' };
 		const out = normalizeAlternanceDays(days, null);
-		expect(Object.keys(out)).toHaveLength(6);
-		expect(out.g).toBeUndefined();
+		expect(Object.keys(out)).toHaveLength(7);
+		expect(out.g).toBe('#444444');
 	});
 
 	it('reconnaît le type SANS légende une fois converti (autre appareil, lecture seule)', () => {
