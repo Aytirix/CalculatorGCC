@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import type { AlternanceLegend } from './alternanceParser';
 import {
-	ALTERNANCE_LABELS, addDays, classifyAlternanceColor, diffDays, formatDateKey, formatShort,
+	ALTERNANCE_COLORS, ALTERNANCE_LABELS, addDays, classifyAlternanceColor, diffDays, formatDateKey, formatShort,
 	formatXp, getHolidayName, getProjectStatus, isSameDay, plural, startOfWeek,
 	type PlacedProject, type ProjectStatus,
 } from './calendarModel';
@@ -83,7 +83,7 @@ const ListView: React.FC<ListViewProps> = ({
 					<div className="cal-legend cal-legend--compact">
 						{legendKinds.map(k => (
 							<span key={k} className="cal-legend-item">
-								<span className="cal-legend-line" style={{ background: alternanceLegend?.[k] ?? 'transparent' }} />
+								<span className="cal-legend-line" style={{ background: ALTERNANCE_COLORS[k] }} />
 								{ALTERNANCE_LABELS[k]}
 							</span>
 						))}

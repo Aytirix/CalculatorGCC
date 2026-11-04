@@ -267,13 +267,85 @@ export function getProjectStatus(p: PlacedProject, today: Date): { status: Proje
 
 // ── Alternance ─────────────────────────────────────────────────────────────
 
+/**
+ * Couleurs du rythme d'alternance : CELLES DE L'APP, plus celles du .xlsx. À
+ * l'import, chaque jour reçoit la couleur de son type ; c'est elle qui est
+ * enregistrée en base. Le type se lit donc directement dans la couleur, sur
+ * tous les appareils — avant, il dépendait de la légende du fichier, gardée
+ * seulement dans le navigateur qui l'avait importé (légende vide, « jours
+ * d'école » à « — » partout ailleurs).
+ */
+export const ALTERNANCE_COLORS: Record<AlternanceKind, string> = {
+	ecole: '#4f7be8',
+	entreprise: '#ef8a3c',
+	distanciel: '#2ea88a',
+};
+
+export const ALTERNANCE_KINDS: AlternanceKind[] = ['ecole', 'entreprise', 'distanciel'];
+
 export function classifyAlternanceColor(color: string | undefined, legend: AlternanceLegend | null): AlternanceKind | null {
-	if (!color || !legend) return null;
+	if (!color) return null;
 	const c = color.toLowerCase();
+	for (const kind of ALTERNANCE_KINDS) if (ALTERNANCE_COLORS[kind] === c) return kind;
+	if (!legend) return null;
 	if (legend.ecole && legend.ecole.toLowerCase() === c) return 'ecole';
 	if (legend.distanciel && legend.distanciel.toLowerCase() === c) return 'distanciel';
 	if (legend.entreprise && legend.entreprise.toLowerCase() === c) return 'entreprise';
 	return null;
+}
+
+/**
+ * Remplace chaque couleur du fichier par la couleur de l'app pour son type —
+ * sans rien demander à l'utilisateur :
+ * 1. la légende du .xlsx décide quand elle est connue ;
+ * 2. sinon, les couleurs restantes sont rattachées par fréquence : la plus
+ *    présente devient Entreprise (l'alternance compte plus de jours en
+ *    entreprise qu'à l'école), puis École, puis Distanciel. Au-delà de trois
+ *    couleurs, les jours en trop sont ignorés.
+ * Déterministe : le même planning donne le même résultat sur tous les appareils.
+ */
+const AUTO_ASSIGN_ORDER: AlternanceKind[] = ['entreprise', 'ecole', 'distanciel'];
+
+export function normalizeAlternanceDays(days: Record<string, string>, legend: AlternanceLegend | null): Record<string, string> {
+	const mapping = new Map<string, AlternanceKind>();
+	const used = new Set<AlternanceKind>();
+	for (const color of new Set(Object.values(days).map(c => c.toLowerCase()))) {
+		const kind = classifyAlternanceColor(color, legend);
+		if (kind) { mapping.set(color, kind); used.add(kind); }
+	}
+	const free = AUTO_ASSIGN_ORDER.filter(k => !used.has(k));
+	for (const { color } of unknownAlternanceColors(days, legend)) {
+		const kind = free.shift();
+		if (!kind) break;
+		mapping.set(color, kind);
+	}
+	let changed = false;
+	const out: Record<string, string> = {};
+	for (const [key, color] of Object.entries(days)) {
+		const kind = mapping.get(color.toLowerCase());
+		if (!kind) { changed = true; continue; } // 4ᵉ couleur et suivantes : ignorée
+		const next = ALTERNANCE_COLORS[kind];
+		if (next !== color) changed = true;
+		out[key] = next;
+	}
+	return changed ? out : days;
+}
+
+/** Couleurs du planning non reconnues (ni couleur de l'app, ni légende), des plus fréquentes aux plus rares. */
+export function unknownAlternanceColors(days: Record<string, string>, legend: AlternanceLegend | null = null): { color: string; days: number }[] {
+	const counts = new Map<string, number>();
+	for (const color of Object.values(days)) {
+		if (classifyAlternanceColor(color, legend)) continue;
+		const c = color.toLowerCase();
+		counts.set(c, (counts.get(c) ?? 0) + 1);
+	}
+	return [...counts].map(([color, n]) => ({ color, days: n })).sort((a, b) => b.days - a.days);
+}
+
+/** Types présents dans le planning (pour la légende). */
+export function alternanceKindsPresent(days: Record<string, string>): AlternanceKind[] {
+	const present = new Set(Object.values(days).map(c => classifyAlternanceColor(c, null)).filter(Boolean));
+	return ALTERNANCE_KINDS.filter(k => present.has(k));
 }
 
 export const ALTERNANCE_LABELS: Record<AlternanceKind, string> = {
@@ -320,7 +392,9 @@ export function countSchoolDays(
 	from: Date,
 	to: Date,
 ): number | null {
-	if (!legend || (!legend.ecole && !legend.distanciel)) return null;
+	// Inconnu seulement si aucun jour du planning n'est rattaché à un type.
+	const known = Object.values(alternanceDays).some(c => classifyAlternanceColor(c, legend) !== null);
+	if (!known) return null;
 	const fromKey = formatDateKey(from);
 	const toKey = formatDateKey(to);
 	let n = 0;

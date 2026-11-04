@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { calendarService } from '@/services/calendar.service';
 import type { AlternanceLegend } from './alternanceParser';
 import {
-	defaultDateRange, deserializeProjects, formatDateKey, parseDateRange, sanitizeAlternanceDays, serializeProjects,
+	defaultDateRange, deserializeProjects, formatDateKey, normalizeAlternanceDays, parseDateRange, sanitizeAlternanceDays, serializeProjects,
 	type DateRange, type PlacedProject,
 } from './calendarModel';
 
@@ -43,7 +43,9 @@ function writeJson(key: string, value: unknown) {
 }
 
 function readAlternanceDays(): Record<string, string> {
-	return sanitizeAlternanceDays(readJson(ALTERNANCE_KEY));
+	// Un planning importé avant le passage aux couleurs de l'app est converti à la
+	// lecture, si la légende du fichier est connue dans ce navigateur.
+	return normalizeAlternanceDays(sanitizeAlternanceDays(readJson(ALTERNANCE_KEY)), readLegend());
 }
 
 function readLegend(): AlternanceLegend | null {
@@ -165,6 +167,8 @@ export function useCalendarData(readOnly: boolean) {
 	const loadPromiseRef = useRef<Promise<unknown> | null>(null);
 	const latestRef = useRef<CalendarSnapshot>({ projects, dateRange, alternanceDays });
 	latestRef.current = { projects, dateRange, alternanceDays };
+	const legendRef = useRef(alternanceLegend);
+	legendRef.current = alternanceLegend;
 
 	// ── Chargement depuis la base ──────────────────────────────────────────
 	useEffect(() => {
@@ -187,7 +191,7 @@ export function useCalendarData(readOnly: boolean) {
 			});
 			dispatch({ type: 'replace', projects: merged.projects });
 			setDateRangeState(merged.dateRange);
-			setAlternanceDays(merged.alternanceDays);
+			setAlternanceDays(normalizeAlternanceDays(merged.alternanceDays, legendRef.current));
 			setStatus('ready');
 		}).catch(() => {
 			if (cancelled) return;
@@ -298,9 +302,11 @@ export function useCalendarData(readOnly: boolean) {
 		if (readOnly) return;
 		dirtyRef.current = true;
 		alternanceTouchedRef.current = true;
-		setAlternanceDays(sanitizeAlternanceDays(days));
+		setAlternanceDays(normalizeAlternanceDays(sanitizeAlternanceDays(days), legend));
 		setAlternanceLegend(legend);
 	}, [readOnly]);
+
+
 
 	return {
 		projects,

@@ -19,6 +19,7 @@ import {
 	addDays, countSchoolDays, defaultPlacementDate, diffDays, formatDateKey,
 	formatShort, formatShortYear, formatXp, getProjectStatus, getTimelineGrid,
 	newPlacedProject, normalizeView, plural, startOfDay,
+	ALTERNANCE_COLORS, ALTERNANCE_LABELS, alternanceKindsPresent,
 	type CalendarView, type DateRange, type PlacedProject,
 } from './calendarModel';
 import './Calendar.scss';
@@ -314,6 +315,8 @@ const Calendar: React.FC = () => {
 	// ── Rendu ──────────────────────────────────────────────────────────────
 
 	const alternanceDayCount = Object.keys(alternanceDays).length;
+	const alternanceKinds = useMemo(() => alternanceKindsPresent(alternanceDays), [alternanceDays]);
+	const openSettings = () => { setSettingsSession(n => n + 1); setSettingsOpen(true); };
 	const showTray = !readOnly;
 	const loadingOther = readOnly && data.status === 'loading';
 
@@ -386,9 +389,11 @@ const Calendar: React.FC = () => {
 						</div>
 					</div>
 					<div className="cal-legend">
-						{alternanceLegend?.ecole && <span className="cal-legend-item"><span className="cal-legend-swatch" style={{ background: alternanceLegend.ecole }} />École</span>}
-						{alternanceLegend?.entreprise && <span className="cal-legend-item"><span className="cal-legend-swatch" style={{ background: alternanceLegend.entreprise }} />Entreprise</span>}
-						{alternanceLegend?.distanciel && <span className="cal-legend-item"><span className="cal-legend-swatch" style={{ background: alternanceLegend.distanciel }} />Distanciel</span>}
+						{/* Couleurs de l'app (et non du .xlsx) : la légende est la même partout. */}
+						{alternanceKinds.map(k => (
+							<span key={k} className="cal-legend-item"><span className="cal-legend-swatch" style={{ background: ALTERNANCE_COLORS[k] }} />{ALTERNANCE_LABELS[k]}</span>
+						))}
+
 						<span className="cal-legend-item"><span className="cal-legend-swatch cal-legend-swatch--weekend" />Week-end</span>
 						<span className="cal-legend-item"><span className="cal-legend-swatch cal-legend-swatch--holiday" />Férié</span>
 						<span className="cal-legend-item"><span className="cal-legend-today" />Aujourd'hui</span>
@@ -444,7 +449,7 @@ const Calendar: React.FC = () => {
 							<button type="button" className="cal-icon-btn" onClick={undoLast} disabled={!data.canUndo} aria-label="Annuler la dernière action" title="Annuler (Ctrl+Z)">
 								<Undo2 size={18} aria-hidden="true" />
 							</button>
-							<button type="button" className="cal-icon-btn" onClick={() => { setSettingsSession(n => n + 1); setSettingsOpen(true); }} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
+							<button type="button" className="cal-icon-btn" onClick={openSettings} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
 								<Settings size={18} aria-hidden="true" />
 							</button>
 						</div>

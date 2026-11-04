@@ -4,6 +4,7 @@ import {
 	getTimelineGrid, getMonthSegments, getHolidayMarks, getHolidayName,
 	packLanes, getProjectStatus,
 	classifyAlternanceColor, getAlternanceRuns, countSchoolDays, readableTextColor,
+	ALTERNANCE_COLORS, normalizeAlternanceDays, unknownAlternanceColors, alternanceKindsPresent,
 	moveProject, resizeProject, setProjectDuration, defaultPlacementDate, newPlacedProject,
 	normalizeView, deserializeProjects, serializeProjects, parseDateRange,
 	sanitizeAlternanceDays, validateDateRange, MAX_ALTERNANCE_DAYS,
@@ -119,7 +120,8 @@ describe('alternance', () => {
 	it('compte les jours d’école (présentiel + distanciel) sur [from, to)', () => {
 		expect(countSchoolDays(days, legend, d('2026-11-03'), d('2026-11-10'))).toBe(2);
 		expect(countSchoolDays(days, null, d('2026-11-01'), d('2026-11-30'))).toBeNull();
-		expect(countSchoolDays(days, { ecole: null, distanciel: null, entreprise: '#FF8800' }, d('2026-11-01'), d('2026-11-30'))).toBeNull();
+		// Seule l'entreprise est connue : 0 jour d'école (et non « inconnu »).
+		expect(countSchoolDays(days, { ecole: null, distanciel: null, entreprise: '#FF8800' }, d('2026-11-01'), d('2026-11-30'))).toBe(0);
 	});
 	it('choisit un texte lisible sur n’importe quel fond', () => {
 		expect(readableTextColor('#FFFF00')).toBe('#000000');
@@ -238,5 +240,57 @@ describe('bornes de la période', () => {
 		expect(validateDateRange(d('1999-01-01'), d('2026-01-01'))).toMatch(/2000/);
 		expect(validateDateRange(d('2027-01-01'), d('2026-01-01'))).toMatch(/après/);
 		expect(parseDateRange({ start: '1000-01-01', end: '9999-12-31' })).toBeNull();
+	});
+});
+
+describe('couleurs de l\u2019app pour le rythme (plus celles du .xlsx)', () => {
+	const xlsxLegend = { ecole: '#0000FF', entreprise: '#FF8800', distanciel: '#00AA88' };
+
+	it('convertit les couleurs du fichier en couleurs de l\u2019app via la légende', () => {
+		const out = normalizeAlternanceDays({ '2026-11-02': '#0000ff', '2026-11-03': '#FF8800', '2026-11-04': '#00AA88' }, xlsxLegend);
+		expect(out).toEqual({
+			'2026-11-02': ALTERNANCE_COLORS.ecole,
+			'2026-11-03': ALTERNANCE_COLORS.entreprise,
+			'2026-11-04': ALTERNANCE_COLORS.distanciel,
+		});
+	});
+
+	it('sans légende : la couleur la plus fréquente devient Entreprise, puis École, puis Distanciel', () => {
+		const days = { a: '#F08000', b: '#f08000', c: '#f08000', d: '#2000E0', e: '#2000E0', f: '#00A000' };
+		expect(normalizeAlternanceDays(days, null)).toEqual({
+			a: ALTERNANCE_COLORS.entreprise, b: ALTERNANCE_COLORS.entreprise, c: ALTERNANCE_COLORS.entreprise,
+			d: ALTERNANCE_COLORS.ecole, e: ALTERNANCE_COLORS.ecole,
+			f: ALTERNANCE_COLORS.distanciel,
+		});
+	});
+
+	it('légende partielle : les couleurs restantes prennent les types encore libres', () => {
+		const out = normalizeAlternanceDays({ a: '#0000FF', b: '#999999', c: '#999999' }, { ecole: '#0000FF', entreprise: null, distanciel: null });
+		expect(out).toEqual({ a: ALTERNANCE_COLORS.ecole, b: ALTERNANCE_COLORS.entreprise, c: ALTERNANCE_COLORS.entreprise });
+	});
+
+	it('au-delà de trois couleurs, la plus rare est ignorée', () => {
+		const days = { a: '#111111', b: '#111111', c: '#222222', d: '#222222', e: '#333333', f: '#333333', g: '#444444' };
+		const out = normalizeAlternanceDays(days, null);
+		expect(Object.keys(out)).toHaveLength(6);
+		expect(out.g).toBeUndefined();
+	});
+
+	it('reconnaît le type SANS légende une fois converti (autre appareil, lecture seule)', () => {
+		expect(classifyAlternanceColor(ALTERNANCE_COLORS.distanciel, null)).toBe('distanciel');
+		const days = normalizeAlternanceDays({ '2026-11-02': '#0000FF', '2026-11-05': '#FF8800' }, xlsxLegend);
+		expect(countSchoolDays(days, null, d('2026-11-01'), d('2026-11-30'))).toBe(1);
+		expect(alternanceKindsPresent(days)).toEqual(['ecole', 'entreprise']);
+	});
+
+	it('rien à convertir : renvoie le même objet (pas de rendu ni d\u2019enregistrement inutile)', () => {
+		const days = { '2026-11-02': ALTERNANCE_COLORS.ecole };
+		expect(normalizeAlternanceDays(days, xlsxLegend)).toBe(days);
+	});
+
+	it('liste les couleurs inconnues, des plus fréquentes aux plus rares', () => {
+		expect(unknownAlternanceColors({
+			a: '#111111', b: '#222222', c: '#222222', e: ALTERNANCE_COLORS.ecole,
+		})).toEqual([{ color: '#222222', days: 2 }, { color: '#111111', days: 1 }]);
 	});
 });
