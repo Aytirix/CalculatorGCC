@@ -53,6 +53,17 @@ export const calendarService = {
 	async save(data: CalendarData): Promise<void> {
 		// Jamais sauvegarder quand on consulte un autre profil
 		if (getViewUserId() !== null) return;
+		await calendarService.saveOwn(data);
+	},
+
+	/**
+	 * Enregistre le calendrier du COMPTE CONNECTÉ (le backend écrit toujours sur
+	 * le compte du JWT), sans relire l'utilisateur consulté. Réservé à la page
+	 * Calendrier ouverte en propriétaire : son dernier enregistrement part au
+	 * démontage, or quand on ouvre le profil d'un autre, l'id consulté est déjà
+	 * posé à ce moment-là — `save()` l'ignorait et la modification était perdue.
+	 */
+	async saveOwn(data: CalendarData): Promise<void> {
 		await request<CalendarData>('/calendar', {
 			method: 'PUT',
 			body: JSON.stringify(data),

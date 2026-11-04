@@ -29,12 +29,26 @@ const PlacedProjectSchema = z.object({
 	row:         z.number().int().min(0).max(200),
 }).strict();
 
+// Bornes de la période affichée. Sans elles, une période de 9 000 ans était
+// acceptée : le frontend crée plusieurs éléments par jour de la période, donc
+// quiconque consultait ce profil voyait son onglet se figer. Mêmes valeurs que
+// le frontend (pages/Calendar/calendarModel.ts : MIN_YEAR, MAX_YEAR, MAX_RANGE_DAYS).
+const MIN_RANGE_YEAR = 2000;
+const MAX_RANGE_YEAR = 2100;
+const MAX_RANGE_DAYS = 3660;
+
 const DateRangeSchema = z.object({
 	start: IsoDateOnly,
 	end:   IsoDateOnly,
 }).strict().refine(
 	({ start, end }) => start <= end,
 	{ message: 'start must be before or equal to end' },
+).refine(
+	({ start, end }) => Number(start.slice(0, 4)) >= MIN_RANGE_YEAR && Number(end.slice(0, 4)) <= MAX_RANGE_YEAR,
+	{ message: `dateRange must be between ${MIN_RANGE_YEAR} and ${MAX_RANGE_YEAR}` },
+).refine(
+	({ start, end }) => (Date.parse(end) - Date.parse(start)) / 86_400_000 <= MAX_RANGE_DAYS,
+	{ message: `dateRange must not exceed ${MAX_RANGE_DAYS} days` },
 );
 
 const AlternanceDaysSchema = z.record(IsoDateOnly, HexColor);
