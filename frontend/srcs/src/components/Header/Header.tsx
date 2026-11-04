@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import CommandPalette from '@/components/CommandPalette/CommandPalette';
 import { InstallBanner } from '@/components/InstallApp/InstallApp';
+import UserAvatar from '@/components/UserAvatar/UserAvatar';
 import './Header.scss';
 import { formatLevel } from '@/services/xp.service';
 
@@ -93,9 +94,10 @@ const Header: React.FC = () => {
     return () => document.body.classList.remove('has-bottom-nav');
   }, [showBottomNav]);
 
-  const avatarSrc = isViewingOther && viewingUser?.imageUrl
-    ? viewingUser.imageUrl
-    : user?.image?.link || '/default-avatar.png';
+  // Petite version quand l'API la fournit (la photo complète pèse plusieurs centaines de Ko).
+  const avatarUrl = isViewingOther
+    ? viewingUser?.imageUrl
+    : user?.image?.versions?.small || user?.image?.link;
   const displayLogin = isViewingOther ? viewingUser?.login : user?.login;
 
   return (
@@ -150,7 +152,7 @@ const Header: React.FC = () => {
             // L'onglet courant est explicitement marqué : avec cinq pages, une
             // simple nuance de gris ne suffisait pas à savoir où l'on se trouve.
             <nav className="header-nav" data-tour="header-nav" aria-label="Navigation principale">
-              {NAV_ITEMS.map(({ label, path, Icon, tour }) => {
+              {NAV_ITEMS.map(({ label, short, path, Icon, tour }) => {
                 const active = location.pathname === path;
                 return (
                   <button
@@ -164,6 +166,7 @@ const Header: React.FC = () => {
                   >
                     <Icon className="nav-link__icon" size={18} aria-hidden="true" />
                     <span className="nav-link__label">{label}</span>
+                    <span className="nav-link__short" aria-hidden="true">{short}</span>
                   </button>
                 );
               })}
@@ -207,7 +210,7 @@ const Header: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="user-menu-trigger" data-tour="user-menu-trigger" aria-label={`Compte de ${displayLogin ?? ''}`}>
                     <span className="user-avatar-container">
-                      <img src={avatarSrc} alt="" className="user-avatar" />
+                      <UserAvatar src={avatarUrl} login={displayLogin} className="user-avatar" />
                       {user.level && !isViewingOther && (
                         <span className="user-level-badge">{Math.floor(user.level)}</span>
                       )}

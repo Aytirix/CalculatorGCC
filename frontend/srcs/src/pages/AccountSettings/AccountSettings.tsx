@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import UserAvatar from '@/components/UserAvatar/UserAvatar';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/useAuth';
@@ -61,8 +62,9 @@ const AccountSettings: React.FC = () => {
 
           {user && (
             <div className="settings-user-info">
-              <img
-                src={user.image?.link || '/default-avatar.png'}
+              <UserAvatar
+                src={user.image?.versions?.medium || user.image?.link}
+                login={user.login}
                 alt={user.login}
                 className="settings-avatar"
               />

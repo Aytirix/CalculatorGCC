@@ -6,6 +6,7 @@ import { useRncpData } from '@/contexts/useRncpData';
 import { useProjectTeams } from '@/contexts/useProjectTeams';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { useViewingUser } from '@/contexts/useViewingUser';
+import UserAvatar from '@/components/UserAvatar/UserAvatar';
 import './CommandPalette.scss';
 
 /**
@@ -243,7 +244,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
 									onClick={() => runItem(item)}
 								>
 									{item.kind === 'user' && item.imageUrl ? (
-										<img className="command-palette__avatar" src={item.imageUrl} alt="" />
+										<UserAvatar className="command-palette__avatar" src={item.imageUrl} login={item.label} />
 									) : (
 										<span className={`command-palette__kind kind-${item.kind}`}>
 											{KIND_LABELS[item.kind]}

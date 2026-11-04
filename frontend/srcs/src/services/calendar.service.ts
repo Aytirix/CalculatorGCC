@@ -31,25 +31,30 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-	const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-		signal: controller.signal,
-		...options,
-		headers: {
-			Authorization: `Bearer ${jwtToken}`,
-			'Content-Type': 'application/json',
-			...options?.headers,
-		},
-	});
+	// Le délai couvre TOUTE la requête, lecture du corps comprise (un corps qui
+	// n'arrive jamais laissait la page en chargement indéfiniment).
+	try {
+		const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+			...options,
+			signal: controller.signal,
+			headers: {
+				Authorization: `Bearer ${jwtToken}`,
+				'Content-Type': 'application/json',
+				...options?.headers,
+			},
+		});
 
-	clearTimeout(timer);
-	if (response.status === 204) return null as T;
+		if (response.status === 204) return null as T;
 
-	if (!response.ok) {
-		const errorData = await response.json().catch(() => ({}));
-		throw new Error(errorData.error || response.statusText);
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({}));
+			throw new Error(errorData.error || response.statusText);
+		}
+
+		return await response.json();
+	} finally {
+		clearTimeout(timer);
 	}
-
-	return response.json();
 }
 
 export const calendarService = {

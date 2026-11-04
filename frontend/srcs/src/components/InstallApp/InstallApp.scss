@@ -65,6 +65,11 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px 10px;
+
+		// Spécificité renforcée : des règles de page (`.calendar-page button { font: inherit }`)
+		// agrandissaient les boutons du bandeau et les faisaient passer sur deux lignes.
+		.install-btn--small { font-size: 14px; font-weight: 600; }
+		.install-banner__dismiss { font-size: 13px; font-weight: 600; }
 	}
 
 	&__dismiss {

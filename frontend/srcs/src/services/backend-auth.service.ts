@@ -33,6 +33,7 @@ export interface User {
   // Propriétés optionnelles pour compatibilité
   image?: {
     link?: string;
+    versions?: { large?: string; medium?: string; small?: string; micro?: string };
   };
   level?: number;
 }

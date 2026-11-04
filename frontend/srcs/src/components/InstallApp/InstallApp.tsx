@@ -3,6 +3,7 @@ import { Download, Share, X } from 'lucide-react';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { promptInstall } from '@/services/installPrompt';
 import { simulationService } from '@/services/simulation.service';
+import { useAuth } from '@/contexts/useAuth';
 import './InstallApp.scss';
 
 /**
@@ -14,14 +15,22 @@ import './InstallApp.scss';
  * Masqués dès que l'application tourne en mode installé.
  */
 
-const DISMISS_KEY = 'install_prompt_dismissed';
+// Par COMPTE : sur un appareil partagé, le refus de A ne doit ni masquer le
+// bandeau de B, ni être renvoyé au serveur au nom de B.
+const dismissKey = (login: string) => `install_prompt_dismissed:${login}`;
 
-function readLocalDismissed(): boolean {
-	try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
+function readLocalDismissed(login: string | undefined): boolean {
+	if (!login) return false;
+	try { return localStorage.getItem(dismissKey(login)) === '1'; } catch { return false; }
 }
-function writeLocalDismissed() {
-	try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* sans gravité */ }
+function writeLocalDismissed(login: string | undefined) {
+	if (!login) return;
+	try { localStorage.setItem(dismissKey(login), '1'); } catch { /* sans gravité */ }
 }
+
+// Le Header (donc le bandeau) est remonté à chaque page : on ne redemande l'avis
+// du serveur qu'une fois par compte et par chargement de l'application.
+const syncedLogins = new Set<string>();
 
 /** Marche à suivre quand le navigateur n'ouvre pas lui-même l'installation (iOS, Firefox…). */
 const InstallHelpDialog: React.FC<{ open: boolean; ios: boolean; onClose: () => void }> = ({ open, ios, onClose }) => {
@@ -103,28 +112,34 @@ export const InstallAppButton: React.FC<{ className?: string }> = ({ className }
 
 export const InstallBanner: React.FC = () => {
 	const { install, onInstall, help } = useInstallAction();
-	const [dismissed, setDismissed] = useState(readLocalDismissed);
-	const visible = install.mobile && !install.installed && !dismissed;
+	const { user } = useAuth();
+	const login = user?.login;
+	const [dismissed, setDismissed] = useState(() => readLocalDismissed(login));
+	// Tant que le serveur n'a pas répondu, on ne montre rien : sinon le bandeau
+	// apparaissait une seconde chez qui l'avait refusé sur un autre appareil.
+	const [serverChecked, setServerChecked] = useState(() => !!login && syncedLogins.has(login));
+	const visible = install.mobile && !install.installed && !dismissed && !!login && serverChecked;
 
 	// Le choix « Ne plus me le rappeler » vit côté serveur : il vaut sur tous les appareils.
 	useEffect(() => {
-		if (!install.mobile || install.installed) return;
+		if (!login || !install.mobile || install.installed || syncedLogins.has(login)) return;
 		let cancelled = false;
 		simulationService.getInstallPromptDismissed().then(({ dismissed: serverDismissed }) => {
-			if (cancelled) return;
+			syncedLogins.add(login);
 			if (serverDismissed) {
-				writeLocalDismissed();
-				setDismissed(true);
-			} else if (readLocalDismissed()) {
-				// Choisi ici mais jamais arrivé au serveur (hors ligne) : on le renvoie.
+				writeLocalDismissed(login);
+				if (!cancelled) setDismissed(true);
+			} else if (readLocalDismissed(login)) {
+				// Choisi ici par CE compte mais jamais arrivé au serveur (hors ligne) : on le renvoie.
 				simulationService.saveInstallPromptDismissed(true).catch(() => {});
 			}
-		}).catch(() => { /* non connecté ou hors ligne : le choix local suffit */ });
+		}).catch(() => { /* hors ligne : le choix local suffit */ })
+			.finally(() => { if (!cancelled) setServerChecked(true); });
 		return () => { cancelled = true; };
-	}, [install.mobile, install.installed]);
+	}, [login, install.mobile, install.installed]);
 
 	const onDismiss = () => {
-		writeLocalDismissed();
+		writeLocalDismissed(login);
 		setDismissed(true);
 		simulationService.saveInstallPromptDismissed(true).catch(() => { /* renvoyé au prochain chargement */ });
 	};

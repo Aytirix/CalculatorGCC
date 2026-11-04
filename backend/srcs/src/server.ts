@@ -11,6 +11,7 @@ import { api42Routes } from './routes/api42.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { simulationRoutes } from './routes/simulation.routes.js';
 import { calendarRoutes } from './routes/calendar.routes.js';
+import { avatarRoutes } from './routes/avatar.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { requireConfigured } from './middlewares/setup.middleware.js';
 import { initConfig, isConfigured, loadConfigIntoEnv, loadOrGenerateJwtSecret } from './db/configRepository.js';
@@ -205,6 +206,8 @@ await fastify.register(authRoutes);
 await fastify.register(api42Routes);
 await fastify.register(simulationRoutes);
 await fastify.register(calendarRoutes);
+// Photos de profil 42 : le CDN exige désormais un jeton de l'API (403 sinon).
+await fastify.register(avatarRoutes);
 
 // ===== ERROR HANDLER =====
 

@@ -1,0 +1,21 @@
+// Repli quand la photo ne charge pas : l'initiale, à la taille de la photo
+// (la classe d'origine — .user-avatar, .command-palette__avatar… — fixe la taille).
+.user-avatar--fallback {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: 50%;
+	background: #dbe5fb;
+	color: #1d3f99;
+	font-weight: 700;
+	font-size: 0.95em;
+	line-height: 1;
+	user-select: none;
+}
+
+.dark .user-avatar--fallback {
+	background: #1e2a44;
+	color: #b9cdfc;
+}

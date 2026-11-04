@@ -10,6 +10,7 @@ import {
 	type ProjectTeamInfo,
 } from '@/services/backend-api42.service';
 import { useAuth } from '@/contexts/useAuth';
+import UserAvatar from '@/components/UserAvatar/UserAvatar';
 import './TeammateModal.scss';
 
 interface TeammateModalProps {
@@ -55,7 +56,7 @@ function formatAge(iso: string | null): string {
 
 const Avatar: React.FC<{ login: string; imageUrl: string | null }> = ({ login, imageUrl }) =>
 	imageUrl ? (
-		<img className="teammate-modal__avatar" src={imageUrl} alt={login} />
+		<UserAvatar className="teammate-modal__avatar" src={imageUrl} login={login} alt={login} />
 	) : (
 		<div className="teammate-modal__avatar teammate-modal__avatar--placeholder">
 			{login[0]?.toUpperCase() ?? '?'}
