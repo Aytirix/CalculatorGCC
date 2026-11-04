@@ -17,9 +17,13 @@ export async function avatarRoutes(fastify: FastifyInstance) {
 		const url = parseAvatarUrl(request.query.u);
 		if (!url) return reply.code(400).send({ error: 'Invalid avatar url' });
 
+		// Même clé de visiteur que le reste de l'API (X-Real-IP posé par nginx).
+		const realIp = request.headers['x-real-ip'];
+		const client = (typeof realIp === 'string' && realIp) || request.ip;
+
 		let image;
 		try {
-			image = await getAvatar(url);
+			image = await getAvatar(url, client);
 		} catch (error) {
 			if (error instanceof AvatarBusyError) {
 				return reply.code(503).header('Retry-After', '5').send({ error: 'Avatar service busy' });

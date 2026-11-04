@@ -91,6 +91,11 @@ export const appToken42Service = {
 		return inflight;
 	},
 
+	/** Oublie le token en cache (42 l'a refusé : 401) ; le prochain `get()` en redemande un. */
+	invalidate(): void {
+		cached = null;
+	},
+
 	/** Le scope `projects` est-il accordé ? `null` tant qu'aucun token n'a été demandé. */
 	hasProjectsScope(): boolean | null {
 		return grantedScope === null ? null : grantedScope.includes('projects');

@@ -34,6 +34,11 @@ const FETCH_TIMEOUT_MS = 10_000;
 // son quota (2 req/s, 1200/h) avec le reste de l'application.
 const MAX_CONCURRENT_UPSTREAM = 4;
 const MAX_UPSTREAM_PER_MINUTE = 120;
+// Part de ce budget par visiteur (seuls les appels réels vers 42 comptent, pas
+// les photos servies depuis le cache) : un seul client ne peut plus épuiser le
+// budget commun et casser les photos de tout le monde.
+const MAX_UPSTREAM_PER_CLIENT_PER_MINUTE = 20;
+const MAX_TRACKED_CLIENTS = 2000;
 
 export interface AvatarImage {
 	body: Buffer;
@@ -64,6 +69,7 @@ const inflight = new Map<string, Promise<AvatarImage | null>>();
 let cacheBytes = 0;
 let upstreamActive = 0;
 let upstreamWindow: number[] = []; // instants des appels vers 42 (dernière minute)
+const clientWindows = new Map<string, number[]>(); // idem, par visiteur
 
 function evictOldest() {
 	// Le plus ancien d'abord (ordre d'insertion d'une Map).
@@ -91,15 +97,26 @@ function rememberMissing(key: string) {
 	missing.set(key, Date.now() + NEGATIVE_TTL_MS);
 }
 
-/** Réserve un appel vers 42, ou lève AvatarBusyError si le plafond global est atteint. */
-function acquireUpstream(): () => void {
+/** Réserve un appel vers 42, ou lève AvatarBusyError si un plafond (global ou du visiteur) est atteint. */
+function acquireUpstream(client: string): () => void {
 	const now = Date.now();
 	upstreamWindow = upstreamWindow.filter(t => now - t < 60_000);
+	const mine = (clientWindows.get(client) ?? []).filter(t => now - t < 60_000);
+	if (mine.length >= MAX_UPSTREAM_PER_CLIENT_PER_MINUTE) {
+		throw new AvatarBusyError('Too many avatar fetches for this client');
+	}
 	if (upstreamActive >= MAX_CONCURRENT_UPSTREAM || upstreamWindow.length >= MAX_UPSTREAM_PER_MINUTE) {
 		throw new AvatarBusyError('Too many avatar fetches');
 	}
 	upstreamActive++;
 	upstreamWindow.push(now);
+	mine.push(now);
+	clientWindows.delete(client); // réinsertion = le plus récent en dernier
+	clientWindows.set(client, mine);
+	if (clientWindows.size > MAX_TRACKED_CLIENTS) {
+		const oldest = clientWindows.keys().next().value;
+		if (oldest !== undefined) clientWindows.delete(oldest);
+	}
 	return () => { upstreamActive--; };
 }
 
@@ -123,11 +140,14 @@ const defaultFetcher: Fetcher = async (url, token) => {
 
 let fetcher: Fetcher = defaultFetcher;
 let getToken: () => Promise<string> = () => appToken42Service.get();
+let invalidateToken: () => void = () => appToken42Service.invalidate();
 
 /** Pour les tests : remplacer l'accès réseau et le jeton. */
-export function __setAvatarDeps(deps: { fetcher?: Fetcher; getToken?: () => Promise<string> } | null) {
+export function __setAvatarDeps(deps: { fetcher?: Fetcher; getToken?: () => Promise<string>; invalidateToken?: () => void } | null) {
 	fetcher = deps?.fetcher ?? defaultFetcher;
 	getToken = deps?.getToken ?? (() => appToken42Service.get());
+	invalidateToken = deps?.invalidateToken ?? (() => appToken42Service.invalidate());
+	clientWindows.clear();
 	cache.clear();
 	missing.clear();
 	inflight.clear();
@@ -142,7 +162,7 @@ export function __avatarCacheBytes(): number {
 }
 
 /** Photo relayée (depuis le cache si possible), ou null si 42 ne la fournit pas. */
-export async function getAvatar(url: URL): Promise<AvatarImage | null> {
+export async function getAvatar(url: URL, client = 'anonymous'): Promise<AvatarImage | null> {
 	const key = url.toString();
 	const hit = cache.get(key);
 	if (hit && hit.expiresAt > Date.now()) return hit.image;
@@ -152,12 +172,24 @@ export async function getAvatar(url: URL): Promise<AvatarImage | null> {
 	const pending = inflight.get(key);
 	if (pending) return pending;
 
-	const release = acquireUpstream(); // peut lever AvatarBusyError
+	const release = acquireUpstream(client); // peut lever AvatarBusyError
 	const task = (async () => {
 		const res = await fetcher(key, await getToken());
+		// 401 : notre jeton est refusé (expiré, révoqué) — on en redemandera un.
+		// Surtout pas mémorisé comme « photo absente » : ce serait casser toutes
+		// les photos pendant le délai du cache négatif.
+		if (res.status === 401) {
+			invalidateToken();
+			throw new Error('Avatar token rejected');
+		}
+		// 429 / 5xx / délai : passager, on renverra « occupé, réessayer ».
+		if (res.status === 429 || res.status === 408 || res.status >= 500) {
+			throw new AvatarBusyError(`Upstream ${res.status}`);
+		}
 		if (res.status !== 200 || !res.contentType.startsWith('image/') || res.body.length === 0 || res.body.length > MAX_BYTES) {
-			// 403 / 404 / page d'erreur : réponse définitive pour un moment.
-			if (res.status >= 400 && res.status < 500 || res.status === 200) rememberMissing(key);
+			// Seules les réponses qui décrivent vraiment la ressource sont
+			// mémorisées : 404, ou un 200 qui n'est pas une image.
+			if (res.status === 404 || res.status === 200) rememberMissing(key);
 			return null;
 		}
 		const image = { body: res.body, contentType: res.contentType };

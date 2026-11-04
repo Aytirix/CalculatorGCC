@@ -47,20 +47,53 @@ describe('getAvatar', () => {
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 	});
 
-	it('403 / 404 de 42 : null, mémorisé un moment (pas de nouvel appel vers 42)', async () => {
-		const fetcher = vi.fn(async () => ({ status: 403, body: Buffer.alloc(0), contentType: 'text/html' }));
+	it('404 de 42 : null, mémorisé un moment (pas de nouvel appel vers 42)', async () => {
+		const fetcher = vi.fn(async () => ({ status: 404, body: Buffer.alloc(0), contentType: 'text/html' }));
 		__setAvatarDeps({ fetcher, getToken: async () => 't' });
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
 
-	it('erreur 5xx de 42 : pas mémorisée (on réessaiera)', async () => {
-		const fetcher = vi.fn(async () => ({ status: 502, body: Buffer.alloc(0), contentType: '' }));
+	it('403 de 42 : null mais PAS mémorisé (peut venir du jeton, pas de la photo)', async () => {
+		const fetcher = vi.fn(async () => ({ status: 403, body: Buffer.alloc(0), contentType: 'text/html' }));
 		__setAvatarDeps({ fetcher, getToken: async () => 't' });
-		await getAvatar(parseAvatarUrl(GOOD)!);
-		await getAvatar(parseAvatarUrl(GOOD)!);
+		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
+		expect(await getAvatar(parseAvatarUrl(GOOD)!)).toBeNull();
 		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+
+	it('erreur 5xx / 429 de 42 : « occupé » (503), pas mémorisée (on réessaiera)', async () => {
+		const fetcher = vi.fn(async () => ({ status: 429, body: Buffer.alloc(0), contentType: '' }));
+		__setAvatarDeps({ fetcher, getToken: async () => 't' });
+		await expect(getAvatar(parseAvatarUrl(GOOD)!)).rejects.toBeInstanceOf(AvatarBusyError);
+		await expect(getAvatar(parseAvatarUrl(GOOD)!)).rejects.toBeInstanceOf(AvatarBusyError);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+
+	it('401 : jeton invalidé, rien de mémorisé — l\u2019appel suivant réussit avec un nouveau jeton', async () => {
+		let calls = 0;
+		const invalidate = vi.fn();
+		__setAvatarDeps({
+			fetcher: async () => (++calls === 1
+				? { status: 401, body: Buffer.alloc(0), contentType: '' }
+				: { status: 200, body: JPEG, contentType: 'image/jpeg' }),
+			getToken: async () => 't',
+			invalidateToken: invalidate,
+		});
+		await expect(getAvatar(parseAvatarUrl(GOOD)!)).rejects.toThrow();
+		expect(invalidate).toHaveBeenCalledOnce();
+		await expect(getAvatar(parseAvatarUrl(GOOD)!)).resolves.not.toBeNull();
+	});
+
+	it('part par visiteur : un client qui épuise la sienne ne bloque pas les autres', async () => {
+		__setAvatarDeps({ fetcher: async () => ({ status: 200, body: JPEG, contentType: 'image/jpeg' }), getToken: async () => 't' });
+		const url = (i: number) => parseAvatarUrl(`https://cdn.intra.42.fr/users/${String(i).padStart(32, 'b')}/a.jpg`)!;
+		for (let i = 0; i < 20; i++) await getAvatar(url(i), 'abuseur');
+		await expect(getAvatar(url(99), 'abuseur')).rejects.toBeInstanceOf(AvatarBusyError);
+		await expect(getAvatar(url(100), 'quelqu-un')).resolves.not.toBeNull();
+		// Déjà en cache : servi même à l'abuseur, sans appel vers 42.
+		await expect(getAvatar(url(0), 'abuseur')).resolves.not.toBeNull();
 	});
 
 	it('cache borné en octets (50 Mo), pas seulement en nombre de photos', async () => {
@@ -68,7 +101,7 @@ describe('getAvatar', () => {
 		__setAvatarDeps({ fetcher: async () => ({ status: 200, body: big, contentType: 'image/jpeg' }), getToken: async () => 't' });
 		for (let i = 0; i < 30; i++) {
 			const hash = i.toString(16).padStart(32, '0');
-			await getAvatar(parseAvatarUrl(`https://cdn.intra.42.fr/users/${hash}/a.jpg`)!);
+			await getAvatar(parseAvatarUrl(`https://cdn.intra.42.fr/users/${hash}/a.jpg`)!, `c${i}`);
 		}
 		expect(__avatarCacheBytes()).toBeLessThanOrEqual(50 * 1024 * 1024);
 		expect(__avatarCacheBytes()).toBeGreaterThan(40 * 1024 * 1024);
@@ -79,11 +112,11 @@ describe('getAvatar', () => {
 		const gate = new Promise<void>(r => { release = r; });
 		__setAvatarDeps({ fetcher: async () => { await gate; return { status: 200, body: JPEG, contentType: 'image/jpeg' }; }, getToken: async () => 't' });
 		const urls = Array.from({ length: 5 }, (_, i) => parseAvatarUrl(`https://cdn.intra.42.fr/users/${String(i).padStart(32, 'a')}/a.jpg`)!);
-		const running = urls.slice(0, 4).map(u => getAvatar(u));
-		await expect(getAvatar(urls[4])).rejects.toBeInstanceOf(AvatarBusyError);
+		const running = urls.slice(0, 4).map((u, i) => getAvatar(u, `client-${i}`));
+		await expect(getAvatar(urls[4], 'client-4')).rejects.toBeInstanceOf(AvatarBusyError);
 		release();
 		await Promise.all(running);
-		await expect(getAvatar(urls[4])).resolves.not.toBeNull();
+		await expect(getAvatar(urls[4], 'client-4')).resolves.not.toBeNull();
 	});
 });
 
