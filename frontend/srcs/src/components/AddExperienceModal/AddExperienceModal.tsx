@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useModalFocus } from '@/hooks/useModalFocus';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import StageForm from '@/components/StageForm/StageForm';
@@ -44,6 +45,10 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
     setSelectedStageLevel(null);
   };
 
+  // Focus dans la fenêtre, Tab qui y reste, Échap qui ferme.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, isOpen, handleClose);
+
   // Réinitialiser le type/niveau sélectionné quand l'expérience en édition change
   React.useEffect(() => {
     if (editingExperience) {
@@ -61,6 +66,10 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
     <AnimatePresence>
       <div className="modal-overlay" onClick={handleClose}>
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-experience-title"
           className="modal-content"
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -69,8 +78,8 @@ const AddExperienceModal: React.FC<AddExperienceModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="modal-header">
-            <h2>{editingExperience ? 'Modifier' : 'Ajouter'} une expérience professionnelle</h2>
-            <button className="close-button" onClick={handleClose}>
+            <h2 id="add-experience-title">{editingExperience ? 'Modifier' : 'Ajouter'} une expérience professionnelle</h2>
+            <button className="close-button" onClick={handleClose} aria-label="Fermer">
               ✕
             </button>
           </div>

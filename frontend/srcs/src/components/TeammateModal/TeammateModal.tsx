@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useModalFocus } from '@/hooks/useModalFocus';
 import {
 	isReadOnlyMode,
 	simulationService,
@@ -89,23 +90,9 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	const [teamSize, setTeamSize] = useState(2);
 	const [teamError, setTeamError] = useState<string | null>(null);
 
-	// Échap ferme la fenêtre, comme les autres de l'app.
-	const onCloseRef = useRef(onClose);
-	onCloseRef.current = onClose;
-	useEffect(() => {
-		if (!isOpen) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key !== 'Escape') return;
-			// Une fenêtre ouverte par-dessus (palette Ctrl+K) garde son Échap.
-			const target = e.target instanceof Element ? e.target : null;
-			const dialog = target?.closest('[role="dialog"]');
-			if (dialog && !dialog.classList.contains('teammate-modal')) return;
-			e.stopPropagation();
-			onCloseRef.current();
-		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
-	}, [isOpen]);
+	// Focus dans la fenêtre, Tab qui y reste, Échap qui ferme.
+	const dialogRef = useRef<HTMLDivElement>(null);
+	useModalFocus(dialogRef, isOpen, onClose);
 
 	useEffect(() => {
 		const val = isOpen ? 'hidden' : '';
@@ -254,6 +241,7 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	return (
 		<div className="teammate-modal-overlay" onClick={onClose}>
 			<div
+				ref={dialogRef}
 				className="teammate-modal teammate-modal--wide"
 				role="dialog"
 				aria-modal="true"

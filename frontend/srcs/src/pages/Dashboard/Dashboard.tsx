@@ -7,7 +7,7 @@ import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceMod
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
-import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired } from '@/services/xp.service';
+import { xpService, isPoolCovered, isProjectAcquired, simulatedPoolXP } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
@@ -21,7 +21,7 @@ import { createSimulationSaver, type SimulationSaver } from '@/services/simulati
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
-import { useTour } from '@/contexts/TourContext';
+import { TOUR_TARGET_EVENT, useTour } from '@/contexts/TourContext';
 import { useRefresh } from '@/contexts/useRefresh';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import { useAuth } from '@/contexts/useAuth';
@@ -759,33 +759,12 @@ const Dashboard: React.FC = () => {
 						// Modules RETIRÉS exclus, comme le calcul RNCP : sans ça, la barre
 						// de niveau et les totaux du RNCP se contredisaient dans les deux
 						// sens — piscine acquise ici et pas là, ou l'inverse.
-						const allSubProjectsValidated = isPoolCovered(project, (subId) =>
-							subProjectIds.includes(subId)
+						totalXP += simulatedPoolXP(
+							project,
+							subProjectIds,
+							projectPercentages[project.id] ?? 100,
+							!!coalitionBoosts[project.id],
 						);
-
-						if (allSubProjectsValidated) {
-							// Si tous les sous-projets sont validés, ajouter l'XP du projet principal
-							let addedXP = effectiveProjectXP(project);
-
-							// Appliquer le pourcentage personnalisé si présent (rare pour les piscines)
-							const percentage = projectPercentages[project.id] ?? 100;
-							addedXP = Math.round((addedXP * percentage) / 100);
-
-							// Appliquer le boost coalition si activé
-							if (coalitionBoosts[project.id]) {
-								addedXP = Math.round(addedXP * 1.042);
-							}
-
-							totalXP += addedXP;
-						} else {
-							// Ajouter l'XP de chaque sous-projet validé individuellement (partiel)
-							subProjectIds.forEach(subId => {
-								const subProject = project.subProjects?.find(s => s.id === subId);
-								if (subProject && subProject.xp > 0) {
-									totalXP += subProject.xp;
-								}
-							});
-						}
 
 						countedProjects.add(projectId);
 						break; // On sort de la boucle des catégories
@@ -1075,6 +1054,20 @@ const Dashboard: React.FC = () => {
 	const [detailsProject, setDetailsProject] = useState<SimulatorProject | null>(null);
 	const [calendarRaw, setCalendarRaw] = useState<unknown>(null);
 	const teamReturnRef = useRef<HTMLElement | null>(null);
+	// Le guide montre une ligne d'une catégorie : il la rouvre si on l'a repliée.
+	const tourRowKeyRef = useRef<string | null>(null);
+	const [tourOpen, setTourOpen] = useState<{ categoryId: string; at: number } | null>(null);
+	useEffect(() => {
+		const onTarget = (e: Event) => {
+			const target = (e as CustomEvent<string>).detail;
+			const key = tourRowKeyRef.current;
+			if ((target === 'calendar-test-project' || target === 'project-details') && key) {
+				setTourOpen({ categoryId: key.slice(0, key.indexOf(':')), at: Date.now() });
+			}
+		};
+		window.addEventListener(TOUR_TARGET_EVENT, onTarget);
+		return () => window.removeEventListener(TOUR_TARGET_EVENT, onTarget);
+	}, []);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const sideRef = useRef<HTMLElement>(null);
 	useFollowScroll(bodyRef, sideRef, isWide);
@@ -1109,7 +1102,7 @@ const Dashboard: React.FC = () => {
 	// simulateur vide ou de tourner indéfiniment sur l'écran de chargement.
 	if (rncpError && rncpData.length === 0) {
 		return (
-			<div className="dashboard-page">
+			<div className="dashboard-page mp-scope">
 				<Header />
 				<div className="dashboard-container">
 					<div className="error-state">
@@ -1129,7 +1122,7 @@ const Dashboard: React.FC = () => {
 
 	if (loading || rncpLoading) {
 		return (
-			<div className="dashboard-page">
+			<div className="dashboard-page mp-scope">
 				<Header />
 				<div className="dashboard-container">
 					<div className="loading-state">
@@ -1147,7 +1140,7 @@ const Dashboard: React.FC = () => {
 
 	if (error) {
 		return (
-			<div className="dashboard-page">
+			<div className="dashboard-page mp-scope">
 				<Header />
 				<div className="dashboard-container">
 					<div className="error-state">
@@ -1165,7 +1158,7 @@ const Dashboard: React.FC = () => {
 	// sort de la boucle de synchro et on propose une reconnexion 42.
 	if (authExpired && !userProgress) {
 		return (
-			<div className="dashboard-page">
+			<div className="dashboard-page mp-scope">
 				<Header />
 				<div className="dashboard-container">
 					<div className="loading-state sync-state">
@@ -1194,7 +1187,7 @@ const Dashboard: React.FC = () => {
 						? `Nouvelle tentative dans ${cooldownSeconds}s…`
 						: "Connexion à l'API 42…";
 		return (
-			<div className="dashboard-page">
+			<div className="dashboard-page mp-scope">
 				<Header />
 				<div className="dashboard-container">
 					<div className="loading-state sync-state">
@@ -1297,15 +1290,17 @@ const Dashboard: React.FC = () => {
 	})();
 	// Le guide montre la première ligne qu'on peut cocher.
 	const tourRowKey = (() => {
-		// Seulement dans une catégorie ouverte par défaut (non validée) : une
-		// catégorie repliée n'a pas de lignes, et le guide sautait l'étape.
-		for (const { category, cv, rows } of categories) {
-			if (!cv || cv.isRealValid) continue;
+		// De préférence dans une catégorie ouverte par défaut (non validée) ; la
+		// catégorie est de toute façon rouverte par le guide (`tourOpen`).
+		const candidates = [...categories].sort((a, b) => Number(!!a.cv?.isRealValid) - Number(!!b.cv?.isRealValid));
+		for (const { category, cv, rows } of candidates) {
+			if (!cv) continue;
 			const row = rows.find(r => !r.blocker && !r.isPool && r.status !== 'validated');
 			if (row) return `${category.id}:${row.id}`;
 		}
 		return null;
 	})();
+	tourRowKeyRef.current = tourRowKey;
 
 	const progressFor = (index: number) =>
 		validationProgress(rncpValidations[index], rncpData[index].id !== 'rncp-global');
@@ -1576,6 +1571,7 @@ const Dashboard: React.FC = () => {
 								onToggle={toggleRow}
 								onSelect={row => selectRow(category.id, row)}
 								onShowDone={() => setShowDone(true)}
+								forceOpenAt={tourOpen?.categoryId === category.id ? tourOpen.at : undefined}
 							/>
 						))}
 					</div>

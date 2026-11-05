@@ -2,7 +2,7 @@ import type { Project42 } from '@/services/backend-api42.service';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
-import { isPoolCovered } from '@/services/xp.service';
+import { isPoolCovered, simulatedPoolXP } from '@/services/xp.service';
 import { simulatedGain } from '@/utils/simulationEdit';
 
 /**
@@ -144,6 +144,32 @@ export function simulatedRowGain(row: MyProjectRow, customXp: Map<string, number
 	if (xp <= 0) return 0;
 	const pct = Math.min(row.simulatedPercentage ?? 100, row.maxPercentage ?? defaultMax);
 	return simulatedGain(xp, pct, row.coalitionBoost);
+}
+
+/**
+ * XP des piscines simulées (modules cochés), calculé comme le Dashboard. Une
+ * piscine qui apparaît dans plusieurs titres n'est comptée qu'une fois.
+ */
+export function simulatedPoolsGain(
+	rncpData: RNCP[],
+	simulatedSubProjects: Record<string, string[]>,
+	percentages: Record<string, number>,
+	boosts: Record<string, boolean>,
+): number {
+	const pools = new Map<string, SimulatorProject>();
+	for (const rncp of rncpData) {
+		for (const category of rncp.categories) {
+			for (const project of category.projects) {
+				if (project.subProjects?.length && !pools.has(project.id)) pools.set(project.id, project);
+			}
+		}
+	}
+	let total = 0;
+	for (const [poolId, subIds] of Object.entries(simulatedSubProjects)) {
+		const pool = pools.get(poolId);
+		if (pool && Array.isArray(subIds)) total += simulatedPoolXP(pool, subIds, percentages[poolId] ?? 100, !!boosts[poolId]);
+	}
+	return total;
 }
 
 /** Statut d'un projet d'après son entrée `projects_users` côté 42. */

@@ -106,6 +106,29 @@ export function effectiveProjectXP(project: SimulatorProject): number {
 	return project.xp - retired.reduce((sum, sub) => sum + sub.xp, 0);
 }
 
+/**
+ * XP qu'une piscine simulée ajoute au niveau projeté. Une seule définition,
+ * partagée par le Dashboard et Mes projets (qui se contredisaient) :
+ *  - tous ses modules ACTIFS cochés : l'XP de la piscine (modules retirés
+ *    déduits), au pourcentage choisi, bonus de coalition compris ;
+ *  - sinon : l'XP de chaque module coché.
+ */
+export function simulatedPoolXP(
+	project: SimulatorProject,
+	checkedSubIds: readonly string[],
+	percentage = 100,
+	boost = false,
+): number {
+	if (isPoolCovered(project, (subId) => checkedSubIds.includes(subId))) {
+		const base = Math.round((effectiveProjectXP(project) * percentage) / 100);
+		return boost ? Math.round(base * 1.042) : base;
+	}
+	return checkedSubIds.reduce((sum, subId) => {
+		const sub = project.subProjects?.find((s) => s.id === subId);
+		return sub && sub.xp > 0 ? sum + sub.xp : sum;
+	}, 0);
+}
+
 export const xpService = {
 	// Calculer l'XP total à partir du niveau
 	getXPFromLevel: (level: number): number => {

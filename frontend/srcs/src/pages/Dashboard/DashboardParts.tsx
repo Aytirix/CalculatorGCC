@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { Check, ChevronRight, User, Users } from 'lucide-react';
 import type { CategoryValidation, ProjectCategory } from '@/types/rncp.types';
 import type { ProjectTeamInfo } from '@/services/backend-api42.service';
@@ -256,8 +256,11 @@ export const CategoryBlock: React.FC<{
 	onToggle: (row: DashRow) => void;
 	onSelect: (row: DashRow) => void;
 	onShowDone: () => void;
-}> = ({ category, cv, rows, showDone, selectedKey, readOnly, teamOf, tourRowId, onToggle, onSelect, onShowDone }) => {
+	/** Le guide demande à voir une ligne de cette catégorie (horodatage de la demande). */
+	forceOpenAt?: number;
+}> = ({ category, cv, rows, showDone, selectedKey, readOnly, teamOf, tourRowId, onToggle, onSelect, onShowDone, forceOpenAt }) => {
 	const [open, setOpen] = useState(!cv.isRealValid);
+	useEffect(() => { if (forceOpenAt) setOpen(true); }, [forceOpenAt]);
 	const bodyId = useId();
 	const status = categoryStatus(category, cv);
 	const visible = showDone ? rows : rows.filter(r => r.status !== 'validated');

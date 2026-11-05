@@ -113,6 +113,9 @@ const restoreParents = (elevated: ElevatedNode[]) => {
 
 const TARGET_WAIT_TIMEOUT = 10000;
 
+/** Émis juste avant qu'une étape attende sa cible ; `detail` = la valeur `data-tour`. */
+export const TOUR_TARGET_EVENT = 'gcc:tour-target';
+
 // Attend qu'une cible de tour soit réellement montée dans le DOM.
 const waitForElement = async (selector: string, timeoutMs: number = TARGET_WAIT_TIMEOUT): Promise<HTMLElement | null> => {
   const existing = document.querySelector<HTMLElement>(selector);
@@ -286,6 +289,9 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         ...(targetSelector && {
           beforeShowPromise: async () => {
+            // La page peut avoir à montrer la cible (catégorie repliée par
+            // l'utilisateur, par exemple) : elle est prévenue avant l'attente.
+            window.dispatchEvent(new CustomEvent(TOUR_TARGET_EVENT, { detail: stepDef.target }));
             const element = await waitForElement(targetSelector);
             // Cible introuvable : l'étape s'affichait quand même, détachée, et
             // son `advanceOn` ne pouvait plus jamais se déclencher — une étape

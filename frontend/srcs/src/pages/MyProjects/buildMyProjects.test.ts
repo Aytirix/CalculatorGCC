@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMyProjects, compareRows, simulatedRowGain, simulationBlocker, type MyProjectRow } from './myProjects.types';
+import { buildMyProjects, compareRows, simulatedPoolsGain, simulatedRowGain, simulationBlocker, type MyProjectRow } from './myProjects.types';
 import type { RNCP } from '@/types/rncp.types';
 import type { Project42 } from '@/services/backend-api42.service';
 
@@ -307,3 +307,28 @@ describe('simulatedRowGain — même XP que le Dashboard', () => {
     expect(simulatedRowGain(row({ isSimulated: true, status: 'validated' }), customs, 125)).toBe(0);
   });
 });
+
+describe('simulatedPoolsGain — piscines comptées comme le Dashboard', () => {
+  const data = rncpData('42-9', 'Mobile');
+  (data[0].categories[0].projects[0] as { subProjects?: unknown }).subProjects = [
+    { id: '42-91', name: 'm0', xp: 400 },
+    { id: '42-92', name: 'm1', xp: 600 },
+    { id: '42-93', name: 'm2', xp: 300, retired: true },
+  ];
+  (data[0].categories[0].projects[0] as { xp: number }).xp = 1300;
+
+  it('en partie cochée : l’XP de chaque module coché', () => {
+    expect(simulatedPoolsGain(data, { '42-9': ['42-91'] }, {}, {})).toBe(400);
+  });
+
+  it('tous les modules actifs cochés : l’XP de la piscine, module retiré déduit, % et bonus appliqués', () => {
+    expect(simulatedPoolsGain(data, { '42-9': ['42-91', '42-92'] }, {}, {})).toBe(1000);
+    expect(simulatedPoolsGain(data, { '42-9': ['42-91', '42-92'] }, { '42-9': 110 }, { '42-9': true })).toBe(Math.round(1100 * 1.042));
+  });
+
+  it('piscine inconnue ou rien de coché : 0', () => {
+    expect(simulatedPoolsGain(data, { '42-404': ['x'] }, {}, {})).toBe(0);
+    expect(simulatedPoolsGain(data, {}, {}, {})).toBe(0);
+  });
+});
+

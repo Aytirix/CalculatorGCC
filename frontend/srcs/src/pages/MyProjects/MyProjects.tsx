@@ -20,6 +20,7 @@ import type { SimulatorProject } from '@/types/rncp.types';
 import {
 	buildMyProjects,
 	compareRows,
+	simulatedPoolsGain,
 	simulatedRowGain,
 	simulationBlocker,
 	STATUS_ORDER,
@@ -314,19 +315,27 @@ const MyProjects: React.FC = () => {
 		// Comme le Dashboard : un projet déjà validé (pas encore retiré par la
 		// réconciliation) ne rapporte plus rien, et la note est bornée au maximum.
 		const simulatedRows = rows.filter(r => r.isSimulated && !r.isPool && r.status !== 'validated');
+		const poolPercentages: Record<string, number> = {};
+		const poolBoosts: Record<string, boolean> = {};
+		for (const p of simulation?.simulatedProjects ?? []) {
+			poolPercentages[p.projectId] = p.percentage;
+			if (p.coalitionBoost) poolBoosts[p.projectId] = true;
+		}
 		const customXp = new Map<string, number>();
 		for (const c of (simulation?.customProjects as SimulatorProject[] | undefined) ?? []) {
 			if (c && typeof c.id === 'string' && typeof c.xp === 'number') customXp.set(c.id, c.xp);
 		}
 		return {
-			gain: simulatedRows.reduce((sum, r) => sum + simulatedRowGain(r, customXp, DEFAULT_PROJECT_MAX_PERCENTAGE), 0),
+			// Piscines comprises, comme le Dashboard.
+			gain: simulatedRows.reduce((sum, r) => sum + simulatedRowGain(r, customXp, DEFAULT_PROJECT_MAX_PERCENTAGE), 0)
+				+ simulatedPoolsGain(rncpData, simulation?.simulatedSubProjects ?? {}, poolPercentages, poolBoosts),
 			simCount: rows.filter(r => r.isSimulated).length,
 			validated: rows.filter(r => r.status === 'validated').length,
 			validatedRncp: rows.filter(r => r.status === 'validated' && r.source === 'rncp').length,
 			inProgress: rows.filter(r => r.status === 'in_progress'),
 			toPlace: simulatedRows.filter(r => !slots.has(r.simId)).length,
 		};
-	}, [rows, slots, simulation]);
+	}, [rows, slots, simulation, rncpData]);
 
 	const selected = rows.find(r => r.id === selectedId) ?? null;
 
