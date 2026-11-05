@@ -326,6 +326,10 @@ describe('simulatedPoolsGain — piscines comptées comme le Dashboard', () => {
     expect(simulatedPoolsGain(data, { '42-9': ['42-91', '42-92'] }, { '42-9': 110 }, { '42-9': true })).toBe(Math.round(1100 * 1.042));
   });
 
+  it('piscine déjà validée sur l’intra : ne rapporte plus rien', () => {
+    expect(simulatedPoolsGain(data, { '42-9': ['42-91', '42-92'] }, {}, {}, new Set(['42-9']))).toBe(0);
+  });
+
   it('piscine inconnue ou rien de coché : 0', () => {
     expect(simulatedPoolsGain(data, { '42-404': ['x'] }, {}, {})).toBe(0);
     expect(simulatedPoolsGain(data, {}, {}, {})).toBe(0);

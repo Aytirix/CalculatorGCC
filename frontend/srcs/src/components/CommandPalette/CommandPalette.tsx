@@ -104,6 +104,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
 		}
 
 		for (const project of catalog42) {
+			// Déjà listé par le référentiel : par identifiant. Le nom ne sert plus
+			// qu'à ne pas afficher deux fois un même intitulé.
+			if (seen.has(`42-${project.id}`)) continue;
 			const key = normalizeProjectSlug(project.name);
 			if (!key || byName.has(key)) continue;
 			byName.add(key);

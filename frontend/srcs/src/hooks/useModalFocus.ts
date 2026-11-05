@@ -36,7 +36,8 @@ export function useModalFocus(
 			const other = target?.closest('[role="dialog"]');
 			if (other && other !== current) return;
 
-			if (e.key === 'Escape') {
+			// Échap pendant une composition (accents, IME) annule la saisie, pas la fenêtre.
+			if (e.key === 'Escape' && !e.isComposing) {
 				e.stopPropagation();
 				onCloseRef.current();
 				return;

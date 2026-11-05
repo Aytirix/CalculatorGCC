@@ -226,8 +226,10 @@ const MyProjects: React.FC = () => {
 			if (p.note) notes[p.projectId] = p.note;
 		}
 		const xpBySlug = new Map<string, number>();
+		const xpById = new Map<string, number>();
 		for (const project of catalog42) {
 			if (project.xp <= 0) continue;
+			xpById.set(`42-${project.id}`, project.xp);
 			for (const key of [project.slug.replace(/^42cursus-/, ''), project.name]) {
 				const normalized = normalizeProjectSlug(key);
 				if (normalized && !xpBySlug.has(normalized)) xpBySlug.set(normalized, project.xp);
@@ -243,6 +245,7 @@ const MyProjects: React.FC = () => {
 			simulatedSubProjects: simulation.simulatedSubProjects ?? {},
 			customProjects: (simulation.customProjects as SimulatorProject[]) ?? [],
 			xpBySlug,
+			xpById,
 			catalog: catalog42,
 		});
 	}, [rncpData, rncpLoading, apiProjects, simulation, catalog42]);
@@ -328,7 +331,13 @@ const MyProjects: React.FC = () => {
 		return {
 			// Piscines comprises, comme le Dashboard.
 			gain: simulatedRows.reduce((sum, r) => sum + simulatedRowGain(r, customXp, DEFAULT_PROJECT_MAX_PERCENTAGE), 0)
-				+ simulatedPoolsGain(rncpData, simulation?.simulatedSubProjects ?? {}, poolPercentages, poolBoosts),
+				+ simulatedPoolsGain(
+					rncpData,
+					simulation?.simulatedSubProjects ?? {},
+					poolPercentages,
+					poolBoosts,
+					new Set(rows.filter(r => r.isPool && r.status === 'validated').map(r => r.id)),
+				),
 			simCount: rows.filter(r => r.isSimulated).length,
 			validated: rows.filter(r => r.status === 'validated').length,
 			validatedRncp: rows.filter(r => r.status === 'validated' && r.source === 'rncp').length,
@@ -361,7 +370,7 @@ const MyProjects: React.FC = () => {
 	};
 
 	const teamOf = (row: MyProjectRow) => {
-		const info = getTeamInfo({ id: row.id, name: row.name, slug: row.slug });
+		const info = getTeamInfo({ id: row.simId, name: row.name, slug: row.slug });
 		return info && !info.solo ? info : null;
 	};
 
@@ -588,9 +597,9 @@ const MyProjects: React.FC = () => {
 							back?.focus();
 						});
 					}}
-					projectId={teammateRow.id}
+					projectId={teammateRow.simId}
 					projectName={teammateRow.name}
-					teamInfo={getTeamInfo({ id: teammateRow.id, name: teammateRow.name, slug: teammateRow.slug })}
+					teamInfo={getTeamInfo({ id: teammateRow.simId, name: teammateRow.name, slug: teammateRow.slug })}
 					isSimulated={teammateRow.isSimulated}
 				/>
 			)}

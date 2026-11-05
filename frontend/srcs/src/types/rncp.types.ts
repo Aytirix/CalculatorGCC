@@ -58,7 +58,6 @@ export interface UserProgress {
   currentXP: number;
   events: number;
   professionalExperience: number;
-  completedProjects: string[]; // slugs des projets complétés
   simulatedProjects: string[]; // slugs des projets simulés
 }
 

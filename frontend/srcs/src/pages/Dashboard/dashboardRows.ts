@@ -2,7 +2,6 @@ import type { SimulatorProject } from '@/types/rncp.types';
 import type { MyProjectRow, ProjectStatus } from '@/pages/MyProjects/myProjects.types';
 import { activeSubProjects, effectiveProjectXP } from '@/services/xp.service';
 import { clampProjectPercentage } from '@/utils/projectPercentage';
-import { findProjectPercentage } from '@/utils/projectMatcher';
 import { simulatedGain } from '@/utils/simulationEdit';
 
 /**
@@ -36,7 +35,7 @@ export interface DashRowContext {
 	boosts: Record<string, boolean>;
 	notes: Record<string, string>;
 	readOnly: boolean;
-	/** Statut côté 42 d'un projet non validé : en cours, raté, ou rien. */
+	/** Statut côté 42 d'un projet non validé (par identifiant) : en cours, raté, ou rien. */
 	apiStatus: (project: SimulatorProject) => 'in_progress' | 'failed' | null;
 }
 
@@ -73,7 +72,7 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 			: simulatedGain(xp, pct, boost);
 	const poolPartialXp = isPool && !isSimulated && !completed && !retired ? checkedXp : 0;
 	const shownXp = completed
-		? Math.round((xp * findProjectPercentage(project, ctx.completedPercentages, 100)) / 100)
+		? Math.round((xp * clampProjectPercentage(ctx.completedPercentages[project.id] ?? 100, project)) / 100)
 		: isSimulated && !isPool ? gain : xp;
 
 	const blocker = ctx.readOnly
@@ -95,7 +94,7 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 		xp,
 		status,
 		source: 'rncp',
-		finalMark: completed ? findProjectPercentage(project, ctx.completedPercentages, 100) : null,
+		finalMark: completed ? clampProjectPercentage(ctx.completedPercentages[project.id] ?? 100, project) : null,
 		isSimulated: isSimulated && !completed,
 		simulatedPercentage: isSimulated && !isPool ? pct : null,
 		date: null,

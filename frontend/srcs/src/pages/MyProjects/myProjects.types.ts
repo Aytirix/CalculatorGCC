@@ -2,6 +2,7 @@ import type { Project42 } from '@/services/backend-api42.service';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
+import { createProjectLookup } from '@/utils/projectIdentity';
 import { isPoolCovered, simulatedPoolXP } from '@/services/xp.service';
 import { simulatedGain } from '@/utils/simulationEdit';
 
@@ -155,6 +156,8 @@ export function simulatedPoolsGain(
 	simulatedSubProjects: Record<string, string[]>,
 	percentages: Record<string, number>,
 	boosts: Record<string, boolean>,
+	/** Piscines déjà validées sur l'intra : elles ne rapportent plus rien (comme le Dashboard une fois réconcilié). */
+	validatedPoolIds: ReadonlySet<string> = new Set(),
 ): number {
 	const pools = new Map<string, SimulatorProject>();
 	for (const rncp of rncpData) {
@@ -167,6 +170,7 @@ export function simulatedPoolsGain(
 	let total = 0;
 	for (const [poolId, subIds] of Object.entries(simulatedSubProjects)) {
 		const pool = pools.get(poolId);
+		if (validatedPoolIds.has(poolId)) continue;
 		if (pool && Array.isArray(subIds)) total += simulatedPoolXP(pool, subIds, percentages[poolId] ?? 100, !!boosts[poolId]);
 	}
 	return total;
@@ -187,6 +191,8 @@ interface BuildInput {
 	customProjects: SimulatorProject[];
 	/** XP des projets 42 hors référentiel (tronc commun, examens…), par slug normalisé. */
 	xpBySlug: Map<string, number>;
+	/** XP des projets du catalogue par identifiant `42-<id>` (prioritaire sur `xpBySlug`). */
+	xpById?: Map<string, number>;
 	/** Catalogue du campus : complète la liste avec les projets jamais touchés. */
 	catalog: { id: number; name: string; slug: string; xp: number }[];
 	/** Bonus coalition et notes perso de la simulation, par identifiant de simulation. */
@@ -211,6 +217,7 @@ export function buildMyProjects({
 	percentages,
 	customProjects,
 	xpBySlug,
+	xpById = new Map(),
 	catalog,
 	boosts = {},
 	notes = {},
@@ -240,21 +247,18 @@ export function buildMyProjects({
 	const isPoolModule = (simId: string, name: string) =>
 		poolModuleIds.has(simId) || poolModuleNames.has(normalizeProjectSlug(name));
 
-	// Index des entrées 42 par nom et slug normalisés, pour rapprocher un projet
-	// du référentiel de ce que l'utilisateur en a réellement fait.
-	const apiByKey = new Map<string, Project42>();
-	for (const entry of apiProjects) {
-		if (ADMIN_PROJECT_RE.test(entry.project.name.trim())) continue;
-		for (const key of [entry.project.name, entry.project.slug]) {
-			if (!key) continue;
-			const normalized = normalizeProjectSlug(key.replace(/^42cursus-/, ''));
-			// La plus récente prime : une entrée peut exister en double (rejeu).
-			if (normalized) apiByKey.set(normalized, entry);
-		}
-	}
+	// Entrées de l'intra par IDENTIFIANT 42 (repli : nom exact unique). Un projet
+	// repassé a plusieurs inscriptions : la validée prime, sinon la plus récente.
+	const recent = (e: Project42) => Date.parse(e.marked_at ?? e.created_at ?? '') || 0;
+	const lookup = createProjectLookup(
+		apiProjects.filter((entry) => !ADMIN_PROJECT_RE.test(entry.project.name.trim())),
+		(candidate, current) => (candidate.validated === true) !== (current.validated === true)
+			? candidate.validated === true
+			: recent(candidate) >= recent(current),
+	);
 
 	const rows: MyProjectRow[] = [];
-	const usedApiEntries = new Set<number>();
+	const usedApiProjects = new Set<number>();
 	const seenIds = new Set<string>();
 
 	// 1) Le référentiel RNCP, enrichi de ce que l'utilisateur en a fait.
@@ -267,11 +271,10 @@ export function buildMyProjects({
 					continue;
 				}
 
-				const keys = [project.slug, project.id, project.name].filter(Boolean) as string[];
-				const entry = keys
-					.map((k) => apiByKey.get(normalizeProjectSlug(k)))
-					.find(Boolean);
-				if (entry) usedApiEntries.add(entry.id);
+				const entry = lookup.find(project);
+				// Le PROJET est vu, pas une inscription : un projet repassé ne doit
+				// pas réapparaître plus bas avec une autre de ses inscriptions.
+				if (entry) usedApiProjects.add(entry.project.id);
 
 				const isPool = !!project.subProjects?.length;
 				const subs = simulatedSubProjects[project.id];
@@ -302,8 +305,8 @@ export function buildMyProjects({
 
 	// 2) Ce que l'utilisateur a fait en dehors du référentiel : tronc commun,
 	//    examens, projets d'autres cursus. C'est l'essentiel de son parcours.
-	for (const entry of apiProjects) {
-		if (usedApiEntries.has(entry.id)) continue;
+	for (const entry of lookup.byId.values()) {
+		if (usedApiProjects.has(entry.project.id)) continue;
 		const name = entry.project.name.trim();
 		if (ADMIN_PROJECT_RE.test(name)) continue;
 		const id = `api-${entry.project.id}`;
@@ -322,7 +325,9 @@ export function buildMyProjects({
 			slug,
 			// L'XP vient du catalogue du campus : ces projets ne sont pas dans le
 			// référentiel RNCP, mais ils comptent bel et bien dans le niveau.
+			// Par identifiant ; le nom exact (normalisé) n'est qu'un dernier recours.
 			xp:
+				xpById.get(simId) ??
 				xpBySlug.get(normalizeProjectSlug(slug)) ??
 				xpBySlug.get(normalizeProjectSlug(name)) ??
 				0,

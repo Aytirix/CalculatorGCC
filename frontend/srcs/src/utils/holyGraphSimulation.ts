@@ -35,6 +35,7 @@ export const isGraphSimulationId = (id: string): boolean => /^42-\d+$/.test(id);
  * reconstruit si elle change (elle ne change qu'une fois, au chargement).
  */
 let rncpIndex: Map<string, SimulatorProject> | null = null;
+let rncpById: Map<string, SimulatorProject> | null = null;
 let indexedFrom: RNCP[] | null = null;
 
 function getRncpIndex(): Map<string, SimulatorProject> {
@@ -42,10 +43,12 @@ function getRncpIndex(): Map<string, SimulatorProject> {
 	if (rncpIndex && indexedFrom === data) return rncpIndex;
 
 	const index = new Map<string, SimulatorProject>();
+	const ids = new Map<string, SimulatorProject>();
 	for (const rncp of data) {
 		for (const category of rncp.categories) {
 			for (const project of category.projects) {
-				for (const key of [project.id, project.slug, project.name]) {
+				if (!ids.has(project.id)) ids.set(project.id, project);
+				for (const key of [project.slug, project.name]) {
 					if (!key) continue;
 					const normalized = normalizeProjectSlug(key);
 					if (normalized && !index.has(normalized)) index.set(normalized, project);
@@ -55,6 +58,7 @@ function getRncpIndex(): Map<string, SimulatorProject> {
 	}
 
 	rncpIndex = index;
+	rncpById = ids;
 	indexedFrom = data;
 	return index;
 }
@@ -68,6 +72,10 @@ function getRncpIndex(): Map<string, SimulatorProject> {
  */
 export function findRncpProject(project: GraphProjectRef): SimulatorProject | null {
 	const index = getRncpIndex();
+	// Par identifiant d'abord : le référentiel porte les identifiants 42.
+	const byId = rncpById?.get(graphSimulationId(project.id));
+	if (byId) return byId;
+	// Dernier recours : nom ou slug exacts (normalisés).
 	const candidates = [project.slug.replace(/^42cursus-/, ''), project.slug, project.name];
 	for (const candidate of candidates) {
 		const found = index.get(normalizeProjectSlug(candidate));

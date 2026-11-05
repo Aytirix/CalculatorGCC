@@ -10,9 +10,9 @@ import type { SimulatorProject } from '@/types/rncp.types';
  * la régression qui empêchait les 7 piscines du référentiel de s'afficher
  * validées.
  *
- * Le pré-requis à retenir : `valides` doit contenir des identifiants de
- * granularité MODULE — les slugs bruts de l'API 42. Lui passer des slugs de
- * PROJET fait répondre `false` à toute piscine, en silence.
+ * `valides` contient des IDENTIFIANTS (`42-<id>`), résolus une fois depuis
+ * l'intra par `projectIdentity.resolveValidated` — modules compris. Plus aucun
+ * rapprochement par slug ou par nom ici.
  */
 
 const piscine = (modules: number): SimulatorProject =>
@@ -27,8 +27,9 @@ const simple = (): SimulatorProject =>
   ({ id: '42-1463', name: 'zappy', slug: 'zappy', xp: 25_200 }) as SimulatorProject;
 
 describe('isProjectAcquired', () => {
-  it('reconnaît un projet simple par son slug, préfixe 42cursus compris', () => {
-    expect(isProjectAcquired(simple(), ['42cursus-zappy'])).toBe(true);
+  it('ne reconnaît PLUS un projet par son slug : identifiant seulement', () => {
+    expect(isProjectAcquired(simple(), ['42cursus-zappy'])).toBe(false);
+    expect(isProjectAcquired(simple(), ['zappy'])).toBe(false);
     expect(isProjectAcquired(simple(), [])).toBe(false);
   });
 
@@ -38,15 +39,9 @@ describe('isProjectAcquired', () => {
 
   it("n'acquiert une piscine que si TOUS ses modules le sont", () => {
     const p = piscine(3);
-    expect(isProjectAcquired(p, ['42cursus-mobile-0-machin'])).toBe(false);
-    expect(isProjectAcquired(p, ['42cursus-mobile-0-machin', '42cursus-mobile-1-machin'])).toBe(false);
-    expect(
-      isProjectAcquired(p, [
-        '42cursus-mobile-0-machin',
-        '42cursus-mobile-1-machin',
-        '42cursus-mobile-2-machin',
-      ])
-    ).toBe(true);
+    expect(isProjectAcquired(p, ['42-2356'])).toBe(false);
+    expect(isProjectAcquired(p, ['42-2356', '42-2357'])).toBe(false);
+    expect(isProjectAcquired(p, ['42-2356', '42-2357', '42-2358'])).toBe(true);
   });
 
   it("n'acquiert PAS une piscine sur son propre slug", () => {
@@ -66,11 +61,12 @@ describe('isProjectAcquired', () => {
       ...p,
       subProjects: p.subProjects!.map((sub) => ({ ...sub, retired: true })),
     } as SimulatorProject;
-    expect(isProjectAcquired(toutRetire, ['42cursus-mobile-0-machin', '42cursus-mobile-1-machin'])).toBe(false);
+    expect(isProjectAcquired(toutRetire, ['42-2356', '42-2357'])).toBe(false);
   });
 
   it("traite un projet sans sous-projets comme un projet simple", () => {
     const vide = { ...piscine(0), subProjects: [] } as SimulatorProject;
-    expect(isProjectAcquired(vide, ['mobile'])).toBe(true);
+    expect(isProjectAcquired(vide, ['42-2355'])).toBe(true);
+    expect(isProjectAcquired(vide, ['mobile'])).toBe(false);
   });
 });

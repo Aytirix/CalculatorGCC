@@ -557,31 +557,30 @@ describe('identifiant et slug distincts', () => {
     expect(cat.currentXP).toBe(21_000);
   });
 
-  it("compte toujours un projet validé par son SLUG", () => {
-    // C'est la forme que renvoie l'API 42 : elle ne connaît pas nos identifiants.
-    const cat = run(['42sh'], []);
+  it("compte un projet validé par son IDENTIFIANT, plus par son slug", () => {
+    // La liste des validés est résolue depuis l'intra par identifiant
+    // (`projectIdentity.resolveValidated`) : un slug n'y figure plus.
+    const cat = run(['42-1854'], []);
     expect(cat.realCount).toBe(1);
     expect(cat.realXP).toBe(21_000);
+    expect(run(['42sh'], []).realCount).toBe(0);
   });
 
   it("ne compte pas deux fois un projet à la fois validé et simulé", () => {
-    const cat = run(['42sh'], ['42-1854']);
+    const cat = run(['42-1854'], ['42-1854']);
     expect(cat.currentCount).toBe(1);
     expect(cat.currentXP).toBe(21_000);
   });
 });
 
 /**
- * Le rapprochement PERMISSIF, et la garde des piscines.
+ * Identifiants seulement, et la garde des piscines.
  *
- * `matchesIdOrSlug` a deux moitiés : une comparaison exacte sur l'identifiant,
- * et un rapprochement normalisé sur le slug. Un test de mutation a montré que la
- * seconde moitié n'était exercée par aucun des 74 tests — remplacer
- * `isProjectCompleted` par un simple `includes` les laissait tous passer. Or
- * c'est précisément cette moitié qui gère le préfixe `42cursus-` de l'API 42, et
- * c'est elle qui faisait passer une piscine pour acquise sur un seul module.
+ * Le rapprochement « contient » sur les slugs a disparu : il faisait passer une
+ * piscine pour acquise sur un seul module (son slug préfixe ceux des modules).
+ * La liste reçue ne contient plus que des identifiants `42-<id>`.
  */
-describe('rapprochement permissif', () => {
+describe('identifiants seulement', () => {
   const projet = (): RNCP =>
     ({
       id: 'r', name: 'RNCP', level: 0, requiredEvents: 0, requiredProfessionalExperience: 0,
@@ -613,24 +612,21 @@ describe('rapprochement permissif', () => {
       { level: 0, professionalExp: 0, subProjects: {} }
     ).categoriesValidation[0];
 
-  it("reconnaît un slug préfixé par « 42cursus- », comme l'API 42 le renvoie", () => {
-    // C'est la forme réelle : l'API 42 dit « 42cursus-zappy », notre slug dit
-    // « zappy ». Une comparaison exacte échouerait.
-    expect(run(projet(), ['42cursus-zappy']).realCount).toBe(1);
+  it("un slug de l'intra (« 42cursus-zappy ») ne valide plus rien", () => {
+    expect(run(projet(), ['42cursus-zappy']).realCount).toBe(0);
+    expect(run(projet(), ['42-1463']).realCount).toBe(1);
   });
 
   it("ne valide PAS une piscine sur un seul de ses modules", () => {
-    // Le slug de la piscine (« mobile ») est un préfixe de celui de ses modules :
-    // sans la garde, le rapprochement permissif la donnait pour acquise, avec ses
-    // 20 000 XP, dès le premier module validé.
-    const un = run(piscine(), ['42cursus-mobile-0-basic']);
+    const un = run(piscine(), ['42-2356']);
     expect(un.realCount).toBe(0);
     // L'XP d'un module VALIDÉ n'entre dans la catégorie que si la piscine est
     // complète — seuls les modules COCHÉS en simulation comptent partiellement.
-    // Comportement d'origine, indépendant de la garde testée ici.
     expect(un.realXP).toBe(0);
 
-    const tous = run(piscine(), ['42cursus-mobile-0-basic', '42cursus-mobile-1-structure']);
+    const tous = run(piscine(), ['42-2356', '42-2357']);
     expect(tous.realCount).toBe(1);
+    // Ni le slug de la piscine, ni ses modules par slug.
+    expect(run(piscine(), ['mobile', '42cursus-mobile-0-basic', '42cursus-mobile-1-structure']).realCount).toBe(0);
   });
 });

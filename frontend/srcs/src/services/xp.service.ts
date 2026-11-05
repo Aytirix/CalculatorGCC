@@ -4,7 +4,6 @@
 // le module entier a cessé de se charger — écran noir, avant même que React ne
 // monte, donc hors de portée de l'ErrorBoundary.
 import levelData from '../data/level.json';
-import { isProjectCompleted, findProjectPercentage } from '@/utils/projectMatcher';
 import { clampProjectPercentage } from '@/utils/projectPercentage';
 import type { SimulationResult, RNCP, ProjectCategory, RNCPValidation, CategoryValidation, SimulatorProject } from '@/types/rncp.types';
 
@@ -39,9 +38,13 @@ export function formatLevel(level: number): string {
 	return (Math.floor(level * 100) / 100).toFixed(2);
 }
 
-export function matchesIdOrSlug(project: { id: string; slug?: string }, liste: string[]): boolean {
-	if (liste.includes(project.id)) return true;
-	return isProjectCompleted(project.slug || project.id, liste);
+/**
+ * Ce projet est-il dans la liste ? Par IDENTIFIANT (`42-<id>`) : la liste des
+ * projets validés est résolue une fois depuis l'intra (`resolveValidated`),
+ * la simulation porte les mêmes identifiants. Plus de rapprochement par nom.
+ */
+export function matchesIdOrSlug(project: { id: string }, liste: readonly string[]): boolean {
+	return liste.includes(project.id);
 }
 
 /**
@@ -210,9 +213,10 @@ export const xpService = {
 			}
 
 			// Appliquer le pourcentage du projet (simulé ou complété)
+			// Note finale 42 indexée par identifiant (`resolveValidated`).
 			const percentage = projectPercentages?.[project.id] !== undefined
 				? clampProjectPercentage(projectPercentages[project.id], project)
-				: (completedProjectsPercentages ? findProjectPercentage(project, completedProjectsPercentages, 100) : 100);
+				: clampProjectPercentage(completedProjectsPercentages?.[project.id] ?? 100, project);
 			projectXP = Math.round((projectXP * percentage) / 100);
 
 			// Appliquer le boost de coalition si activé (+4.2%)

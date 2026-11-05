@@ -90,16 +90,27 @@ export const ProjectTeamsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		return map;
 	}, [projects]);
 
+	/** Par identifiant `42-<id>` : le rapprochement normal. */
+	const byId = useMemo(() => {
+		const map = new Map<string, ProjectTeamInfo>();
+		for (const project of projects ?? []) map.set(`42-${project.id}`, project);
+		return map;
+	}, [projects]);
+
 	const getTeamInfo = useCallback(
 		(project: { id: string; name: string; slug?: string }) => {
-			for (const key of [project.slug, project.id, project.name]) {
+			const found = byId.get(project.id);
+			if (found) return found;
+			// Dernier recours : nom ou slug EXACTS (normalisés), pour un projet dont
+			// l'identifiant n'est pas celui du catalogue du cursus.
+			for (const key of [project.slug, project.name]) {
 				if (!key) continue;
 				const found = index.get(normalizeProjectSlug(key));
 				if (found) return found;
 			}
 			return null;
 		},
-		[index]
+		[index, byId]
 	);
 
 	return (

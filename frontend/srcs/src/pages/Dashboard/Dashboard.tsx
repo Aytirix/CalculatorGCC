@@ -8,7 +8,7 @@ import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
 import { xpService, isPoolCovered, isProjectAcquired, simulatedPoolXP } from '@/services/xp.service';
-import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
+import { apiStatusOf, findValidated, indexApiProjects, resolveValidated } from '@/utils/projectIdentity';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
@@ -121,11 +121,9 @@ const Dashboard: React.FC = () => {
 	const [simulatedProjects, setSimulatedProjects] = useState<string[]>([]);
 	const [simulatedSubProjects, setSimulatedSubProjects] = useState<Record<string, string[]>>({});
 	const [projectPercentages, setProjectPercentages] = useState<Record<string, number>>({});
-	const [completedProjectsPercentages, setCompletedProjectsPercentages] = useState<Record<string, number>>({});
 	const [customProjects, setCustomProjects] = useState<SimulatorProject[]>([]);
 	const [projectNotes, setProjectNotes] = useState<Record<string, string>>({});
 	const [coalitionBoosts, setCoalitionBoosts] = useState<Record<string, boolean>>({});
-	const [completedSubProjects, setCompletedSubProjects] = useState<Record<string, string[]>>({});
 	const [projectedLevel, setProjectedLevel] = useState<number>(0);
 	const [selectedRNCPIndex, setSelectedRNCPIndex] = useState<number>(0);
 	const [syncing, setSyncing] = useState(false);
@@ -156,14 +154,40 @@ const Dashboard: React.FC = () => {
 	/** Sauvegarde des expériences impossible : l'édition reste à l'écran, pas en base. */
 	const [erreurExperiences, setErreurExperiences] = useState<string | null>(null);
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
-	// Projets commencés sur l'intra sans être validés : en cours, ou ratés.
-	const [apiProgress, setApiProgress] = useState<{ inProgress: string[]; failed: string[] }>({ inProgress: [], failed: [] });
 
 	const { startTour, hasPendingSteps, syncTourSeen } = useTour();
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
 	const { isViewingOther } = useViewingUser();
 	const { login } = useAuth();
 	const { rncpData, loading: rncpLoading, error: rncpError } = useRncpData();
+	// Projets de l'intra (hors stages et alternances). Tout ce qui en découle —
+	// validés, notes finales, modules de piscine, en cours, ratés — est rapproché
+	// du référentiel par IDENTIFIANT 42 (`utils/projectIdentity`).
+	const [apiProjects, setApiProjects] = useState<Project42[]>([]);
+	const apiIndex = useMemo(
+		() => indexApiProjects(apiProjects.filter(p => !estExperienceApi(p.project.name ?? '', p.project.slug ?? ''))),
+		[apiProjects]
+	);
+	const validatedRefs = useMemo(() => resolveValidated(rncpData, apiIndex), [rncpData, apiIndex]);
+	/** Identifiants des projets et modules du référentiel validés sur l'intra. */
+	const completedIds = validatedRefs.ids;
+	/** Note finale 42 de chaque projet validé, par identifiant. */
+	const completedProjectsPercentages = validatedRefs.marks;
+	// Modules de piscine validés. `Object.create(null)` : les clés viennent du
+	// référentiel, modifiable depuis l'admin (une clé `constructor` rendrait une
+	// fonction héritée et ferait lever `.includes` dans un useMemo).
+	const completedSubProjects = useMemo(() => {
+		const result: Record<string, string[]> = Object.create(null);
+		for (const rncp of rncpData) {
+			for (const cat of rncp.categories) {
+				for (const p of cat.projects) {
+					const subs = (p.subProjects ?? []).filter(sub => completedIds.includes(sub.id)).map(sub => sub.id);
+					if (subs.length > 0) result[p.id] = subs;
+				}
+			}
+		}
+		return result;
+	}, [rncpData, completedIds]);
 	// Session 42 réellement expirée (refresh_token mort) : filet de sécurité pour
 	// couper la boucle de synchro et proposer une reconnexion, au lieu de retenter à l'infini.
 	const [authExpired, setAuthExpired] = useState(false);
@@ -457,30 +481,23 @@ const Dashboard: React.FC = () => {
 	useEffect(() => {
 		if (isViewingOther || !userProgress || isInitialLoad.current) return;
 
-		const completed = userProgress.completedProjects;
-
-		// Un id simulé est « désormais validé » s'il correspond à un projet RNCP dont le
-		// slug/id est validé côté API. On passe par le référentiel RNCP + le même `isProjectCompleted`
-		// que l'affichage (matching permissif : gère le préfixe « 42cursus- »), pour rester
-		// exactement cohérent avec la liste de cartes qui produit le « 7 ».
+		// Un identifiant simulé est « désormais validé » quand l'intra le donne
+		// validé — par IDENTIFIANT, comme l'affichage (`completedIds`).
 		const isNowValidated = (simId: string): boolean => {
 			for (const rncp of rncpData) {
 				for (const cat of rncp.categories) {
-					const project = cat.projects.find(p => p.slug === simId || p.id === simId);
-					// `isProjectAcquired` et pas `isProjectCompleted` : cette fonction
-					// SUPPRIME les clés qu'elle juge validées. Sans la garde des piscines,
-					// un seul module validé sur 42 faisait purger TOUS les modules cochés
-					// de cette piscine, et l'enregistrement automatique persistait la perte.
-					if (project) return isProjectAcquired(project, completed);
+					const project = cat.projects.find(p => p.id === simId);
+					// `isProjectAcquired` : cette fonction SUPPRIME les clés qu'elle juge
+					// validées. Sans la garde des piscines, un seul module validé sur 42
+					// faisait purger TOUS les modules cochés de cette piscine.
+					if (project) return isProjectAcquired(project, completedIds);
 				}
 			}
-			// Projet simulé depuis le Holy Graph : il n'est pas dans le référentiel RNCP, mais
-			// son slug 42 est stocké dans `customProjects` — on peut donc le
-			// réconcilier comme les autres au lieu de le laisser double-compter.
+			// Projet simulé depuis le Holy Graph (hors référentiel) : son
+			// identifiant `42-<id>` est celui de l'intra.
 			if (isGraphSimulationId(simId)) {
 				const graphProject = customProjects.find(p => p.id === simId);
-				const slug = graphProject?.slug;
-				return slug ? isProjectCompleted(slug, completed) : false;
+				return !!findValidated(apiIndex, { id: simId, name: graphProject?.name, slug: graphProject?.slug });
 			}
 			// Projet custom (hors RNCP) : jamais validé via l'intra → on le garde.
 			return false;
@@ -519,7 +536,7 @@ const Dashboard: React.FC = () => {
 		// `isInitialLoad.current = false` (fin de chargement), ce qui garantit un
 		// déclenchement de cet effet une fois la garde levée — sans lui, si `userProgress`
 		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
-	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData]);
+	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData, completedIds, apiIndex]);
 
 	/** Un projet 42 ramené à ce qui décide du décompte des expériences. */
 	const entreeApi = (p: Project42) => ({
@@ -534,49 +551,9 @@ const Dashboard: React.FC = () => {
 	const countApiProfExp = (allProjects: Project42[]) =>
 		compterExperiencesApiValidees(allProjects.map(entreeApi));
 
-	// Calcule quels sous-projets sont validés individuellement via l'API
-	const computeCompletedSubProjects = (completedProjectSlugs: string[]): Record<string, string[]> => {
-		// `Object.create(null)` : les clés viennent des identifiants du référentiel,
-		// qui est désormais MODIFIABLE depuis le panneau admin — et sa regex accepte
-		// `constructor`. Ce résultat est passé à `validateRNCP`, où un
-		// `simulatedSubProjects?.['constructor'] ?? []` rendrait la fonction héritée
-		// et ferait lever `.includes` DANS un `useMemo` : page blanche. Cinquième et
-		// dernier site de cette classe.
-		const result: Record<string, string[]> = Object.create(null);
-		rncpData.forEach(rncp => {
-			rncp.categories.forEach(cat => {
-				cat.projects.forEach(p => {
-					if (p.subProjects && p.subProjects.length > 0) {
-						const completedSubs = p.subProjects
-							.filter(sub => isProjectCompleted(sub.slug || sub.id, completedProjectSlugs))
-							.map(sub => sub.id);
-						if (completedSubs.length > 0) {
-							result[p.id] = completedSubs;
-						}
-					}
-				});
-			});
-		});
-		return result;
-	};
-
 	const applyUserData = (userData: UserData) => {
-		const completedProjectSlugs = userData.projects;
-		const realPercentages: Record<string, number> = {};
-		userData.allProjects.forEach((project) => {
-			if (project.validated === true) {
-				const percentage = Math.min(125, Math.max(0, project.final_mark || 100));
-				realPercentages[project.project.name] = percentage;
-			}
-		});
-		setCompletedProjectsPercentages(realPercentages);
-		setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
+		setApiProjects(userData.allProjects);
 		setApiStages(userData.allProjects.filter(stageFilter));
-		const started = userData.allProjects.filter(p => p.validated !== true && !stageFilter(p));
-		setApiProgress({
-			inProgress: started.filter(p => p.status !== 'finished').map(p => p.project.slug).filter(Boolean),
-			failed: started.filter(p => p.status === 'finished').map(p => p.project.slug).filter(Boolean),
-		});
 
 		// Les expériences saisies à la main sont ajoutées plus bas (`projectedProfExp`),
 		// à partir du state : elles dépendent du profil affiché, pas du localStorage.
@@ -587,7 +564,6 @@ const Dashboard: React.FC = () => {
 			currentXP: xpService.getXPFromLevel(userData.level),
 			events: userData.eventsCount,
 			professionalExperience: professionalExpCount,
-			completedProjects: completedProjectSlugs,
 			simulatedProjects: [],
 		};
 		setUserProgress(progress);
@@ -914,52 +890,20 @@ const Dashboard: React.FC = () => {
 		});
 	};
 
+	// Projets du référentiel acquis : par identifiant, piscines par leurs modules.
 	const getCompletedProjects = (): SimulatorProject[] => {
 		if (!userProgress) return [];
-
 		const projects: SimulatorProject[] = [];
-		const apiSlugs = userProgress.completedProjects;
-		const matchedApiSlugs = new Set<string>();
-
-		rncpData.forEach(rncp => {
-			rncp.categories.forEach(category => {
-				category.projects.forEach(project => {
-					const projectSlug = project.slug || project.id;
-
-					// Vérifier si le projet parent est validé — garde des piscines comprise,
-					// sinon ce `return` court-circuite la branche « tous les sous-projets »
-					// juste en dessous et pousse une piscine à peine entamée.
-					if (isProjectAcquired(project, apiSlugs)) {
-						projects.push(project);
-						apiSlugs.forEach((apiSlug: string) => {
-							if (matchesProject(projectSlug, apiSlug)) matchedApiSlugs.add(apiSlug);
-						});
-						return;
-					}
-
-					// Pour les projets avec sous-projets, vérifier si tous les sous-projets sont validés
-					if (project.subProjects && project.subProjects.length > 0) {
-						const completedSubs = completedSubProjects[project.id] || [];
-						if (completedSubs.length === project.subProjects.length) {
-							projects.push(project);
-							// Marquer les slugs des sous-projets comme matchés
-							project.subProjects.forEach(sub => {
-								apiSlugs.forEach((apiSlug: string) => {
-									if (matchesProject(sub.slug || sub.id, apiSlug)) matchedApiSlugs.add(apiSlug);
-								});
-							});
-						}
-					}
-				});
-			});
-		});
-
-		// Logger les projets validés par l'API qui n'ont pas de correspondance locale
-		const unmatchedSlugs = apiSlugs.filter((slug: string) => !matchedApiSlugs.has(slug) && !stageFilter({ project: { slug, name: slug } } as Project42));
-		if (unmatchedSlugs.length > 0) {
-			console.warn('[RNCP] Projets validés sans correspondance locale:', unmatchedSlugs);
+		const seen = new Set<string>();
+		for (const rncp of rncpData) {
+			for (const category of rncp.categories) {
+				for (const project of category.projects) {
+					if (seen.has(project.id)) continue;
+					seen.add(project.id);
+					if (isProjectAcquired(project, completedIds)) projects.push(project);
+				}
+			}
 		}
-
 		return projects;
 	};
 
@@ -1026,7 +970,7 @@ const Dashboard: React.FC = () => {
 				projectedLevel,
 				userProgress.events,
 				projectedProfExp,
-				userProgress.completedProjects,
+				completedIds,
 				simulatedProjectsWithSubs,
 				projectPercentages,
 				completedProjectsPercentages,
@@ -1040,7 +984,7 @@ const Dashboard: React.FC = () => {
 				}
 			);
 		});
-	}, [userProgress, projectedLevel, projectedProfExp, realProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
+	}, [userProgress, projectedLevel, projectedProfExp, realProfExp, simulatedProjects, simulatedSubProjects, completedIds, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
 
 	// ── Affichage : liste + fiche (grand écran) ou panneau du bas ──────────
 	const navigate = useNavigate();
@@ -1074,7 +1018,8 @@ const Dashboard: React.FC = () => {
 	// Passé en grand écran, la fiche est à droite : le panneau du bas ne se
 	// rouvre pas tout seul en revenant à une fenêtre étroite.
 	useEffect(() => { if (isWide) setSheetOpen(false); }, [isWide]);
-	useEffect(() => { setSelectedKey(null); setSheetOpen(false); }, [selectedRNCPIndex]);
+	// Changer de titre : sélection et ouverture forcée par le guide repartent de zéro.
+	useEffect(() => { setSelectedKey(null); setSheetOpen(false); setTourOpen(null); }, [selectedRNCPIndex]);
 	// Projets placés au calendrier (copie locale, la plus fraîche, sinon la base).
 	useEffect(() => {
 		if (isViewingOther) return;
@@ -1256,9 +1201,9 @@ const Dashboard: React.FC = () => {
 
 	// ── Ce que la page affiche ───────────────────────────────────────────
 	const isGlobal = selectedRNCP?.id === 'rncp-global';
-	const completedIds = new Set(completedProjects.map(p => p.id));
+	const completedIdSet = new Set(completedProjects.map(p => p.id));
 	const rowContext: DashRowContext = {
-		completedIds,
+		completedIds: completedIdSet,
 		simulatedIds: new Set(simulatedProjects),
 		simulatedSubProjects,
 		completedSubProjects,
@@ -1267,12 +1212,7 @@ const Dashboard: React.FC = () => {
 		boosts: coalitionBoosts,
 		notes: projectNotes,
 		readOnly: isViewingOther,
-		apiStatus: (project) => {
-			const key = project.slug || project.id;
-			if (isProjectCompleted(key, apiProgress.inProgress)) return 'in_progress';
-			if (isProjectCompleted(key, apiProgress.failed)) return 'failed';
-			return null;
-		},
+		apiStatus: (project) => apiStatusOf(apiIndex, project),
 	};
 	const rncpLabel = selectedRNCP ? splitRncpName(selectedRNCP.name) : { level: '', name: '' };
 	const categories = (selectedRNCP?.categories ?? []).map(category => ({
@@ -1606,7 +1546,7 @@ const Dashboard: React.FC = () => {
 				<ProjectDetailsModal
 					project={detailsProject}
 					teamInfo={getTeamInfo(detailsProject)}
-					isCompleted={completedIds.has(detailsProject.id)}
+					isCompleted={completedIdSet.has(detailsProject.id)}
 					isSimulated={simulatedProjects.includes(detailsProject.id)}
 					percentage={projectPercentages[detailsProject.id] ?? 100}
 					hasCoalitionBoost={coalitionBoosts[detailsProject.id] || false}
