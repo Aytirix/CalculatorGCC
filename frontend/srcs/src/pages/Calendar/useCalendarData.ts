@@ -24,6 +24,11 @@ const STORAGE_KEY = 'calendar_projects';
 const RANGE_KEY = 'calendar_range';
 const ALTERNANCE_KEY = 'calendar_alternance';
 const LEGEND_KEY = 'calendar_alternance_legend';
+// État de la copie locale du planning par rapport à la base : 'synced' (la base
+// a reçu cette version) ou 'pending:<id>:<empreinte>' (modifiée ici, pas encore
+// confirmée par la base ; empreinte = planning de la base connu au moment de la
+// modification, '?' si inconnu). Absent : navigateur d'avant ce marqueur.
+const ALTERNANCE_SYNC_KEY = 'calendar_alternance_sync';
 export const HISTORY_LIMIT = 30;
 const SAVE_DELAY_MS = 2000;
 
@@ -46,6 +51,36 @@ function readAlternanceDays(): Record<string, string> {
 	// Un planning importé avant le passage aux couleurs de l'app est converti à la
 	// lecture, si la légende du fichier est connue dans ce navigateur.
 	return normalizeAlternanceDays(sanitizeAlternanceDays(readJson(ALTERNANCE_KEY)), readLegend());
+}
+
+export type AlternanceSync = 'synced' | 'unknown' | { pendingBase: string };
+
+/** Empreinte courte et stable d'un planning (ordre des clés indifférent). */
+export function alternanceFingerprint(days: Record<string, string>): string {
+	const text = Object.keys(days).sort().map(k => `${k}=${days[k]}`).join(';');
+	let h = 5381;
+	for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+	return `${Object.keys(days).length}-${h.toString(36)}`;
+}
+
+// Jetons « en attente » créés par CET onglet : seul l'onglet qui a fait la
+// modification peut la déclarer confirmée (un autre onglet, resté sur une
+// version périmée, enverrait autre chose avec le même jeton).
+const ownPendingTokens = new Set<string>();
+
+function readAlternanceSyncRaw(): string | null {
+	try { return localStorage.getItem(ALTERNANCE_SYNC_KEY); } catch { return null; }
+}
+
+function writeAlternanceSyncRaw(value: string) {
+	try { localStorage.setItem(ALTERNANCE_SYNC_KEY, value); } catch { /* idem */ }
+}
+
+function readAlternanceSync(): AlternanceSync {
+	const raw = readAlternanceSyncRaw();
+	if (raw === 'synced') return 'synced';
+	if (raw?.startsWith('pending:')) return { pendingBase: raw.split(':')[2] || '?' };
+	return 'unknown';
 }
 
 function readLegend(): AlternanceLegend | null {
@@ -100,11 +135,38 @@ export interface CalendarSnapshot {
 }
 
 /**
+ * Planning d'alternance à garder au chargement : celui de la base ou la copie
+ * locale. La base fait foi, MÊME VIDE, quand la copie locale lui a déjà été
+ * envoyée ('synced') : un planning effacé sur un autre appareil revenait sinon
+ * depuis ce navigateur. La copie locale l'emporte quand elle contient une
+ * modification pas encore confirmée par la base (« en attente » : effacé puis
+ * page rechargée avant l'envoi, envoi en échec…) — SAUF si la base a changé
+ * depuis cette modification (autre appareil) : la version la plus récente de
+ * la base gagne alors —, quand l'utilisateur l'a changée
+ * pendant le chargement, ou — navigateur sans marqueur — quand la base est vide
+ * (le backend renvoie toujours `{}` par défaut : on ne sait pas si c'est un
+ * effacement, et perdre le planning serait sans retour).
+ */
+export function alternanceSource(
+	dbAlternanceDays: unknown,
+	touched: boolean,
+	localSync: AlternanceSync,
+): 'db' | 'local' {
+	if (touched || dbAlternanceDays == null) return 'local';
+	if (typeof localSync === 'object') {
+		const base = localSync.pendingBase;
+		return base === '?' || base === alternanceFingerprint(sanitizeAlternanceDays(dbAlternanceDays)) ? 'local' : 'db';
+	}
+	if (localSync === 'unknown' && Object.keys(sanitizeAlternanceDays(dbAlternanceDays)).length === 0) return 'local';
+	return 'db';
+}
+
+/**
  * Ce que la page doit afficher (et enregistrer) une fois la réponse de la base
  * arrivée : les projets de la base avec les modifications du chargement
- * rejouées ; période et planning locaux seulement si l'utilisateur les a
- * lui-même changés. Base vide (`null`) : la copie locale, qui contient déjà
- * ces modifications. Sert aussi quand on quitte la page avant la réponse :
+ * rejouées ; période locale seulement si l'utilisateur l'a changée ; planning
+ * selon `alternanceSource`. Base vide (`null`) : la copie locale, qui contient
+ * déjà ces modifications. Sert aussi quand on quitte la page avant la réponse :
  * on attend la base, on fusionne, PUIS on enregistre — jamais l'état local seul.
  */
 export function mergeAfterLoad(
@@ -112,19 +174,16 @@ export function mergeAfterLoad(
 	local: CalendarSnapshot,
 	ops: ProjectsOp[],
 	touched: { range: boolean; alternance: boolean },
+	localSync: AlternanceSync = 'synced',
 ): CalendarSnapshot {
 	if (!db) return local;
 	const dbRange = parseDateRange(db.dateRange);
-	const dbAlternance = sanitizeAlternanceDays(db.alternanceDays);
 	return {
 		projects: replayOps(deserializeProjects(db.placedProjects), ops),
 		dateRange: touched.range || !dbRange ? local.dateRange : dbRange,
-		// La base fait foi, MÊME VIDE : un planning effacé (ici ou sur un autre
-		// appareil) revenait sinon depuis la copie locale du navigateur, puis
-		// repartait en base à la première modification. La copie locale ne
-		// l'emporte que si l'utilisateur a importé / effacé pendant le chargement,
-		// ou si la base n'a jamais eu de planning (données d'avant ce champ).
-		alternanceDays: touched.alternance || db.alternanceDays == null ? local.alternanceDays : dbAlternance,
+		alternanceDays: alternanceSource(db.alternanceDays, touched.alternance, localSync) === 'local'
+			? local.alternanceDays
+			: sanitizeAlternanceDays(db.alternanceDays),
 	};
 }
 
@@ -164,6 +223,25 @@ function withTimeout(promise: Promise<unknown>, ms: number): Promise<unknown> {
 
 function enqueueSave(task: () => Promise<unknown>): void {
 	saveQueue = saveQueue.then(() => withTimeout(task(), SAVE_TASK_MAX_MS)).then(() => undefined, () => undefined);
+}
+
+/**
+ * Enregistre puis, si le planning local n'a pas changé depuis la préparation de
+ * l'envoi (même jeton, créé par cet onglet), le marque « confirmé par la base ».
+ */
+function saveOwnAndMark(
+	payload: ReturnType<typeof toPayload>,
+	syncToken: string | null,
+	onSaved?: () => void,
+): Promise<void> {
+	return calendarService.saveOwn(payload).then(() => {
+		onSaved?.();
+		if (readAlternanceSyncRaw() !== syncToken) return;
+		if (syncToken === null || ownPendingTokens.has(syncToken)) {
+			if (syncToken) ownPendingTokens.delete(syncToken);
+			writeAlternanceSyncRaw('synced');
+		}
+	});
 }
 
 function waitForSaveQueue(): Promise<void> {
@@ -210,6 +288,9 @@ export function useCalendarData(readOnly: boolean) {
 	// l'est au rendu suivant) : si la page se démonte entre les deux, c'est ce
 	// résultat-là qu'on enregistre — surtout pas latestRef, encore pré-fusion.
 	const unsavedMergeRef = useRef<CalendarSnapshot | null>(null);
+	// Empreinte du planning que la base contient (dernier chargement ou dernier
+	// envoi réussi) ; '?' tant qu'on ne la connaît pas.
+	const dbAltFingerprintRef = useRef('?');
 
 	// ── Chargement depuis la base ──────────────────────────────────────────
 	useEffect(() => {
@@ -228,9 +309,24 @@ export function useCalendarData(readOnly: boolean) {
 			// rejouées par-dessus (et seront enregistrées, dirtyRef étant vrai).
 			const ops = opsDuringLoadRef.current;
 			opsDuringLoadRef.current = [];
+			const sync = readOnly ? 'synced' : readAlternanceSync();
+			const altSource = alternanceSource(data.alternanceDays, alternanceTouchedRef.current, sync);
+			dbAltFingerprintRef.current = alternanceFingerprint(sanitizeAlternanceDays(data.alternanceDays));
+			if (!readOnly) {
+				// Modification locale jamais confirmée par la base : on la renvoie.
+				// Cette page en devient responsable : son envoi réussi la confirmera
+				// (sinon le marqueur restait « en attente » pour toujours).
+				if (typeof sync === 'object' && altSource === 'local') {
+					dirtyRef.current = true;
+					const raw = readAlternanceSyncRaw();
+					if (raw) ownPendingTokens.add(raw);
+				}
+				// La copie locale va devenir celle de la base.
+				if (altSource === 'db') writeAlternanceSyncRaw('synced');
+			}
 			const merged = mergeAfterLoad(data, latestRef.current, ops, {
 				range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current,
-			});
+			}, sync);
 			const finalSnap = { ...merged, alternanceDays: normalizeAlternanceDays(merged.alternanceDays, legendRef.current) };
 			if (dirtyRef.current && !readOnly) unsavedMergeRef.current = finalSnap;
 			dispatch({ type: 'replace', projects: finalSnap.projects });
@@ -290,11 +386,14 @@ export function useCalendarData(readOnly: boolean) {
 		needsFirstSaveRef.current = false;
 		unsavedMergeRef.current = null;
 		const payload = toPayload({ projects, dateRange, alternanceDays });
+		const syncToken = readAlternanceSyncRaw();
 		const run = () => {
 			pendingRef.current = null;
 			// saveOwn : cette instance est propriétaire depuis son montage (la garde
 			// « profil consulté » de save() annulait l'enregistrement du démontage).
-			enqueueSave(() => calendarService.saveOwn(payload));
+			enqueueSave(() => saveOwnAndMark(payload, syncToken, () => {
+				dbAltFingerprintRef.current = alternanceFingerprint(payload.alternanceDays);
+			}));
 		};
 		pendingRef.current = run;
 		const timer = setTimeout(run, SAVE_DELAY_MS);
@@ -307,7 +406,8 @@ export function useCalendarData(readOnly: boolean) {
 		}
 		if (unsavedMergeRef.current && !loadFailedRef.current && !readOnly) {
 			const snap = unsavedMergeRef.current;
-			enqueueSave(() => calendarService.saveOwn(toPayload(snap)));
+			const syncToken = readAlternanceSyncRaw();
+			enqueueSave(() => saveOwnAndMark(toPayload(snap), syncToken));
 			return;
 		}
 		// Page quittée AVANT la réponse de la base, avec des modifications : on
@@ -318,9 +418,11 @@ export function useCalendarData(readOnly: boolean) {
 		const touched = { range: rangeTouchedRef.current, alternance: alternanceTouchedRef.current };
 		const loading = loadPromiseRef.current;
 		const legend = legendRef.current;
+		const syncToken = readAlternanceSyncRaw();
+		const sync = readAlternanceSync();
 		enqueueSave(() => loading.then(data => {
-			const merged = mergeAfterLoad(data as Parameters<typeof mergeAfterLoad>[0], local, ops, touched);
-			return calendarService.saveOwn(toPayload({ ...merged, alternanceDays: normalizeAlternanceDays(merged.alternanceDays, legend) }));
+			const merged = mergeAfterLoad(data as Parameters<typeof mergeAfterLoad>[0], local, ops, touched, sync);
+			return saveOwnAndMark(toPayload({ ...merged, alternanceDays: normalizeAlternanceDays(merged.alternanceDays, legend) }), syncToken);
 		})); // chargement en échec : la file avale l'erreur, rien n'est écrasé
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
@@ -352,6 +454,12 @@ export function useCalendarData(readOnly: boolean) {
 		if (readOnly) return;
 		dirtyRef.current = true;
 		alternanceTouchedRef.current = true;
+		// Avant la confirmation de la base, cette version locale prime au
+		// rechargement (sinon « Effacer » puis F5 dans les 2 s faisait revenir
+		// l'ancien planning).
+		const token = `pending:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}:${dbAltFingerprintRef.current}`;
+		ownPendingTokens.add(token);
+		writeAlternanceSyncRaw(token);
 		setAlternanceDays(normalizeAlternanceDays(sanitizeAlternanceDays(days), legend));
 		setAlternanceLegend(legend);
 	}, [readOnly]);

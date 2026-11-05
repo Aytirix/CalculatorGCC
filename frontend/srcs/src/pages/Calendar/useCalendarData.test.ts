@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HISTORY_LIMIT, mergeAfterLoad, projectsReducer, replayOps, type ProjectsState } from './useCalendarData';
+import { HISTORY_LIMIT, mergeAfterLoad, alternanceSource, alternanceFingerprint, projectsReducer, replayOps, type ProjectsState } from './useCalendarData';
 import { parseDateKey, type PlacedProject } from './calendarModel';
 
 /**
@@ -131,5 +131,46 @@ describe('mergeAfterLoad (ce qui est affiché ET enregistré après la réponse 
 	it('période invalide en base : on garde la période locale', () => {
 		const m = mergeAfterLoad({ ...db, dateRange: { start: '1000-01-01', end: '9999-12-31' } }, local, [], untouched);
 		expect(m.dateRange).toBe(local.dateRange);
+	});
+});
+
+describe('alternanceSource — planning de la base ou copie locale', () => {
+	const plan = { '2026-11-02': '#4f7be8' };
+	it('copie locale déjà envoyée (synced) : la base fait foi, même vide (effacé ailleurs)', () => {
+		expect(alternanceSource({}, false, 'synced')).toBe('db');
+		expect(alternanceSource(plan, false, 'synced')).toBe('db');
+	});
+	it('modification locale pas encore confirmée (en attente) : la copie locale prime si la base n\u2019a pas bougé', () => {
+		// Effacé puis F5 < 2 s : la base contient encore le planning connu au moment de l'effacement.
+		expect(alternanceSource(plan, false, { pendingBase: alternanceFingerprint(plan) })).toBe('local');
+		// Import jamais envoyé, base vide inchangée.
+		expect(alternanceSource({}, false, { pendingBase: alternanceFingerprint({}) })).toBe('local');
+		// Base inconnue au moment de la modification (chargement en échec) : copie locale.
+		expect(alternanceSource(plan, false, { pendingBase: '?' })).toBe('local');
+	});
+	it('en attente mais la base a changé depuis (autre appareil) : la base, plus récente, gagne', () => {
+		const other = { '2026-12-01': '#ef8a3c' };
+		expect(alternanceSource(other, false, { pendingBase: alternanceFingerprint(plan) })).toBe('db');
+	});
+	it('empreinte : indépendante de l\u2019ordre des clés, sensible au contenu', () => {
+		expect(alternanceFingerprint({ a: '1', b: '2' })).toBe(alternanceFingerprint({ b: '2', a: '1' }));
+		expect(alternanceFingerprint({ a: '1' })).not.toBe(alternanceFingerprint({ a: '2' }));
+		expect(alternanceFingerprint({})).not.toBe(alternanceFingerprint({ a: '1' }));
+	});
+	it('navigateur sans marqueur : base vide → copie locale (pas de perte sans retour), sinon la base', () => {
+		expect(alternanceSource({}, false, 'unknown')).toBe('local');
+		expect(alternanceSource(plan, false, 'unknown')).toBe('db');
+	});
+	it('modifié pendant le chargement, ou champ absent : copie locale', () => {
+		expect(alternanceSource(plan, true, 'synced')).toBe('local');
+		expect(alternanceSource(undefined, false, 'synced')).toBe('local');
+	});
+	it('mergeAfterLoad applique la règle', () => {
+		const local = { projects: [], dateRange: { start: new Date(2026, 0, 1), end: new Date(2026, 11, 31) }, alternanceDays: plan };
+		const db = { placedProjects: [], dateRange: null, alternanceDays: {} };
+		const t = { range: false, alternance: false };
+		expect(mergeAfterLoad(db, local, [], t, 'synced').alternanceDays).toEqual({});
+		expect(mergeAfterLoad(db, local, [], t, 'unknown').alternanceDays).toBe(plan);
+		expect(mergeAfterLoad(db, local, [], t, { pendingBase: alternanceFingerprint({}) }).alternanceDays).toBe(plan);
 	});
 });
