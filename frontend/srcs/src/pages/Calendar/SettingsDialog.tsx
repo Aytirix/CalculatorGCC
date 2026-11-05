@@ -186,14 +186,35 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...fo
 	const onCloseRef = useRef(formProps.onClose);
 	onCloseRef.current = formProps.onClose;
 
-	// Échap ferme ; le focus va dans la fenêtre à l'ouverture et revient à ce qui
-	// l'a ouverte (la roue dentée) à la fermeture.
+	// Échap ferme ; Tab reste ENFERMÉ dans la fenêtre (sinon le focus repartait
+	// derrière le fond, sur des boutons invisibles — comme ProjectDetailsModal) ;
+	// le focus va dans la fenêtre à l'ouverture et revient à ce qui l'a ouverte
+	// (la roue dentée) à la fermeture.
 	useEffect(() => {
 		if (!open) return;
 		const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		panelRef.current?.focus({ preventScroll: true });
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
+			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); return; }
+			const panel = panelRef.current;
+			if (e.key !== 'Tab' || !panel) return;
+			const focusables = [...panel.querySelectorAll<HTMLElement>(
+				'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]):not([hidden]), [tabindex]:not([tabindex="-1"])',
+			)];
+			if (focusables.length === 0) return;
+			const first = focusables[0];
+			const last = focusables[focusables.length - 1];
+			const active = document.activeElement;
+			if (!panel.contains(active) || active === panel) {
+				e.preventDefault();
+				(e.shiftKey ? last : first).focus();
+			} else if (e.shiftKey && active === first) {
+				e.preventDefault();
+				last.focus();
+			} else if (!e.shiftKey && active === last) {
+				e.preventDefault();
+				first.focus();
+			}
 		};
 		window.addEventListener('keydown', onKey, true);
 		return () => {

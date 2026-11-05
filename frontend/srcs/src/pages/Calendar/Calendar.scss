@@ -226,6 +226,8 @@
 
 .cal-month-nav {
 	display: flex;
+	flex-wrap: wrap; // au téléphone, ‹ Aujourd'hui › passe sous le mois plutôt que de déborder
+	justify-content: flex-end;
 	align-items: center;
 	gap: 10px;
 	margin-left: auto;

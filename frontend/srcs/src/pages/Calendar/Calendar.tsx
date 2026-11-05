@@ -256,7 +256,11 @@ const Calendar: React.FC = () => {
 			const center = centerDate();
 			if (center) return clampToRange(center, dateRange);
 		}
-		if (view === 'mois') return selectedDay;
+		if (view === 'mois') {
+			// Le jour sélectionné s'il est dans le mois affiché, sinon le 1er du mois.
+			const inMonth = selectedDay.getFullYear() === month.getFullYear() && selectedDay.getMonth() === month.getMonth();
+			return clampToRange(inMonth ? selectedDay : month, dateRange);
+		}
 		return defaultPlacementDate(today, dateRange);
 	};
 
