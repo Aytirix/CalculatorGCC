@@ -7,6 +7,7 @@ import {
   type SessionCheck,
   type User,
 } from '@/services/backend-auth.service';
+import { claimLocalDataFor, LOCAL_OWNER_KEY } from '@/utils/localAccountData';
 
 interface AuthContextType {
   user: User | null;
@@ -46,6 +47,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
+  // Un AUTRE compte vient d'ouvrir une session dans un autre onglet (les
+  // données locales lui ont été attribuées) : cet onglet garde en mémoire
+  // celles de l'ancien compte et les réécrirait, ou les enverrait avec le
+  // jeton du nouveau. On recharge pour repartir du bon compte.
+  useEffect(() => {
+    if (!user) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LOCAL_OWNER_KEY && e.newValue && e.newValue !== user.login) window.location.reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [user]);
+
   /**
    * Installe la session à partir d'une réponse /auth/me déjà obtenue.
    *
@@ -55,6 +69,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const adoptSession = useCallback((me: MeResponse) => {
     const userInfo = backendAuthService.getUser();
+    // Données locales d'un AUTRE compte (navigateur partagé) : effacées avant
+    // que la moindre page ne les lise ou ne les renvoie dans la base de celui-ci.
+    if (userInfo?.login) claimLocalDataFor(userInfo.login);
     if (userInfo) {
       userInfo.is_public = me.is_public;
       userInfo.is_admin = me.is_admin;
