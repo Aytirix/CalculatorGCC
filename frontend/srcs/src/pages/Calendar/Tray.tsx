@@ -14,26 +14,37 @@ import { formatXp } from './calendarModel';
 interface TrayProps {
 	projects: SimulatorProject[];
 	onPlace: (project: SimulatorProject) => void;
-	layout: 'column' | 'strip';
 	canDrop: boolean;
 }
 
-const Tray: React.FC<TrayProps> = ({ projects, onPlace, layout, canDrop }) => {
+// Au-delà, une recherche aide à retrouver un projet dans la bande.
+const SEARCH_FROM = 6;
+
+const Tray: React.FC<TrayProps> = ({ projects, onPlace, canDrop }) => {
 	const [query, setQuery] = useState('');
 	const filtered = useMemo(() => {
-		const q = query.trim().toLowerCase();
+		// Recherche masquée (moins de SEARCH_FROM projets) : elle ne filtre plus —
+		// sinon un filtre resté actif, sans champ pour l'effacer, cachait tout.
+		const q = projects.length >= SEARCH_FROM ? query.trim().toLowerCase() : '';
 		return q ? projects.filter(p => p.name.toLowerCase().includes(q)) : projects;
 	}, [projects, query]);
 
 	return (
-		<section className={`cal-card cal-tray cal-tray--${layout}`} aria-labelledby="cal-tray-title">
+		<section className="cal-card cal-tray cal-tray--strip" aria-labelledby="cal-tray-title">
 			<div className="cal-tray-head">
 				<h2 id="cal-tray-title">À placer</h2>
 				<span className="cal-count"><span aria-hidden="true">{projects.length}</span><span className="cal-sr-only">{projects.length > 1 ? `${projects.length} projets` : `${projects.length} projet`}</span></span>
-				{layout === 'strip' && projects.length > 0 && (
+				{projects.length > 0 && (
 					<span className="cal-muted cal-tray-hint-inline">
 						{canDrop ? 'Glisse un projet sur la frise ou sur un jour, ou appuie sur +' : 'Appuie sur + pour placer un projet'}
 					</span>
+				)}
+				{projects.length >= SEARCH_FROM && (
+					<label className="cal-search cal-tray-search">
+						<Search size={16} aria-hidden="true" />
+						<span className="cal-sr-only">Rechercher un projet à placer</span>
+						<input type="search" placeholder="Rechercher" value={query} onChange={e => setQuery(e.target.value)} />
+					</label>
 				)}
 			</div>
 
@@ -43,20 +54,6 @@ const Tray: React.FC<TrayProps> = ({ projects, onPlace, layout, canDrop }) => {
 				</p>
 			) : (
 				<>
-					{layout === 'column' && (
-						<>
-							<p className="cal-muted cal-tray-hint">
-								{canDrop ? 'Glisse un projet sur la frise ou un jour, ou appuie sur + pour le placer.' : 'Appuie sur + pour placer un projet.'}
-							</p>
-							{projects.length > 5 && (
-								<label className="cal-search">
-									<Search size={16} aria-hidden="true" />
-									<span className="cal-sr-only">Rechercher un projet à placer</span>
-									<input type="search" placeholder="Rechercher" value={query} onChange={e => setQuery(e.target.value)} />
-								</label>
-							)}
-						</>
-					)}
 					<ul className="cal-tray-list">
 						{filtered.map(p => (
 							<li

@@ -5,8 +5,10 @@ import {
 import Header from '@/components/Header/Header';
 import { useRncpData } from '@/contexts/useRncpData';
 import { useViewingUser } from '@/contexts/useViewingUser';
+import { useAuth } from '@/contexts/useAuth';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { isPoolCovered } from '@/services/xp.service';
+import { simulationService } from '@/services/simulation.service';
 import { parseAlternanceXlsx } from './alternanceParser';
 import { useCalendarData } from './useCalendarData';
 import Timeline, { ZOOM_LEVELS } from './Timeline';
@@ -52,14 +54,32 @@ function useMediaQuery(query: string): boolean {
 	return matches;
 }
 
-/** Projets cochés dans le simulateur (propriétaire uniquement). */
-function getSimulatedProjects(rncpData: RNCP[]): SimulatorProject[] {
-	let simulatedIds: string[] = [];
-	let simulatedSubProjects: Record<string, string[]> = {};
+interface SimulationChecks { ids: string[]; subs: Record<string, string[]> }
+
+/** Ce navigateur a-t-il la copie locale du simulateur (tenue par le Dashboard) ? */
+function hasLocalSimulation(): boolean {
 	try {
-		simulatedIds = JSON.parse(localStorage.getItem('simulated_projects') || '[]');
-		simulatedSubProjects = JSON.parse(localStorage.getItem('simulated_sub_projects') || '{}');
-	} catch { /* données illisibles : liste vide */ }
+		return localStorage.getItem('simulated_projects') !== null || localStorage.getItem('simulated_sub_projects') !== null;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Projets cochés dans le simulateur (propriétaire uniquement) : la copie locale,
+ * ou `fromDb` quand ce navigateur n'en a pas (nouvel appareil, autre compte
+ * connecté juste avant — la bande « À placer » restait vide jusqu'au passage
+ * par le Dashboard).
+ */
+function getSimulatedProjects(rncpData: RNCP[], fromDb: SimulationChecks | null): SimulatorProject[] {
+	let simulatedIds: string[] = fromDb?.ids ?? [];
+	let simulatedSubProjects: Record<string, string[]> = fromDb?.subs ?? {};
+	if (hasLocalSimulation()) {
+		try {
+			simulatedIds = JSON.parse(localStorage.getItem('simulated_projects') || '[]');
+			simulatedSubProjects = JSON.parse(localStorage.getItem('simulated_sub_projects') || '{}');
+		} catch { /* données illisibles : liste vide */ }
+	}
 	const out: SimulatorProject[] = [];
 	const seen = new Set<string>();
 	rncpData.forEach(rncp => rncp.categories.forEach(cat => cat.projects.forEach(p => {
@@ -91,7 +111,9 @@ const Calendar: React.FC = () => {
 	const readOnly = isViewingOther;
 	const ownerName = viewingUser?.login ?? '';
 	const { rncpData } = useRncpData();
-	const data = useCalendarData(readOnly);
+	const { user } = useAuth();
+	// Le login du compte connecté lie les modifications locales à ce compte.
+	const data = useCalendarData(readOnly, user?.login ?? null);
 	const { projects, dateRange, alternanceDays, alternanceLegend } = data;
 
 	const isWide = useMediaQuery(WIDE_QUERY);
@@ -122,9 +144,21 @@ const Calendar: React.FC = () => {
 
 	// ── Dérivés ────────────────────────────────────────────────────────────
 
+	const [dbSimulation, setDbSimulation] = useState<SimulationChecks | null>(null);
+	useEffect(() => {
+		if (readOnly || hasLocalSimulation()) return;
+		let cancelled = false;
+		simulationService.load()
+			.then(d => {
+				if (cancelled) return;
+				setDbSimulation({ ids: d.simulatedProjects.map(p => p.projectId), subs: d.simulatedSubProjects ?? {} });
+			})
+			.catch(() => { /* serveur injoignable : bande vide, comme avant */ });
+		return () => { cancelled = true; };
+	}, [readOnly]);
 	const simulatedProjects = useMemo(
-		() => (readOnly ? [] : getSimulatedProjects(rncpData)),
-		[rncpData, readOnly],
+		() => (readOnly ? [] : getSimulatedProjects(rncpData, dbSimulation)),
+		[rncpData, readOnly, dbSimulation],
 	);
 	const trayProjects = useMemo(() => {
 		const placed = new Set(projects.map(p => p.projectId));
@@ -223,7 +257,7 @@ const Calendar: React.FC = () => {
 				e.preventDefault();
 				undoLast();
 			} else if (e.key === 'Escape') {
-				// Échap dans les réglages ferme seulement la fenêtre (géré par <dialog>).
+				// Échap dans les réglages ferme seulement la fenêtre (SettingsDialog l'intercepte).
 				if (!settingsOpen) setSelectedId(null);
 			}
 		};
@@ -302,9 +336,12 @@ const Calendar: React.FC = () => {
 
 	const saveRange = (range: DateRange) => data.setDateRange(range);
 
-	const importPlanning = async (file: File): Promise<ImportResult> => {
+	const importPlanning = async (file: File, isCancelled: () => boolean): Promise<ImportResult> => {
 		try {
 			const parsed = await parseAlternanceXlsx(file);
+			// Fenêtre fermée pendant la lecture : l'import est abandonné, rien ne
+			// change dans le dos de l'utilisateur.
+			if (isCancelled()) return { ok: false, error: 'Import annulé.' };
 			const days = Object.keys(parsed.days).length;
 			if (days === 0) return { ok: false, error: 'Aucune couleur trouvée dans le fichier. Vérifie que les jours sont colorés.' };
 			data.setAlternance(parsed.days, parsed.legend);
@@ -343,13 +380,22 @@ const Calendar: React.FC = () => {
 
 	const detailMode: 'panel' | 'sheet' = isWide ? 'panel' : 'sheet';
 
+	// Le sélecteur est recréé dans l'en-tête de la nouvelle vue : on y remet le
+	// focus (sinon il tombait sur <body> au clavier).
+	const switcherFocusRef = useRef(false);
+	useEffect(() => {
+		if (!switcherFocusRef.current) return;
+		switcherFocusRef.current = false;
+		document.querySelector<HTMLElement>('.calendar-page .cal-segmented [aria-pressed="true"]')?.focus({ preventScroll: true });
+	}, [view]);
+
 	// Choix de la vue : placé dans l'en-tête de CHAQUE vue, juste à droite de son
 	// nom — au plus près de ce qu'il commande (avant : seul dans une carte
 	// pleine largeur, puis en haut de page, trop loin de la frise).
 	const viewSwitcher = (
 		<div className="cal-segmented" role="group" aria-label="Changer de vue">
 			{VIEW_TABS.map(t => (
-				<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => setView(t.id)}>
+				<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => { switcherFocusRef.current = true; setView(t.id); }}>
 					{t.label}
 				</button>
 			))}
@@ -489,6 +535,19 @@ const Calendar: React.FC = () => {
 					)}
 				</div>
 
+				{data.alternanceToConfirm && (
+					<div className="cal-confirm-notice" role="status">
+						<span>
+							Un planning d'alternance est enregistré sur cet appareil, mais pas sur ton compte.
+							Il a peut-être été effacé depuis un autre appareil. Le garder ?
+						</span>
+						<div className="cal-confirm-actions">
+							<button type="button" className="cal-btn cal-btn--primary" onClick={() => data.confirmLocalAlternance(true)}>Le garder</button>
+							<button type="button" className="cal-btn" onClick={() => data.confirmLocalAlternance(false)}>Le supprimer</button>
+						</div>
+					</div>
+				)}
+
 				{data.syncError && (
 					<div className="cal-sync-error" role="alert">
 						Impossible de joindre le serveur : tu vois ta copie locale, mais tes modifications ne seront pas enregistrées. Recharge la page pour réessayer.
@@ -527,9 +586,6 @@ const Calendar: React.FC = () => {
 						<Tray
 							projects={trayProjects}
 							onPlace={p => placeProject(p, placementDateForView())}
-							// Toujours en bande au-dessus de la vue : sur grand écran, la frise
-							// récupère la largeur de l'ancienne colonne de gauche.
-							layout="strip"
 							canDrop={isWide && view !== 'agenda'}
 						/>
 					)}

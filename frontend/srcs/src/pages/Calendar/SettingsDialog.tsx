@@ -30,18 +30,21 @@ interface SettingsFormProps {
 	dateRange: DateRange;
 	onSaveRange: (range: DateRange) => void;
 	alternanceDayCount: number;
-	onImport: (file: File) => Promise<ImportResult>;
+	/** `isCancelled` : vrai si la fenêtre a été fermée pendant la lecture (l'import est alors abandonné). */
+	onImport: (file: File, isCancelled: () => boolean) => Promise<ImportResult>;
+	/** Fenêtre toujours ouverte ? (le formulaire reste monté le temps de l'animation de fermeture) */
+	isOpen: () => boolean;
 	/** Efface le planning et renvoie de quoi l'annuler. */
 	onClearAlternance: () => () => void;
 }
 
-interface SettingsDialogProps extends Omit<SettingsFormProps, 'titleId'> {
+interface SettingsDialogProps extends Omit<SettingsFormProps, 'titleId' | 'isOpen'> {
 	open: boolean;
 	sessionKey: number;
 }
 
 const SettingsForm: React.FC<SettingsFormProps> = ({
-	titleId, onClose, dateRange, onSaveRange, alternanceDayCount, onImport, onClearAlternance,
+	titleId, onClose, dateRange, onSaveRange, alternanceDayCount, onImport, onClearAlternance, isOpen,
 }) => {
 	const fileRef = useRef<HTMLInputElement>(null);
 	const mountedRef = useRef(true);
@@ -77,7 +80,7 @@ const SettingsForm: React.FC<SettingsFormProps> = ({
 		setImporting(true);
 		setImportMsg(null);
 		setContract(null);
-		const res = await onImport(file);
+		const res = await onImport(file, () => !mountedRef.current || !isOpen());
 		if (!mountedRef.current) return; // fenêtre fermée pendant la lecture
 		setImporting(false);
 		if (!res.ok) {
@@ -185,6 +188,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...fo
 	const panelRef = useRef<HTMLDivElement>(null);
 	const onCloseRef = useRef(formProps.onClose);
 	onCloseRef.current = formProps.onClose;
+	const openRef = useRef(open);
+	openRef.current = open;
+	// Fermer en cliquant sur le fond seulement si le clic y a COMMENCÉ : une
+	// sélection de texte relâchée sur le fond fermait la fenêtre (saisie perdue).
+	const pressedOnOverlayRef = useRef(false);
 
 	// Échap ferme ; Tab reste ENFERMÉ dans la fenêtre (sinon le focus repartait
 	// derrière le fond, sur des boutons invisibles — comme ProjectDetailsModal) ;
@@ -199,7 +207,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...fo
 			const panel = panelRef.current;
 			if (e.key !== 'Tab' || !panel) return;
 			const focusables = [...panel.querySelectorAll<HTMLElement>(
-				'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]):not([hidden]), [tabindex]:not([tabindex="-1"])',
+				'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]):not([hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
 			)];
 			if (focusables.length === 0) return;
 			const first = focusables[0];
@@ -227,7 +235,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...fo
 	return createPortal(
 		<AnimatePresence>
 			{open && (
-				<div className="modal-overlay cal-settings-overlay" onClick={formProps.onClose}>
+				<div
+					className="modal-overlay cal-settings-overlay"
+					onPointerDown={e => { pressedOnOverlayRef.current = e.target === e.currentTarget; }}
+					onClick={e => { if (e.target === e.currentTarget && pressedOnOverlayRef.current) formProps.onClose(); }}
+				>
 					<motion.div
 						ref={panelRef}
 						className="cal-settings-modal"
@@ -241,7 +253,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...fo
 						exit={{ opacity: 0, scale: 0.9, y: -20 }}
 						transition={{ duration: 0.2 }}
 					>
-						<SettingsForm key={sessionKey} titleId={titleId} {...formProps} />
+						<SettingsForm key={sessionKey} titleId={titleId} isOpen={() => openRef.current} {...formProps} />
 					</motion.div>
 				</div>
 			)}
