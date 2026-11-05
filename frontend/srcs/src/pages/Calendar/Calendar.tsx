@@ -444,16 +444,28 @@ const Calendar: React.FC = () => {
 							{readOnly ? 'Ses projets planifiés sur sa période d’alternance.' : 'Place tes projets simulés sur ta période d’alternance.'}
 						</p>
 					</div>
-					{!readOnly && (
-						<div className="cal-head-actions">
-							<button type="button" className="cal-icon-btn" onClick={undoLast} disabled={!data.canUndo} aria-label="Annuler la dernière action" title="Annuler (Ctrl+Z)">
-								<Undo2 size={18} aria-hidden="true" />
-							</button>
-							<button type="button" className="cal-icon-btn" onClick={openSettings} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
-								<Settings size={18} aria-hidden="true" />
-							</button>
+					{/* Choix de la vue dans l'en-tête, à côté des actions (comme le sélecteur
+					    Jour / Semaine / Mois d'un agenda) : avant, il occupait seul une carte
+					    pleine largeur, loin de la vue qu'il commande. */}
+					<div className="cal-head-actions">
+						<div className="cal-segmented" role="group" aria-label="Vue">
+							{VIEW_TABS.map(t => (
+								<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => setView(t.id)}>
+									{t.label}
+								</button>
+							))}
 						</div>
-					)}
+						{!readOnly && (
+							<>
+								<button type="button" className="cal-icon-btn" onClick={undoLast} disabled={!data.canUndo} aria-label="Annuler la dernière action" title="Annuler (Ctrl+Z)">
+									<Undo2 size={18} aria-hidden="true" />
+								</button>
+								<button type="button" className="cal-icon-btn" onClick={openSettings} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
+									<Settings size={18} aria-hidden="true" />
+								</button>
+							</>
+						)}
+					</div>
 				</div>
 
 				{data.syncError && (
@@ -487,17 +499,6 @@ const Calendar: React.FC = () => {
 							<span className="cal-kpi-sub">projets simulés sans dates</span>
 						</div>
 					)}
-				</div>
-
-				<div className="cal-card cal-toolbar">
-					<div className="cal-segmented" role="group" aria-label="Vue">
-						{VIEW_TABS.map(t => (
-							<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => setView(t.id)}>
-								{t.label}
-							</button>
-						))}
-					</div>
-
 				</div>
 
 				<div className="cal-body">
