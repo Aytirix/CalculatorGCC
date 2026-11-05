@@ -64,6 +64,11 @@ export interface MyProjectRow {
 	note: string;
 	/** Piscine : elle se simule module par module, depuis le Dashboard. */
 	isPool: boolean;
+	/**
+	 * Module d'une piscine du référentiel (même identifiant `42-<id>`) : le
+	 * cocher ici le compterait EN PLUS de la piscine — double XP.
+	 */
+	isPoolModule: boolean;
 	/** Note maximale du projet (125 % par défaut). */
 	maxPercentage: number | null;
 }
@@ -83,9 +88,13 @@ export const SOURCE_LABELS: Record<ProjectSource, string> = {
 };
 
 /** Pourquoi la case « simuler » d'une ligne est inactive, ou null si elle est utilisable. */
-export function simulationBlocker(row: Pick<MyProjectRow, 'isPool' | 'status' | 'isSimulated'>, readOnly: boolean): string | null {
+export function simulationBlocker(
+	row: Pick<MyProjectRow, 'isPool' | 'status' | 'isSimulated'> & Partial<Pick<MyProjectRow, 'isPoolModule'>>,
+	readOnly: boolean,
+): string | null {
 	if (readOnly) return 'Consultation : la simulation n’est pas modifiable.';
 	if (row.isPool) return 'Piscine : coche ses modules depuis le Dashboard.';
+	if (row.isPoolModule && !row.isSimulated) return 'Module de piscine : coche-le dans sa piscine, depuis le Dashboard.';
 	// Un projet validé encore coché (réconciliation pas encore passée) peut être décoché.
 	if (row.status === 'validated' && !row.isSimulated) return 'Déjà validé : rien à simuler.';
 	return null;
@@ -142,6 +151,23 @@ export function buildMyProjects({
 		note: simulated.has(simId) ? (notes[simId] ?? '') : '',
 	});
 
+	// Modules des piscines du référentiel : ils se simulent DANS leur piscine.
+	const poolModuleIds = new Set<string>();
+	const poolModuleNames = new Set<string>();
+	for (const rncp of rncpData) {
+		for (const category of rncp.categories) {
+			for (const project of category.projects) {
+				for (const sub of project.subProjects ?? []) {
+					poolModuleIds.add(sub.id);
+					const key = normalizeProjectSlug(sub.name);
+					if (key) poolModuleNames.add(key);
+				}
+			}
+		}
+	}
+	const isPoolModule = (simId: string, name: string) =>
+		poolModuleIds.has(simId) || poolModuleNames.has(normalizeProjectSlug(name));
+
 	// Index des entrées 42 par nom et slug normalisés, pour rapprocher un projet
 	// du référentiel de ce que l'utilisateur en a réellement fait.
 	const apiByKey = new Map<string, Project42>();
@@ -182,6 +208,7 @@ export function buildMyProjects({
 				rows.push({
 					...simExtras(project.id),
 					isPool,
+					isPoolModule: false,
 					maxPercentage: project.maxPercentage ?? null,
 					id: project.id,
 					name: project.name,
@@ -216,6 +243,7 @@ export function buildMyProjects({
 		rows.push({
 			...simExtras(simId),
 			isPool: false,
+			isPoolModule: isPoolModule(simId, name),
 			maxPercentage: null,
 			id,
 			name,
@@ -250,11 +278,14 @@ export function buildMyProjects({
 		if (!key || knownNames.has(key)) continue;
 		// Contrats d'alternance, stages… : pas des projets (section Expériences).
 		if (ADMIN_PROJECT_RE.test(project.name.trim())) continue;
+		// Module de piscine : déjà dans sa piscine (le cocher ici = double XP).
+		if (isPoolModule(graphSimulationId(project.id), project.name)) continue;
 		knownNames.add(key);
 		const simId = graphSimulationId(project.id);
 		rows.push({
 			...simExtras(simId),
 			isPool: false,
+			isPoolModule: false,
 			maxPercentage: null,
 			id: `catalog-${project.id}`,
 			name: project.name,
@@ -289,6 +320,7 @@ export function buildMyProjects({
 		rows.push({
 			...simExtras(custom.id),
 			isPool: false,
+			isPoolModule: isPoolModule(custom.id, custom.name),
 			maxPercentage: null,
 			id: custom.id,
 			name: custom.name,

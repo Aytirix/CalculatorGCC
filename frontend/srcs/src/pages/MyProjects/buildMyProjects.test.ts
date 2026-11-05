@@ -227,3 +227,25 @@ describe('catalogue du campus', () => {
     expect(rows.map(r => r.name)).toEqual(['42run']);
   });
 });
+
+describe('modules de piscine — jamais simulés en double', () => {
+  const withPool = () => {
+    const data = rncpData('42-2189', 'Django Piscine');
+    (data[0].categories[0].projects[0] as { subProjects?: unknown }).subProjects = [
+      { id: '42-2191', name: 'django-0-starting', xp: 100 },
+    ];
+    return data;
+  };
+
+  it('le catalogue ne liste pas un module déjà dans sa piscine (le cocher = double XP)', () => {
+    const rows = build({ rncpData: withPool(), catalog: [{ id: 2191, name: 'django-0-starting', slug: 'django-0-starting', xp: 100 }] });
+    expect(rows.map(r => r.id)).toEqual(['42-2189']);
+  });
+
+  it('module réellement commencé : visible, mais la case est bloquée', () => {
+    const rows = build({ rncpData: withPool(), apiProjects: [apiEntry(2191, 'django-0-starting')] });
+    const mod = rows.find(r => r.id === 'api-2191')!;
+    expect(mod.isPoolModule).toBe(true);
+    expect(simulationBlocker(mod, false)).toMatch(/Module de piscine/);
+  });
+});

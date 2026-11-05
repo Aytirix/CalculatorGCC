@@ -15,10 +15,9 @@
 	--mp-accent-text: #1d4ed8;
 	--mp-accent-soft: rgba(37, 99, 235, 0.09);
 	--mp-sim: #5b2a9e;
-	--mp-sim-soft: #f1eafb;
 	--mp-on-sim: #ffffff;
-	--mp-check-border: #8a93a0;
-	--mp-off: #c9ced6;
+	--mp-check-border: #6f7785; // ≥ 3:1 sur la carte (élément d'interface)
+	--mp-off: #8a93a0;
 	--mp-st-validated-bg: #e3f4ea; --mp-st-validated-fg: #17663d;
 	--mp-st-in_progress-bg: #eaf1fe; --mp-st-in_progress-fg: #1d4ed8;
 	--mp-st-simulated-bg: #f1eafb; --mp-st-simulated-fg: #5b2a9e;
@@ -51,10 +50,9 @@
 	--mp-accent-text: #b3caff;
 	--mp-accent-soft: rgba(107, 155, 255, 0.14);
 	--mp-sim: #a07ae6;
-	--mp-sim-soft: #2c2142;
 	--mp-on-sim: #0f0a1a;
-	--mp-check-border: #8b93a5;
-	--mp-off: #4a5160;
+	--mp-check-border: #9aa2b2;
+	--mp-off: #737b8c;
 	--mp-st-validated-bg: #15342a; --mp-st-validated-fg: #a6e6c8;
 	--mp-st-in_progress-bg: #1e2a44; --mp-st-in_progress-fg: #b9cdfc;
 	--mp-st-simulated-bg: #2c2142; --mp-st-simulated-fg: #d8c4fa;
@@ -99,9 +97,17 @@
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 	gap: 12px;
 
+	// Téléphone : une bande qui défile, pour que la liste commence dans le
+	// premier écran (les quatre cartes en occupaient tout le haut).
 	@media (max-width: 640px) {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		display: flex;
+		overflow-x: auto;
 		gap: 8px;
+		margin: 0 -16px;
+		padding: 0 16px;
+		scrollbar-width: none;
+
+		> .mp-kpi { flex: 0 0 auto; min-width: 140px; }
 	}
 }
 
@@ -173,9 +179,13 @@
 		overflow-x: auto;
 		width: calc(100% + 24px);
 		margin: 0 -12px;
-		padding: 2px 12px;
+		// Marge à droite plus large que le fondu : au bout du défilement, la
+		// dernière puce en sort et reste lisible.
+		padding: 2px 36px 2px 12px;
 		box-sizing: border-box;
 		scrollbar-width: none;
+		// Fondu à droite : indique qu'il y a d'autres puces en faisant défiler.
+		mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 	}
 }
 
@@ -316,6 +326,12 @@
 .mp-side {
 	flex: 0 0 380px;
 	min-width: 0;
+	// Suit le défilement (décalage posé par MyProjects, sans sortir de la zone
+	// de la liste) : `position: sticky` ne colle pas ici, le CSS global
+	// `body { overflow-x: hidden }` en fait un conteneur de défilement.
+	max-height: calc(100vh - 32px);
+	overflow-y: auto;
+	will-change: transform;
 	border: 1px solid var(--mp-border);
 	border-radius: var(--mp-radius);
 	background: var(--mp-surface);
@@ -389,7 +405,7 @@
 	background: transparent;
 	padding: 0;
 
-	> span {
+	> span:first-child {
 		width: 22px;
 		height: 22px;
 		box-sizing: border-box;
@@ -403,10 +419,11 @@
 		transition: background 0.12s ease, border-color 0.12s ease;
 	}
 
-	&.is-on > span { background: var(--mp-sim); border-color: var(--mp-sim); }
-	&:hover:not(:disabled) > span { border-color: var(--mp-sim); }
-	&:disabled > span { border-color: var(--mp-off); background: var(--mp-subtle); }
-	&:disabled.is-on > span { opacity: 0.6; }
+	&.is-on > span:first-child { background: var(--mp-sim); border-color: var(--mp-sim); }
+	&:hover:not([aria-disabled='true']) > span { border-color: var(--mp-sim); }
+	&[aria-disabled='true'] { cursor: not-allowed; }
+	&[aria-disabled='true'] > span:first-child { border-color: var(--mp-off); background: var(--mp-subtle); }
+	&[aria-disabled='true'].is-on > span:first-child { opacity: 0.6; }
 }
 
 .mp-check-static {
@@ -737,7 +754,7 @@
 	--mp-accent-soft: rgba(37, 99, 235, 0.09);
 	--mp-sim: #5b2a9e;
 	--mp-on-sim: #ffffff;
-	--mp-off: #c9ced6;
+	--mp-off: #8a93a0;
 	--mp-st-validated-bg: #e3f4ea; --mp-st-validated-fg: #17663d;
 	--mp-st-in_progress-bg: #eaf1fe; --mp-st-in_progress-fg: #1d4ed8;
 	--mp-st-simulated-bg: #f1eafb; --mp-st-simulated-fg: #5b2a9e;

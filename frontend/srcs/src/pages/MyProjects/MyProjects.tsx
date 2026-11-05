@@ -13,6 +13,7 @@ import TeammateModal from '@/components/TeammateModal/TeammateModal';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { setSimulated, simulatedGain, updateSimulated } from '@/utils/simulationEdit';
 import { deserializeProjects } from '@/pages/Calendar/calendarModel';
+import { DEFAULT_PROJECT_MAX_PERCENTAGE } from '@/utils/projectPercentage';
 import type { SimulatorProject } from '@/types/rncp.types';
 import {
 	buildMyProjects,
@@ -39,6 +40,8 @@ import './MyProjects.scss';
 // réglages qui auraient masqué ce défaut pour tous les utilisateurs existants.
 const FILTERS_KEY = 'my_projects_filters_v2';
 const WIDE_QUERY = '(min-width: 1100px)';
+/** Marge entre le haut de l'écran et la fiche quand elle suit le défilement. */
+const SIDE_STICKY_TOP = 16;
 
 type SortKey = 'name' | 'xp' | 'date' | 'mark' | 'status';
 
@@ -181,6 +184,38 @@ const MyProjects: React.FC = () => {
 	// Quitter la page envoie tout de suite la dernière modification.
 	useEffect(() => () => saverRef.current?.flush(), []);
 
+	// Grand écran : la fiche suit le défilement de la page, sans sortir de la
+	// zone de la liste. Une fiche restée en haut était hors de l'écran dès
+	// qu'on choisissait un projet plus bas.
+	const bodyRef = useRef<HTMLDivElement>(null);
+	const sideRef = useRef<HTMLElement>(null);
+	useEffect(() => {
+		if (!isWide) return;
+		const update = () => {
+			const body = bodyRef.current;
+			const side = sideRef.current;
+			if (!body || !side) return;
+			const room = Math.max(0, body.offsetHeight - side.offsetHeight);
+			const offset = Math.max(0, Math.min(SIDE_STICKY_TOP - body.getBoundingClientRect().top, room));
+			side.style.transform = offset > 0 ? `translateY(${Math.round(offset)}px)` : '';
+		};
+		update();
+		window.addEventListener('scroll', update, { passive: true });
+		window.addEventListener('resize', update);
+		const observer = new ResizeObserver(update);
+		if (bodyRef.current) observer.observe(bodyRef.current);
+		if (sideRef.current) observer.observe(sideRef.current);
+		return () => {
+			window.removeEventListener('scroll', update);
+			window.removeEventListener('resize', update);
+			observer.disconnect();
+		};
+	}, [isWide]);
+
+	// Passé en grand écran, la fiche est à droite : le panneau du bas ne doit
+	// pas se rouvrir tout seul en revenant à une fenêtre étroite.
+	useEffect(() => { if (isWide) setSheetOpen(false); }, [isWide]);
+
 	useEffect(() => {
 		try {
 			// La recherche n'est pas mémorisée : retrouver une liste vide à cause
@@ -189,14 +224,19 @@ const MyProjects: React.FC = () => {
 		} catch { /* préférence perdue, sans gravité */ }
 	}, [filters]);
 
+	// Dernière simulation connue, à jour même entre deux rendus (deux clics
+	// rapides) ; l'enregistrement reste HORS de la fonction de mise à jour de
+	// l'état (que React peut appeler deux fois).
+	const simRef = useRef<SimulationData | null>(null);
+	simRef.current = simulation;
 	const applySimulation = useCallback((fn: (d: SimulationData) => SimulationData) => {
-		if (readOnly) return;
-		setSimulation(prev => {
-			if (!prev) return prev;
-			const next = fn(prev);
-			if (next !== prev) saverRef.current?.schedule(next);
-			return next;
-		});
+		const prev = simRef.current;
+		if (readOnly || !prev) return;
+		const next = fn(prev);
+		if (next === prev) return;
+		simRef.current = next;
+		setSimulation(next);
+		saverRef.current?.schedule(next);
 	}, [readOnly]);
 
 	const rows = useMemo(() => {
@@ -304,14 +344,20 @@ const MyProjects: React.FC = () => {
 		: 0;
 
 	const kpis = useMemo(() => {
-		const simulatedRows = rows.filter(r => r.isSimulated && !r.isPool);
+		// Comme le Dashboard : un projet déjà validé (pas encore retiré par la
+		// réconciliation) ne rapporte plus rien, et la note est bornée au maximum.
+		const simulatedRows = rows.filter(r => r.isSimulated && !r.isPool && r.status !== 'validated');
 		return {
-			gain: simulatedRows.reduce((sum, r) => sum + simulatedGain(r.xp, r.simulatedPercentage ?? 100, r.coalitionBoost), 0),
+			gain: simulatedRows.reduce((sum, r) => sum + simulatedGain(
+				r.xp,
+				Math.min(r.simulatedPercentage ?? 100, r.maxPercentage ?? DEFAULT_PROJECT_MAX_PERCENTAGE),
+				r.coalitionBoost,
+			), 0),
 			simCount: rows.filter(r => r.isSimulated).length,
 			validated: rows.filter(r => r.status === 'validated').length,
 			validatedRncp: rows.filter(r => r.status === 'validated' && r.source === 'rncp').length,
 			inProgress: rows.filter(r => r.status === 'in_progress'),
-			toPlace: simulatedRows.filter(r => r.status !== 'validated' && !slots.has(r.simId)).length,
+			toPlace: simulatedRows.filter(r => !slots.has(r.simId)).length,
 		};
 	}, [rows, slots]);
 
@@ -359,7 +405,9 @@ const MyProjects: React.FC = () => {
 				onBoost={v => applySimulation(d => updateSimulated(d, row.simId, { coalitionBoost: v }))}
 				onNote={v => applySimulation(d => updateSimulated(d, row.simId, { note: v }))}
 				onOpenCalendar={openCalendar}
-				onTeammates={() => setTeammateRow(row)}
+				// Le panneau du bas se ferme d'abord : la fenêtre des teammates
+				// s'ouvrait DESSOUS (inutilisable au doigt comme au clavier).
+				onTeammates={() => { setSheetOpen(false); setTeammateRow(row); }}
 			/>
 		);
 	};
@@ -482,10 +530,10 @@ const MyProjects: React.FC = () => {
 				</div>
 
 				{searching && (
-					<p className="mp-note-line">Recherche « {filters.search.trim()} » : les filtres de statut sont ignorés.</p>
+					<p className="mp-note-line">Recherche « {filters.search.trim()} » dans tous les projets : les filtres sont ignorés.</p>
 				)}
 
-				<div className="mp-body">
+				<div className="mp-body" ref={bodyRef}>
 					<div className="mp-list-card">
 						{loading || rncpLoading ? (
 							<p className="mp-empty">Chargement…</p>
@@ -531,7 +579,7 @@ const MyProjects: React.FC = () => {
 					</div>
 
 					{isWide && (
-						<aside className="mp-side" aria-label="Fiche du projet">
+						<aside className="mp-side" aria-label="Fiche du projet" ref={sideRef}>
 							{selected ? panelFor(selected) : (
 								<p className="mp-empty">Sélectionne un projet pour voir sa fiche et le simuler.</p>
 							)}
@@ -570,6 +618,7 @@ const ProjectRow: React.FC<{
 }> = ({ row, readOnly, selected, placed, onToggle, onSelect }) => {
 	const shown = row.status === 'not_started' && row.isSimulated ? 'simulated' : row.status;
 	const blocker = simulationBlocker(row, readOnly);
+	const reasonId = `mp-reason-${row.id}`;
 	const pct = row.simulatedPercentage ?? 100;
 	const sub = [
 		row.rncpNames.length > 0 ? row.rncpNames.join(' · ') : row.source === 'extra42' ? 'Hors référentiel' : 'Projet perso',
@@ -586,16 +635,20 @@ const ProjectRow: React.FC<{
 					{row.isSimulated && <Check size={14} strokeWidth={3.2} />}
 				</span>
 			) : (
+				// aria-disabled plutôt que disabled : la case reste atteignable au
+				// clavier, et sa raison (« Déjà validé »…) est lue par le lecteur d'écran.
 				<button
 					type="button"
 					className={`mp-check${row.isSimulated ? ' is-on' : ''}`}
 					aria-pressed={row.isSimulated}
 					aria-label={`${row.isSimulated ? 'Retirer de la simulation' : 'Simuler'} ${row.name}`}
+					aria-disabled={blocker ? true : undefined}
+					aria-describedby={blocker ? reasonId : undefined}
 					title={blocker ?? (row.isSimulated ? 'Retirer de la simulation' : 'Simuler ce projet')}
-					disabled={!!blocker}
-					onClick={onToggle}
+					onClick={() => { if (!blocker) onToggle(); }}
 				>
 					<span aria-hidden="true">{row.isSimulated && <Check size={14} strokeWidth={3.2} />}</span>
+					{blocker && <span id={reasonId} className="mp-sr-only">{blocker}</span>}
 				</button>
 			)}
 			<button type="button" className="mp-row-main" aria-current={selected ? 'true' : undefined} onClick={onSelect}>
