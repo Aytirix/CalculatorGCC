@@ -18,6 +18,8 @@ const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MAX_CHIPS = 3;
 
 interface MonthViewProps {
+	/** Choix de la vue (Frise / Mois / Liste), affiché à droite du nom de la vue. */
+	switcher: React.ReactNode;
 	month: Date;
 	onPrev: () => void;
 	onNext: () => void;
@@ -35,7 +37,7 @@ interface MonthViewProps {
 }
 
 const MonthView: React.FC<MonthViewProps> = ({
-	month, onPrev, onNext, onToday, projects, toneOf, selectedDay, onSelectDay, onSelectProject, onDropProject,
+	switcher, month, onPrev, onNext, onToday, projects, toneOf, selectedDay, onSelectDay, onSelectProject, onDropProject,
 	readOnly, alternanceDays, alternanceLegend, today,
 }) => {
 	const days = useMemo(() => {
@@ -58,15 +60,21 @@ const MonthView: React.FC<MonthViewProps> = ({
 			<div className="cal-card cal-month-card">
 				{/* Navigation collée à la grille qu'elle fait défiler. */}
 				<div className="cal-month-head">
-					<h2 aria-live="polite">{formatMonthYear(month)}</h2>
-					<div className="cal-group" role="group" aria-label="Changer de mois">
-						<button type="button" className="cal-group-btn" onClick={onPrev} aria-label="Mois précédent" title="Mois précédent">
-							<ChevronLeft size={18} aria-hidden="true" />
-						</button>
-						<button type="button" className="cal-group-text" onClick={onToday}>Aujourd'hui</button>
-						<button type="button" className="cal-group-btn" onClick={onNext} aria-label="Mois suivant" title="Mois suivant">
-							<ChevronRight size={18} aria-hidden="true" />
-						</button>
+					<div className="cal-view-title">
+						<h2>Mois</h2>
+						{switcher}
+					</div>
+					<div className="cal-month-nav">
+						<span className="cal-month-label" aria-live="polite">{formatMonthYear(month)}</span>
+						<div className="cal-group" role="group" aria-label="Changer de mois">
+							<button type="button" className="cal-group-btn" onClick={onPrev} aria-label="Mois précédent" title="Mois précédent">
+								<ChevronLeft size={18} aria-hidden="true" />
+							</button>
+							<button type="button" className="cal-group-text" onClick={onToday}>Aujourd'hui</button>
+							<button type="button" className="cal-group-btn" onClick={onNext} aria-label="Mois suivant" title="Mois suivant">
+								<ChevronRight size={18} aria-hidden="true" />
+							</button>
+						</div>
 					</div>
 				</div>
 				<div className="cal-month-names" aria-hidden="true">

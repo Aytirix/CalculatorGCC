@@ -15,6 +15,8 @@ import {
 const WEEKDAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 interface ListViewProps {
+	/** Choix de la vue (Frise / Mois / Liste), affiché à droite du nom de la vue. */
+	switcher: React.ReactNode;
 	projects: PlacedProject[];
 	toneOf: (projectId: string) => number;
 	selectedId: string | null;
@@ -32,7 +34,7 @@ const SECTIONS: { status: ProjectStatus; title: string }[] = [
 ];
 
 const ListView: React.FC<ListViewProps> = ({
-	projects, toneOf, selectedId, onSelect, alternanceDays, alternanceLegend, today, emptyMessage,
+	switcher, projects, toneOf, selectedId, onSelect, alternanceDays, alternanceLegend, today, emptyMessage,
 }) => {
 	const week = useMemo(() => {
 		const mon = startOfWeek(today);
@@ -60,6 +62,12 @@ const ListView: React.FC<ListViewProps> = ({
 
 	return (
 		<div className="cal-list">
+			<div className="cal-card cal-list-head">
+				<div className="cal-view-title">
+					<h2>Liste</h2>
+					{switcher}
+				</div>
+			</div>
 			<section className="cal-card cal-week-strip" aria-label="Cette semaine">
 				<div className="cal-week-strip-head">
 					<h2>Cette semaine</h2>

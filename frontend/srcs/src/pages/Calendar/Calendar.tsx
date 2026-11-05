@@ -328,11 +328,25 @@ const Calendar: React.FC = () => {
 
 	const detailMode: 'panel' | 'sheet' = isWide ? 'panel' : 'sheet';
 
+	// Choix de la vue : placé dans l'en-tête de CHAQUE vue, juste à droite de son
+	// nom — au plus près de ce qu'il commande (avant : seul dans une carte
+	// pleine largeur, puis en haut de page, trop loin de la frise).
+	const viewSwitcher = (
+		<div className="cal-segmented" role="group" aria-label="Changer de vue">
+			{VIEW_TABS.map(t => (
+				<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => setView(t.id)}>
+					{t.label}
+				</button>
+			))}
+		</div>
+	);
+
 	const mainView = (() => {
 		if (loadingOther) return <div className="cal-card cal-empty"><p>Chargement du calendrier de {ownerName}…</p></div>;
 		if (view === 'mois') {
 			return (
 				<MonthView
+					switcher={viewSwitcher}
 					month={month}
 					onPrev={goPrev}
 					onNext={goNext}
@@ -353,6 +367,7 @@ const Calendar: React.FC = () => {
 		if (view === 'agenda') {
 			return (
 				<ListView
+					switcher={viewSwitcher}
 					projects={projects}
 					toneOf={toneOf}
 					selectedId={selectedId}
@@ -367,7 +382,10 @@ const Calendar: React.FC = () => {
 		return (
 			<section className="cal-card cal-frise" aria-label="Frise">
 				<div className="cal-frise-head">
-					<h2>Frise</h2>
+					<div className="cal-view-title">
+						<h2>Frise</h2>
+						{viewSwitcher}
+					</div>
 					<div className="cal-frise-controls">
 						<div className="cal-group" role="group" aria-label="Se déplacer dans la frise">
 							<button type="button" className="cal-group-btn" onClick={goPrev} aria-label="Reculer" title="Reculer">
@@ -444,28 +462,16 @@ const Calendar: React.FC = () => {
 							{readOnly ? 'Ses projets planifiés sur sa période d’alternance.' : 'Place tes projets simulés sur ta période d’alternance.'}
 						</p>
 					</div>
-					{/* Choix de la vue dans l'en-tête, à côté des actions (comme le sélecteur
-					    Jour / Semaine / Mois d'un agenda) : avant, il occupait seul une carte
-					    pleine largeur, loin de la vue qu'il commande. */}
-					<div className="cal-head-actions">
-						<div className="cal-segmented" role="group" aria-label="Vue">
-							{VIEW_TABS.map(t => (
-								<button key={t.id} type="button" aria-pressed={view === t.id} className={view === t.id ? 'is-active' : ''} onClick={() => setView(t.id)}>
-									{t.label}
-								</button>
-							))}
+					{!readOnly && (
+						<div className="cal-head-actions">
+							<button type="button" className="cal-icon-btn" onClick={undoLast} disabled={!data.canUndo} aria-label="Annuler la dernière action" title="Annuler (Ctrl+Z)">
+								<Undo2 size={18} aria-hidden="true" />
+							</button>
+							<button type="button" className="cal-icon-btn" onClick={openSettings} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
+								<Settings size={18} aria-hidden="true" />
+							</button>
 						</div>
-						{!readOnly && (
-							<>
-								<button type="button" className="cal-icon-btn" onClick={undoLast} disabled={!data.canUndo} aria-label="Annuler la dernière action" title="Annuler (Ctrl+Z)">
-									<Undo2 size={18} aria-hidden="true" />
-								</button>
-								<button type="button" className="cal-icon-btn" onClick={openSettings} aria-label="Réglages du calendrier (période, planning d'alternance)" title="Réglages du calendrier" aria-haspopup="dialog">
-									<Settings size={18} aria-hidden="true" />
-								</button>
-							</>
-						)}
-					</div>
+					)}
 				</div>
 
 				{data.syncError && (
