@@ -286,9 +286,9 @@
 
 .adm-dismiss {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  margin: -4px -6px -4px auto;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -354,7 +354,7 @@
       font-weight: 600;
       color: var(--text-primary);
 
-      .optional { font-weight: 400; color: var(--text-muted); }
+      .optional { font-weight: 400; color: var(--mp-muted, var(--text-muted)); }
     }
 
     input { @include adm-input; }
@@ -535,7 +535,7 @@
   border: 1px solid var(--mp-border);
   border-radius: 12px;
 
-  summary { min-height: 28px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+  summary { padding: 10px 0; line-height: 24px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
   ol { margin: 8px 0; padding-left: 20px; font-size: 14px; line-height: 1.5; }
   .adm-btn { margin: 8px 0; }
   p { margin: 0; }
@@ -550,12 +550,9 @@
   background: var(--bg-primary);
   color: var(--text-primary);
   // Un jeton fait plus de 1 000 caractères : en police proportionnelle, on ne voit
-  // pas s'il a été collé en entier.
-  font-family: var(--adm-mono);
-  font-size: 16px;
+  // pas s'il a été collé en entier (police posée en bas de fichier, avec `.mp-scope`).
   resize: vertical;
 
-  @media (min-width: 641px) { font-size: 12.5px; }
   &:focus { border-color: var(--color-primary); }
 }
 
@@ -656,7 +653,11 @@
 }
 
 // Action impossible : la case reste visible pour que la raison soit lisible.
-.gcc-choice--disabled { cursor: not-allowed; opacity: 0.65; }
+.gcc-choice--disabled {
+  cursor: not-allowed;
+
+  input { opacity: 0.65; cursor: not-allowed; } // la case seule : le texte reste lisible
+}
 .gcc-choice--risky input { accent-color: var(--adm-warn-fg); }
 
 // Fixe en bas de l'écran, au-dessus de la barre de navigation du téléphone.
@@ -665,7 +666,7 @@
   left: 50%;
   bottom: calc(16px + var(--app-bottom-offset, 0px));
   transform: translateX(-50%);
-  z-index: 9001; // au-dessus du lien GitHub flottant
+  z-index: 1100; // sous la palette Ctrl+K (1200)
   width: min(720px, calc(100% - 32px));
   box-sizing: border-box;
   display: flex;
@@ -681,6 +682,9 @@
   font-size: 14.5px;
 
   > div { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  // Le lien GitHub flottant (en bas à droite) passe au-dessus : on lui laisse sa place.
+  @media (max-width: 820px) { padding-right: 68px; }
 }
 
 // ── Historique des versions ────────────────────────────────────────────────
@@ -707,7 +711,7 @@
   margin-top: 6px;
   font-size: 14px;
 
-  summary { min-height: 28px; cursor: pointer; }
+  summary { padding: 10px 0; line-height: 24px; cursor: pointer; }
 }
 
 .version__group {
@@ -744,4 +748,19 @@
   &--added { background: var(--mp-st-validated-bg); color: var(--mp-st-validated-fg); }
   &--retired { background: var(--adm-warn-bg); color: var(--adm-warn-fg); }
   &--removed { background: var(--adm-danger-bg); color: var(--adm-danger-fg); }
+}
+
+// `.mp-scope button, textarea { font: inherit }` est plus spécifique qu'une classe
+// seule : sans ce préfixe, boutons et onglets perdaient taille et graisse, et le
+// champ du jeton sa police à chasse fixe.
+.mp-scope {
+  .adm-btn { font-size: 14px; font-weight: 600; }
+  .adm-tab { font-size: 14.5px; font-weight: 600; }
+  .adm-bar__brand { font-size: 16px; font-weight: 700; }
+  .gcc-token {
+    font-family: var(--adm-mono);
+    font-size: 16px;
+
+    @media (min-width: 641px) { font-size: 12.5px; }
+  }
 }

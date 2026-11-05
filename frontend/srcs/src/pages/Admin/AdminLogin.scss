@@ -67,19 +67,6 @@
 		}
 	}
 
-	.admin-link {
-		align-self: center;
-		background: transparent;
-		border: 0;
-		color: var(--text-muted);
-		font-size: 0.8rem;
-		cursor: pointer;
-
-		&:hover {
-			color: var(--color-primary);
-		}
-	}
-
 	.admin-info,
 	.admin-error {
 		padding: 0.7rem 0.85rem;
@@ -106,12 +93,6 @@
 		border: 1px solid rgba(220, 38, 38, 0.4);
 		background: rgba(220, 38, 38, 0.1);
 		color: var(--text-primary); // #f87171 sur fond clair : illisible
-	}
-
-	.muted {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--text-muted);
 	}
 }
 

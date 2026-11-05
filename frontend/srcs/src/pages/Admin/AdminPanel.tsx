@@ -531,12 +531,13 @@ const AdminPanel: React.FC = () => {
   const [gccOps, setGccOps] = useState<Map<string, ReferentialOperation>>(new Map());
   const [referential, setReferential] = useState<ReferentialState | null>(null);
   const [exportedTs, setExportedTs] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const isWide = useMediaQuery(WIDE_QUERY);
   const bodyRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   // Grand écran : le menu suit le défilement (`position: sticky` ne colle pas ici).
-  useFollowScroll(bodyRef, navRef, isWide);
+  // `!loading` : au premier rendu le menu n'existe pas encore.
+  useFollowScroll(bodyRef, navRef, isWide && !loading);
 
   // En mode miroir, on ne garde que les onglets qui pilotent encore quelque
   // chose ici.
@@ -978,7 +979,7 @@ const AdminPanel: React.FC = () => {
   if (loading) {
     return (
       <div className="admin-panel mp-scope">
-        {user ? <Header /> : <AdminBar />}
+        {user ? <Header /> : !authLoading && <AdminBar />}
         <main className="adm-container">
           <p className="adm-loading" role="status">Chargement du panneau…</p>
         </main>
@@ -993,7 +994,7 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="admin-panel mp-scope">
-      {user ? <Header /> : <AdminBar />}
+      {user ? <Header /> : !authLoading && <AdminBar />}
 
       <main className="adm-container">
         <header className="adm-head">
@@ -1003,7 +1004,9 @@ const AdminPanel: React.FC = () => {
             <p className="muted">
               {me?.kind === 'delegate'
                 ? `Compte délégué${me.label ? ` ${me.label.replace(/^delegate:/, '')}` : ''} : seules les zones qui vous sont accordées sont affichées.`
-                : "Accès complet au panneau."}
+                : me?.kind === 'owner'
+                  ? 'Accès complet au panneau.'
+                  : 'Droits en cours de vérification.'}
             </p>
           </div>
           <button type="button" className="adm-btn adm-btn--ghost" onClick={logout}>
@@ -1052,7 +1055,9 @@ const AdminPanel: React.FC = () => {
               </div>
             )}
 
-            {!activeTab && <p className="adm-card muted">Aucune zone d'administration n'est disponible ici.</p>}
+            {/* `me` nul = le serveur n'a pas répondu : le bandeau le dit, et rien
+                ne permet d'affirmer qu'aucune zone n'est ouverte. */}
+            {me && !activeTab && <p className="adm-card muted">Aucune zone d'administration n'est disponible ici.</p>}
 
             {/* ===== Secrets API 42 ===== */}
             {activeTab === 'secrets' && (
@@ -1072,7 +1077,7 @@ const AdminPanel: React.FC = () => {
                       </div>
                     </dl>
                     {config.credentials_invalid && (
-                      <p className="admin-error adm-inset">Credentials invalides : mise à jour requise.</p>
+                      <p className="admin-error">Credentials invalides : mise à jour requise.</p>
                     )}
                   </div>
                 )}
@@ -1375,7 +1380,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                   )}
                   {refresh?.lastError && (
-                    <p className="admin-error adm-inset">Dernière erreur : {refresh.lastError}</p>
+                    <p className="admin-error">Dernière erreur : {refresh.lastError}</p>
                   )}
                   <div className="adm-actions">
                     <button
