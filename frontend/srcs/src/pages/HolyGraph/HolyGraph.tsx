@@ -14,7 +14,7 @@ import { findRncpProject, graphSimulationId, isGraphSimulationId } from '@/utils
 import type { SimulatorProject } from '@/types/rncp.types';
 import ProjectPanel from './ProjectPanel';
 import { STATUS_LABELS, STATUS_STYLES, statusOf } from './projectStatus';
-import { applyPinch, MAX_SCALE, MIN_SCALE, pinchOf, TAP_MOVE_LIMIT, TAP_SLOP, type Pinch } from './graphGestures';
+import { applyPinch, MAX_SCALE, MIN_SCALE, pickTarget, pinchOf, TAP_MOVE_LIMIT, TAP_SLOP, type Pinch } from './graphGestures';
 import './HolyGraph.scss';
 
 /**
@@ -527,7 +527,10 @@ const HolyGraph: React.FC = () => {
         ctx.lineWidth = NODE_BORDER_EMPHASIS;
         ctx.strokeStyle = HIGHLIGHT_COLOR;
       } else if (isSelected) {
-        ctx.lineWidth = NODE_BORDER_EMPHASIS;
+        // Épaisseur minimale À L'ÉCRAN : une fois dézoomé, le trait tombait sous
+        // le pixel, et le blanc se confondait avec le contour clair des projets
+        // disponibles.
+        ctx.lineWidth = Math.max(NODE_BORDER_EMPHASIS, 3 / scale);
         ctx.strokeStyle = FOCUS_COLOR;
       } else if (isSimulated) {
         // Projet ajouté à la simulation : reconnaissable d'un coup d'œil sans
@@ -535,7 +538,7 @@ const HolyGraph: React.FC = () => {
         ctx.lineWidth = NODE_BORDER_EMPHASIS;
         ctx.strokeStyle = SIMULATED_COLOR;
       } else {
-        ctx.lineWidth = isHovered ? NODE_BORDER_HOVER : NODE_BORDER;
+        ctx.lineWidth = isHovered ? Math.max(NODE_BORDER_HOVER, 2 / scale) : NODE_BORDER;
         ctx.strokeStyle = isHovered ? FOCUS_COLOR : style.stroke;
       }
       ctx.stroke();
@@ -805,15 +808,12 @@ const HolyGraph: React.FC = () => {
    */
   const projectAt = (clientX: number, clientY: number, slop = 0): HolyGraphProject | null => {
     if (!activeCursus) return null;
-    const world = toWorld(clientX, clientY);
-    const margin = slop / viewRef.current.scale;
-    return (
-      [...activeCursus.projects]
-        .sort((a, b) => drawPriority(b) - drawPriority(a))
-        .find((p) => {
-          const { hw, hh } = halfSize(p);
-          return Math.abs(p.x - world.x) <= hw + margin && Math.abs(p.y - world.y) <= hh + margin;
-        }) ?? null
+    const ordered = [...activeCursus.projects].sort((a, b) => drawPriority(b) - drawPriority(a));
+    return pickTarget(
+      ordered,
+      (p) => ({ x: p.x, y: p.y, ...halfSize(p) }),
+      toWorld(clientX, clientY),
+      slop / viewRef.current.scale,
     );
   };
 
@@ -824,11 +824,19 @@ const HolyGraph: React.FC = () => {
     setSelectedId(projectAt(x, y, TAP_SLOP)?.id ?? null);
   };
 
+  // Même raison : réinstaller les listeners à chaque nouveau `draw` (survol,
+  // sélection, projet en jaune, graphe qui se complète) perdait le geste en cours.
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+
   /**
    * Gestes tactiles, en listeners NATIFS `passive: false` (comme la molette) :
    * il faut pouvoir refuser le comportement du navigateur, qui zoomait la PAGE
    * entière au pincement au lieu du graphe. Refuser `touchstart` supprime aussi
    * les faux événements souris qui suivent un toucher (double sélection).
+   *
+   * `targetTouches` et non `touches` : seuls comptent les doigts posés sur le
+   * graphe. Un pouce sur la légende ou la barre du bas ne fait pas un pincement.
    */
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -842,8 +850,16 @@ const HolyGraph: React.FC = () => {
       const rect = canvas.getBoundingClientRect();
       return { x: t.clientX - rect.left, y: t.clientY - rect.top };
     };
-    const startPan = (t: Touch, moved: boolean) => {
-      pan = { x: t.clientX, y: t.clientY, startX: t.clientX, startY: t.clientY, moved };
+    /** Repart des doigts encore posés. `moved` : ce geste n'est déjà plus un toucher. */
+    const resync = (touches: TouchList, moved: boolean) => {
+      pan = null;
+      pinch = null;
+      if (touches.length >= 2) {
+        pinch = pinchOf(inCanvas(touches[0]), inCanvas(touches[1]));
+      } else if (touches.length === 1) {
+        const t = touches[0];
+        pan = { x: t.clientX, y: t.clientY, startX: t.clientX, startY: t.clientY, moved };
+      }
     };
 
     const onStart = (e: TouchEvent) => {
@@ -851,42 +867,35 @@ const HolyGraph: React.FC = () => {
       setPinnedId(null);
       // Refuser le toucher empêche aussi le champ de recherche de perdre le focus.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      if (e.touches.length >= 2) {
-        pan = null;
-        pinch = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
-      } else if (e.touches.length === 1) {
-        startPan(e.touches[0], false);
-      }
+      resync(e.targetTouches, false);
     };
 
     const onMove = (e: TouchEvent) => {
       e.preventDefault();
-      if (e.touches.length >= 2 && pinch) {
-        const next = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
+      if (e.targetTouches.length >= 2 && pinch) {
+        const next = pinchOf(inCanvas(e.targetTouches[0]), inCanvas(e.targetTouches[1]));
         viewRef.current = applyPinch(viewRef.current, pinch, next);
         pinch = next;
-        draw();
-      } else if (e.touches.length === 1 && pan) {
-        const t = e.touches[0];
+        drawRef.current();
+      } else if (e.targetTouches.length === 1 && pan) {
+        const t = e.targetTouches[0];
+        // Le graphe ne bouge qu'une fois le toucher écarté : sinon, un doigt qui
+        // tremble décalait la vue et le toucher tombait sur un autre projet.
+        if (!pan.moved && Math.hypot(t.clientX - pan.startX, t.clientY - pan.startY) <= TAP_MOVE_LIMIT) return;
+        pan.moved = true;
         viewRef.current.offsetX += t.clientX - pan.x;
         viewRef.current.offsetY += t.clientY - pan.y;
         pan.x = t.clientX;
         pan.y = t.clientY;
-        if (Math.hypot(t.clientX - pan.startX, t.clientY - pan.startY) > TAP_MOVE_LIMIT) pan.moved = true;
-        draw();
+        drawRef.current();
       }
     };
 
     const onEnd = (e: TouchEvent) => {
       e.preventDefault();
-      if (e.touches.length >= 2) {
-        pinch = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
-        return;
-      }
-      // Un doigt levé d'un pincement : l'autre continue de déplacer, sans toucher.
-      if (e.touches.length === 1) {
-        pinch = null;
-        startPan(e.touches[0], true);
+      // Des doigts restent : pincement ou glissement continuent, sans toucher.
+      if (e.targetTouches.length > 0) {
+        resync(e.targetTouches, true);
         return;
       }
       if (pan && !pan.moved) tapAtRef.current(pan.startX, pan.startY);
@@ -894,10 +903,7 @@ const HolyGraph: React.FC = () => {
       pinch = null;
     };
 
-    const onCancel = () => {
-      pan = null;
-      pinch = null;
-    };
+    const onCancel = (e: TouchEvent) => resync(e.targetTouches, true);
 
     canvas.addEventListener('touchstart', onStart, { passive: false });
     canvas.addEventListener('touchmove', onMove, { passive: false });
@@ -909,7 +915,7 @@ const HolyGraph: React.FC = () => {
       canvas.removeEventListener('touchend', onEnd);
       canvas.removeEventListener('touchcancel', onCancel);
     };
-  }, [draw, graphePret]);
+  }, [graphePret]);
 
   /**
    * Safari iOS ne respecte pas toujours `touch-action` pour le pincement : il a

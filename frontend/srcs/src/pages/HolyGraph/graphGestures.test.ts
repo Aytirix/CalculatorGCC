@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPinch, MAX_SCALE, MIN_SCALE, pinchOf } from './graphGestures';
+import { applyPinch, MAX_SCALE, MIN_SCALE, pickTarget, pinchOf } from './graphGestures';
 
 const view = { scale: 1, offsetX: 100, offsetY: 50 };
 /** Point du graphe affiché à (x, y) de l'écran. */
@@ -38,5 +38,30 @@ describe('applyPinch', () => {
 	it('deux doigts au même endroit : le zoom ne part pas en vrille', () => {
 		const next = applyPinch(view, { distance: 0, midX: 10, midY: 10 }, { distance: 50, midX: 10, midY: 10 });
 		expect(next.scale).toBe(1);
+		expect(applyPinch(view, { distance: 50, midX: 10, midY: 10 }, { distance: 0, midX: 10, midY: 10 }).scale).toBe(1);
+	});
+});
+
+describe('pickTarget — le projet touché', () => {
+	const box = (n: { x: number }) => ({ x: n.x, y: 0, hw: 50, hh: 50 });
+	const fractol = { name: 'fract-ol', x: 100 };
+	const fdf = { name: 'FdF', x: 0 };
+
+	it('le projet sous le doigt gagne, même si un voisin passe avant dans la marge', () => {
+		expect(pickTarget([fractol, fdf], box, { x: 0, y: 0 }, 67)).toBe(fdf);
+	});
+
+	it('à côté de tout : le plus proche dans la marge', () => {
+		expect(pickTarget([fractol, fdf], box, { x: 20, y: 70 }, 40)).toBe(fdf);
+		expect(pickTarget([fdf, fractol], box, { x: 170, y: 0 }, 30)).toBe(fractol);
+	});
+
+	it('hors de la marge : rien', () => {
+		expect(pickTarget([fdf], box, { x: 200, y: 0 }, 30)).toBeNull();
+	});
+
+	it('sans marge (souris) : seulement ce qui est sous le curseur, le premier dans l’ordre', () => {
+		expect(pickTarget([fdf, { name: 'dessous', x: 10 }], box, { x: 5, y: 0 })).toBe(fdf);
+		expect(pickTarget([fdf], box, { x: 60, y: 0 })).toBeNull();
 	});
 });
