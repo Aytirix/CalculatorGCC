@@ -95,6 +95,13 @@ export interface UserSearchResult {
 	isPublic: boolean | null;
 }
 
+// Dernier enregistrement envoyé : une lecture de SA simulation l'attend. Sans
+// ça, quitter Mes projets juste après une modification (l'enregistrement part
+// à la fermeture) puis ouvrir le Dashboard lisait la base AVANT l'écriture —
+// et le Dashboard renvoyait ensuite cette version périmée : modification perdue.
+let pendingSave: Promise<unknown> = Promise.resolve();
+const PENDING_SAVE_MAX_WAIT_MS = 8000;
+
 export const simulationService = {
 	/**
 	 * Charge la simulation depuis le backend (redirige vers l'user consulté si en mode lecture)
@@ -103,6 +110,8 @@ export const simulationService = {
 		if (_viewSimUserId !== null) {
 			return request<SimulationData>(`/simulation/user/${_viewSimUserId}`);
 		}
+		// Attente bornée : un enregistrement bloqué ne doit pas figer la page.
+		await Promise.race([pendingSave, new Promise(resolve => setTimeout(resolve, PENDING_SAVE_MAX_WAIT_MS))]);
 		return request<SimulationData>('/simulation');
 	},
 
@@ -154,10 +163,13 @@ export const simulationService = {
 			// Ne jamais modifier les données d'un autre utilisateur
 			return data;
 		}
-		return request<SimulationData>('/simulation', {
+		const saving = request<SimulationData>('/simulation', {
 			method: 'PUT',
 			body: JSON.stringify(data),
 		});
+		// Une erreur d'enregistrement ne doit pas bloquer les lectures suivantes.
+		pendingSave = saving.catch(() => undefined);
+		return saving;
 	},
 
 	/**
