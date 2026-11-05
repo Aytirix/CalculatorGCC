@@ -58,6 +58,16 @@ describe('dernier recours : nom exact et unique', () => {
 		warn.mockRestore();
 	});
 
+	it('le projet existe sous son identifiant dans un autre statut : pas de recours vers un homonyme', () => {
+		const index = indexApiProjects([entry(1, 'b', 'b'), done(2, 'a', 'a')]);
+		expect(findValidated(index, { id: '42-1', name: 'a', slug: 'a' })).toBeNull();
+	});
+
+	it('homonyme en cours ailleurs : le nom est ambigu, pas de recours', () => {
+		const index = indexApiProjects([done(9999, 'minishell', 'minishell-d972f7c4'), entry(8888, 'minishell', 'minishell-old')]);
+		expect(findValidated(index, { id: '42-1331', name: 'minishell', slug: 'minishell' })).toBeNull();
+	});
+
 	it('deux projets portent ce nom : on ne devine pas', () => {
 		const index = indexApiProjects([done(1, 'push_swap', '42cursus-push_swap'), done(2, 'push_swap', '42next-push_swap')]);
 		expect(findValidated(index, { id: '42-3', name: 'push_swap', slug: 'push_swap' })).toBeNull();

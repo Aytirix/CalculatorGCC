@@ -480,6 +480,10 @@ const Dashboard: React.FC = () => {
 	// les deux supprimerait mes projets à tort (et l'autosave écrit sur MON compte).
 	useEffect(() => {
 		if (isViewingOther || !userProgress || isInitialLoad.current) return;
+		// Sans référentiel (encore en chargement, ou en erreur), on ne sait pas ce
+		// qu'est un identifiant : une piscine passerait pour un projet du Holy
+		// Graph et ses modules cochés seraient effacés.
+		if (rncpLoading || rncpData.length === 0) return;
 
 		// Un identifiant simulé est « désormais validé » quand l'intra le donne
 		// validé — par IDENTIFIANT, comme l'affichage (`completedIds`).
@@ -495,9 +499,11 @@ const Dashboard: React.FC = () => {
 			}
 			// Projet simulé depuis le Holy Graph (hors référentiel) : son
 			// identifiant `42-<id>` est celui de l'intra.
+			// Seulement s'il a son entrée dans `customProjects` (comme avant).
 			if (isGraphSimulationId(simId)) {
 				const graphProject = customProjects.find(p => p.id === simId);
-				return !!findValidated(apiIndex, { id: simId, name: graphProject?.name, slug: graphProject?.slug });
+				if (!graphProject) return false;
+				return !!findValidated(apiIndex, { id: simId, name: graphProject.name, slug: graphProject.slug });
 			}
 			// Projet custom (hors RNCP) : jamais validé via l'intra → on le garde.
 			return false;
@@ -536,7 +542,7 @@ const Dashboard: React.FC = () => {
 		// `isInitialLoad.current = false` (fin de chargement), ce qui garantit un
 		// déclenchement de cet effet une fois la garde levée — sans lui, si `userProgress`
 		// se stabilisait avant la fin du chargement, le nettoyage serait raté.
-	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData, completedIds, apiIndex]);
+	}, [userProgress, isViewingOther, simulatedProjects, simulatedSubProjects, tourStatusLoaded, customProjects, rncpData, rncpLoading, completedIds, apiIndex]);
 
 	/** Un projet 42 ramené à ce qui décide du décompte des expériences. */
 	const entreeApi = (p: Project42) => ({

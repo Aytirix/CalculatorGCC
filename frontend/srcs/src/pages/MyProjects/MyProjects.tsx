@@ -11,6 +11,8 @@ import { useProjectTeams } from '@/contexts/useProjectTeams';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useFollowScroll } from '@/hooks/useFollowScroll';
+import { indexApiProjects, resolveValidated } from '@/utils/projectIdentity';
+import { isProjectAcquired } from '@/services/xp.service';
 import TeammateModal from '@/components/TeammateModal/TeammateModal';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { setSimulated, updateSimulated } from '@/utils/simulationEdit';
@@ -314,6 +316,20 @@ const MyProjects: React.FC = () => {
 		? inScope.filter(r => r.status === 'not_started' && !r.isSimulated).length
 		: 0;
 
+	// Piscines acquises sur l'intra (par leurs modules, par identifiant).
+	const acquiredPools = useMemo(() => {
+		const { ids } = resolveValidated(rncpData, indexApiProjects(apiProjects));
+		const set = new Set<string>();
+		for (const rncp of rncpData) {
+			for (const category of rncp.categories) {
+				for (const project of category.projects) {
+					if (project.subProjects?.length && isProjectAcquired(project, ids)) set.add(project.id);
+				}
+			}
+		}
+		return set;
+	}, [rncpData, apiProjects]);
+
 	const kpis = useMemo(() => {
 		// Comme le Dashboard : un projet déjà validé (pas encore retiré par la
 		// réconciliation) ne rapporte plus rien, et la note est bornée au maximum.
@@ -336,7 +352,9 @@ const MyProjects: React.FC = () => {
 					simulation?.simulatedSubProjects ?? {},
 					poolPercentages,
 					poolBoosts,
-					new Set(rows.filter(r => r.isPool && r.status === 'validated').map(r => r.id)),
+					// Piscine acquise = tous ses modules actifs validés (comme le Dashboard),
+					// pas l'entrée de la piscine elle-même.
+					acquiredPools,
 				),
 			simCount: rows.filter(r => r.isSimulated).length,
 			validated: rows.filter(r => r.status === 'validated').length,
@@ -344,7 +362,7 @@ const MyProjects: React.FC = () => {
 			inProgress: rows.filter(r => r.status === 'in_progress'),
 			toPlace: simulatedRows.filter(r => !slots.has(r.simId)).length,
 		};
-	}, [rows, slots, simulation, rncpData]);
+	}, [rows, slots, simulation, rncpData, acquiredPools]);
 
 	const selected = rows.find(r => r.id === selectedId) ?? null;
 

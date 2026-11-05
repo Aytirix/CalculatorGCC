@@ -2,7 +2,7 @@ import type { Project42 } from '@/services/backend-api42.service';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
-import { createProjectLookup } from '@/utils/projectIdentity';
+import { bestMark, createProjectLookup } from '@/utils/projectIdentity';
 import { isPoolCovered, simulatedPoolXP } from '@/services/xp.service';
 import { simulatedGain } from '@/utils/simulationEdit';
 
@@ -252,9 +252,13 @@ export function buildMyProjects({
 	const recent = (e: Project42) => Date.parse(e.marked_at ?? e.created_at ?? '') || 0;
 	const lookup = createProjectLookup(
 		apiProjects.filter((entry) => !ADMIN_PROJECT_RE.test(entry.project.name.trim())),
+		// Validée d'abord ; deux validations : la meilleure note (comme le
+		// Dashboard) ; sinon la plus récente.
 		(candidate, current) => (candidate.validated === true) !== (current.validated === true)
 			? candidate.validated === true
-			: recent(candidate) >= recent(current),
+			: candidate.validated === true
+				? bestMark(candidate, current)
+				: recent(candidate) >= recent(current),
 	);
 
 	const rows: MyProjectRow[] = [];

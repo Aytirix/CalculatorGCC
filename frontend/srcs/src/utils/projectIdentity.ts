@@ -40,7 +40,7 @@ interface Bucket {
 const emptyBucket = (): Bucket => ({ byId: new Map(), byName: new Map() });
 
 /** Plusieurs inscriptions au même projet : la meilleure note l'emporte. */
-const bestMark = (candidate: Project42, current: Project42) => (candidate.final_mark ?? -1) > (current.final_mark ?? -1);
+export const bestMark = (candidate: Project42, current: Project42) => (candidate.final_mark ?? -1) > (current.final_mark ?? -1);
 
 function add(bucket: Bucket, entry: Project42, prefer: (candidate: Project42, current: Project42) => boolean = bestMark): void {
 	const id = apiProjectId(entry);
@@ -57,13 +57,16 @@ export interface ApiProjectIndex {
 	validated: Bucket;
 	inProgress: Bucket;
 	failed: Bucket;
+	/** Tous statuts confondus : un nom ne sert de recours que s'il est unique ICI. */
+	all: Bucket;
 }
 
 /** Index des projets de l'intra : validés, en cours, ratés. */
 export function indexApiProjects(entries: readonly Project42[]): ApiProjectIndex {
-	const index: ApiProjectIndex = { validated: emptyBucket(), inProgress: emptyBucket(), failed: emptyBucket() };
+	const index: ApiProjectIndex = { validated: emptyBucket(), inProgress: emptyBucket(), failed: emptyBucket(), all: emptyBucket() };
 	for (const entry of entries) {
 		if (!entry?.project) continue;
+		add(index.all, entry);
 		if (entry.validated === true) add(index.validated, entry);
 		else if (entry.status === 'finished') add(index.failed, entry);
 		else add(index.inProgress, entry);
@@ -73,29 +76,44 @@ export function indexApiProjects(entries: readonly Project42[]): ApiProjectIndex
 
 const warned = new Set<string>();
 
-/** L'entrée de l'intra d'un projet : par identifiant, sinon par nom exact s'il est unique. */
-function find(bucket: Bucket, ref: { id: string; name?: string; slug?: string }): Project42 | null {
-	const byId = bucket.byId.get(ref.id);
-	if (byId) return byId;
+/** Identifiants des projets portant ce nom dans `bucket`. */
+function namesakes(bucket: Bucket, ref: { name?: string; slug?: string }): Map<string, Project42> {
 	const candidates = new Map<string, Project42>();
 	for (const key of nameKeys(ref)) {
 		for (const entry of bucket.byName.get(key) ?? []) candidates.set(apiProjectId(entry), entry);
 	}
+	return candidates;
+}
+
+/** L'entrée de l'intra d'un projet : par identifiant, sinon par nom exact s'il est unique. */
+function find(bucket: Bucket, ref: { id: string; name?: string; slug?: string }, all: Bucket = bucket): Project42 | null {
+	const byId = bucket.byId.get(ref.id);
+	if (byId) return byId;
+	// Le projet existe sous son identifiant, dans un autre statut : c'est lui,
+	// un homonyme ne doit pas le remplacer.
+	if (all.byId.has(ref.id)) return null;
+	// Recours : le nom désigne UN seul projet parmi TOUTES les entrées (un
+	// homonyme en cours ou raté rend le nom ambigu), et ce projet est ici.
+	if (namesakes(all, ref).size !== 1) return null;
+	const candidates = namesakes(bucket, ref);
 	if (candidates.size !== 1) return null;
-	const [entry] = candidates.values();
-	if (!warned.has(ref.id)) {
-		warned.add(ref.id);
+	// Via `byId` : la meilleure inscription du projet, pas la dernière vue.
+	const [candidateId, namesake] = [...candidates.entries()][0];
+	const entry = bucket.byId.get(candidateId) ?? namesake;
+	const warnKey = `${ref.id}>${apiProjectId(entry)}`;
+	if (!warned.has(warnKey)) {
+		warned.add(warnKey);
 		console.warn(`[Projets] « ${ref.name ?? ref.id} » (${ref.id}) rapproché par son NOM de ${entry.project.slug} (42-${entry.project.id}) : identifiant différent.`);
 	}
 	return entry;
 }
 
-export const findValidated = (index: ApiProjectIndex, ref: { id: string; name?: string; slug?: string }) => find(index.validated, ref);
+export const findValidated = (index: ApiProjectIndex, ref: { id: string; name?: string; slug?: string }) => find(index.validated, ref, index.all);
 
 /** Statut côté intra d'un projet non validé : en cours, raté, ou rien. */
 export function apiStatusOf(index: ApiProjectIndex, ref: { id: string; name?: string; slug?: string }): 'in_progress' | 'failed' | null {
-	if (find(index.inProgress, ref)) return 'in_progress';
-	if (find(index.failed, ref)) return 'failed';
+	if (find(index.inProgress, ref, index.all)) return 'in_progress';
+	if (find(index.failed, ref, index.all)) return 'failed';
 	return null;
 }
 
