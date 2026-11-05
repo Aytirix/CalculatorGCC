@@ -41,6 +41,12 @@ const NODE_BORDER_EMPHASIS = 11;
 const HIGHLIGHT_COLOR = '#facc15';
 /** Violet : projet ajouté à la simulation depuis ce graphe. */
 const SIMULATED_COLOR = '#a78bfa';
+/**
+ * Contour d'un projet survolé ou sélectionné : blanc dans les deux thèmes. Le
+ * fond du graphe reste sombre quel que soit le thème, la couleur du texte du
+ * site le rendait noir (et peu visible) en thème clair.
+ */
+const FOCUS_COLOR = '#ffffff';
 
 /** Pourcentage de validation minimum d'un projet simulé (identique au Dashboard). */
 const MIN_PERCENTAGE = 50;
@@ -429,8 +435,6 @@ const HolyGraph: React.FC = () => {
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#eee';
-
     const bg = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.7);
     bg.addColorStop(0, '#0c2530');
     bg.addColorStop(0.4, '#081820');
@@ -523,7 +527,7 @@ const HolyGraph: React.FC = () => {
         ctx.strokeStyle = HIGHLIGHT_COLOR;
       } else if (isSelected) {
         ctx.lineWidth = NODE_BORDER_EMPHASIS;
-        ctx.strokeStyle = textColor;
+        ctx.strokeStyle = FOCUS_COLOR;
       } else if (isSimulated) {
         // Projet ajouté à la simulation : reconnaissable d'un coup d'œil sans
         // avoir à rouvrir chaque nœud.
@@ -531,7 +535,7 @@ const HolyGraph: React.FC = () => {
         ctx.strokeStyle = SIMULATED_COLOR;
       } else {
         ctx.lineWidth = isHovered ? NODE_BORDER_HOVER : NODE_BORDER;
-        ctx.strokeStyle = isHovered ? textColor : style.stroke;
+        ctx.strokeStyle = isHovered ? FOCUS_COLOR : style.stroke;
       }
       ctx.stroke();
 
