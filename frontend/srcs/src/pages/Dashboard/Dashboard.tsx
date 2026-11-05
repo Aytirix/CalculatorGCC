@@ -1297,7 +1297,10 @@ const Dashboard: React.FC = () => {
 	})();
 	// Le guide montre la première ligne qu'on peut cocher.
 	const tourRowKey = (() => {
-		for (const { category, rows } of categories) {
+		// Seulement dans une catégorie ouverte par défaut (non validée) : une
+		// catégorie repliée n'a pas de lignes, et le guide sautait l'étape.
+		for (const { category, cv, rows } of categories) {
+			if (!cv || cv.isRealValid) continue;
 			const row = rows.find(r => !r.blocker && !r.isPool && r.status !== 'validated');
 			if (row) return `${category.id}:${row.id}`;
 		}
@@ -1349,10 +1352,12 @@ const Dashboard: React.FC = () => {
 			const subs = simulatedSubProjects[row.id] ?? [];
 			const done = completedSubProjects[row.id] ?? [];
 			const active = (row.project.subProjects ?? []).filter(sub => !sub.retired && !done.includes(sub.id));
-			// Tout cocher, ou tout décocher si tout l'est déjà.
-			const allOn = active.every(sub => subs.includes(sub.id));
-			for (const sub of active) {
-				if (allOn ? subs.includes(sub.id) : !subs.includes(sub.id)) handleToggleSubProject(row.id, sub.id);
+			// Tout décocher si tout l'est déjà — modules retirés ou validés depuis
+			// compris, sinon ils restaient comptés —, sinon tout cocher.
+			if (active.every(sub => subs.includes(sub.id))) {
+				for (const subId of subs) handleToggleSubProject(row.id, subId);
+			} else {
+				for (const sub of active) if (!subs.includes(sub.id)) handleToggleSubProject(row.id, sub.id);
 			}
 			return;
 		}

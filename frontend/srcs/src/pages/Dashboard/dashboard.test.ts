@@ -161,16 +161,47 @@ describe('buildDashRow — une ligne de projet', () => {
 describe('categoryEffect — avant / après la simulation du projet', () => {
 	it('non simulé : ce qu’il ajouterait', () => {
 		const row = buildDashRow(kfs1, [], ctx());
-		expect(categoryEffect(row, { count: 0, xp: 0 })).toEqual({ before: { count: 0, xp: 0 }, after: { count: 1, xp: 15750 }, gain: 15750 });
+		expect(categoryEffect(row, { count: 0, xp: 0 })).toEqual({ before: { count: 0, xp: 0 }, after: { count: 1, xp: 15750 }, gain: 15750, partial: false });
 	});
 
 	it('simulé : la catégorie le compte déjà, on montre d’où on part', () => {
 		const row = buildDashRow(kfs1, [], ctx({ simulatedIds: new Set(['42-1']), percentages: { '42-1': 110 } }));
-		expect(categoryEffect(row, { count: 1, xp: 17325 })).toEqual({ before: { count: 0, xp: 0 }, after: { count: 1, xp: 17325 }, gain: 17325 });
+		expect(categoryEffect(row, { count: 1, xp: 17325 })).toEqual({ before: { count: 0, xp: 0 }, after: { count: 1, xp: 17325 }, gain: 17325, partial: false });
 	});
 
-	it('validé ou piscine incomplète : pas d’effet à montrer', () => {
+	it('validé : pas d’effet à montrer', () => {
 		expect(categoryEffect(buildDashRow(kfs1, [], ctx({ completedIds: new Set(['42-1']) })), { count: 1, xp: 1 })).toBeNull();
-		expect(categoryEffect(buildDashRow(pool, [], ctx()), { count: 0, xp: 0 })).toBeNull();
+	});
+
+	it('piscine non cochée : ce que la cocher en entier ajouterait (module retiré exclu)', () => {
+		expect(categoryEffect(buildDashRow(pool, [], ctx()), { count: 0, xp: 0 })).toMatchObject({ after: { count: 1, xp: 6000 }, gain: 6000, partial: false });
 	});
 });
+
+describe('corrections de la BAA', () => {
+	const pool4: SimulatorProject = {
+		id: '42-5', name: 'Piscine', slug: 'piscine', xp: 12000,
+		subProjects: ['a', 'b', 'c', 'd'].map(k => ({ id: `42-5${k}`, name: k, xp: 3000 })),
+	};
+
+	it('piscine en partie validée : simuler le reste n’ajoute que le reste', () => {
+		const row = buildDashRow(pool4, [], ctx({
+			completedSubProjects: { '42-5': ['42-5a', '42-5b'] },
+			simulatedSubProjects: { '42-5': ['42-5c', '42-5d'] },
+		}));
+		expect(row.isSimulated).toBe(true);
+		expect(categoryEffect(row, { count: 1, xp: 12000 })).toMatchObject({ before: { count: 0, xp: 6000 }, gain: 6000 });
+	});
+
+	it('piscine en partie cochée : ses modules cochés ont un effet affiché', () => {
+		const row = buildDashRow(pool4, [], ctx({ simulatedSubProjects: { '42-5': ['42-5a'] } }));
+		expect(categoryEffect(row, { count: 0, xp: 3000 })).toEqual({ before: { count: 0, xp: 0 }, after: { count: 0, xp: 3000 }, gain: 3000, partial: true });
+	});
+
+	it('projet hors référentiel resté coché : la case se décoche', () => {
+		const retired = { ...kfs1, retired: true };
+		expect(buildDashRow(retired, [], ctx({ simulatedIds: new Set(['42-1']) })).blocker).toBeNull();
+		expect(buildDashRow(retired, [], ctx()).blocker).toMatch(/Hors référentiel/);
+	});
+});
+

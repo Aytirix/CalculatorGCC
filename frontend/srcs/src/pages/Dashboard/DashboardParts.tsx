@@ -191,9 +191,11 @@ const ProjectLine: React.FC<{
 		: row.retired
 			? 'Hors référentiel : ne compte plus'
 			: row.isSimulated && row.coalitionBoost ? 'Bonus coalition' : '';
-	const checkLabel = row.isPool
-		? `${row.isSimulated ? 'Décocher' : 'Cocher'} tous les modules de ${row.name}`
-		: `${row.isSimulated ? 'Retirer de la simulation' : 'Simuler'} ${row.name}`;
+	const checkLabel = row.status === 'validated'
+		? `${row.name} : déjà validé`
+		: row.isPool
+			? `${row.isSimulated ? 'Décocher' : 'Cocher'} tous les modules de ${row.name}`
+			: `${row.isSimulated ? 'Retirer de la simulation' : 'Simuler'} ${row.name}`;
 	return (
 		<li className={`mp-row${selected ? ' is-selected' : ''}${row.retired ? ' is-retired' : ''}`}>
 			{readOnly ? (
@@ -331,11 +333,11 @@ export const CategoryBlock: React.FC<{
 export const CategoryEffect: React.FC<{
 	categoryName: string;
 	simulated: boolean;
-	effect: { before: { count: number; xp: number }; after: { count: number; xp: number }; gain: number };
+	effect: { before: { count: number; xp: number }; after: { count: number; xp: number }; gain: number; partial: boolean };
 	required: { count: number; xp: number };
 }> = ({ categoryName, simulated, effect, required }) => (
 	<div className="db-effect">
-		<strong>{simulated ? 'Ce qu’il t’apporte' : 'S’il était simulé'}</strong>
+		<strong>{effect.partial ? 'Ce que t’apportent les modules cochés' : simulated ? 'Ce qu’il t’apporte' : 'S’il était simulé'}</strong>
 		<span><span className="mp-muted">XP en plus</span><b>+{fr(effect.gain)} XP</b></span>
 		{required.count > 0 && (
 			<span><span className="mp-muted">{categoryName} · projets</span><b>{effect.before.count} → {effect.after.count} / {required.count}</b></span>
@@ -355,12 +357,14 @@ export const PoolModules: React.FC<{
 	onToggleAll: () => void;
 }> = ({ row, completedSubs, simulatedSubs, readOnly, onToggleModule, onToggleAll }) => {
 	const done = row.status === 'validated';
+	// Piscine retirée du référentiel : on ne coche plus rien (on peut décocher).
 	const editable = !readOnly && !done;
+	const canCheckNew = editable && !row.retired;
 	return (
 		<section className="db-modules" aria-label="Modules de la piscine">
 			<div className="db-modules-head">
 				<strong>Modules · {row.poolDone} / {row.poolTotal}</strong>
-				{editable && (
+				{editable && (canCheckNew || row.isSimulated) && (
 					<button type="button" className="mp-link-btn" onClick={onToggleAll}>
 						{row.isSimulated ? 'Tout décocher' : 'Tout cocher'}
 					</button>
@@ -370,7 +374,12 @@ export const PoolModules: React.FC<{
 				{(row.project.subProjects ?? []).map(sub => {
 					const acquired = done || completedSubs.includes(sub.id);
 					const on = acquired || simulatedSubs.includes(sub.id);
-					const locked = !editable || acquired || !!sub.retired;
+					// Un module retiré resté coché se décoche (il compte encore).
+					const reason = readOnly
+						? 'Consultation : la simulation n’est pas modifiable.'
+						: acquired ? 'Déjà validé.' : (sub.retired || !canCheckNew) && !on ? 'Hors référentiel : ne compte plus.' : null;
+					const locked = !editable || !!reason;
+					const reasonId = `db-module-${sub.id}-reason`;
 					return (
 						<li key={sub.id} className={sub.retired ? 'is-retired' : undefined}>
 							<button
@@ -379,10 +388,12 @@ export const PoolModules: React.FC<{
 								aria-pressed={on}
 								aria-label={`${on ? 'Décocher' : 'Cocher'} ${sub.name}`}
 								aria-disabled={locked ? true : undefined}
-								title={acquired ? 'Déjà validé' : sub.retired ? 'Hors référentiel : ne compte plus' : undefined}
+								aria-describedby={reason ? reasonId : undefined}
+								title={reason ?? undefined}
 								onClick={() => { if (!locked) onToggleModule(sub.id); }}
 							>
 								<span aria-hidden="true">{on && <Check size={14} strokeWidth={3.2} />}</span>
+								{reason && <span id={reasonId} className="mp-sr-only">{reason}</span>}
 							</button>
 							<span className="db-module-name">{sub.name}{acquired && <span className="mp-muted"> · validé</span>}</span>
 							{sub.xp > 0 && <span className="mp-muted">{fr(sub.xp)} XP</span>}

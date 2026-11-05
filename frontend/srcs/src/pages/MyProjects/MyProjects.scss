@@ -781,7 +781,13 @@
 // ── Panneau du bas (tablette, téléphone) ──────────────────────────────────
 
 .mp-sheet-overlay {
+	// Le panneau est rendu dans <body>, hors de `.mp-scope` : il reprend TOUTES
+	// les couleurs dont son contenu a besoin (sans --mp-check-border, une case
+	// non cochée n'avait plus de bord en thème clair).
 	--mp-surface: var(--bg-card);
+	--mp-check-border: #6f7785;
+	--mp-team-bg: #e3f2ef; --mp-team-fg: #0e5e52;
+	--mp-radius: 16px;
 	--mp-border: var(--border-color);
 	--mp-border-soft: rgba(var(--text-rgb), 0.08);
 	--mp-subtle: rgba(var(--text-rgb), 0.04);

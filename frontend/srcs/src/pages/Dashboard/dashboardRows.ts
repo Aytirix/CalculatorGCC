@@ -19,6 +19,8 @@ export interface DashRow extends MyProjectRow {
 	retired: boolean;
 	/** Piscine : modules actifs acquis ou cochés / modules actifs. */
 	poolDone: number;
+	/** Piscine en partie cochée : XP des modules cochés (comptés tels quels par la catégorie). */
+	poolPartialXp: number;
 	poolTotal: number;
 	/** Pourquoi la case est inactive, ou null. */
 	blocker: string | null;
@@ -45,6 +47,10 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 	const subs = ctx.simulatedSubProjects[project.id] ?? [];
 	const doneSubs = ctx.completedSubProjects[project.id] ?? [];
 	const poolDone = active.filter(s => subs.includes(s.id) || doneSubs.includes(s.id)).length;
+	// La catégorie compte déjà l'XP des modules VALIDÉS d'une piscine non
+	// acquise : la simuler n'ajoute que le reste.
+	const doneXp = active.filter(s => doneSubs.includes(s.id)).reduce((sum, s) => sum + s.xp, 0);
+	const checkedXp = active.filter(s => subs.includes(s.id) && !doneSubs.includes(s.id)).reduce((sum, s) => sum + s.xp, 0);
 	const isSimulated = isPool
 		? !completed && active.length > 0 && active.every(s => subs.includes(s.id) || doneSubs.includes(s.id)) && subs.length > 0
 		: ctx.simulatedIds.has(project.id);
@@ -63,8 +69,9 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 	const gain = completed || retired
 		? 0
 		: isPool
-			? (isSimulated ? xp : 0)
+			? Math.max(0, xp - doneXp)
 			: simulatedGain(xp, pct, boost);
+	const poolPartialXp = isPool && !isSimulated && !completed && !retired ? checkedXp : 0;
 	const shownXp = completed
 		? Math.round((xp * findProjectPercentage(project, ctx.completedPercentages, 100)) / 100)
 		: isSimulated && !isPool ? gain : xp;
@@ -73,7 +80,9 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 		? 'Consultation : la simulation n’est pas modifiable.'
 		: completed
 			? 'Déjà validé : rien à simuler.'
-			: retired
+			// Un projet retiré resté coché doit pouvoir être décoché : il compte
+			// encore dans le niveau projeté.
+			: retired && !isSimulated
 				? 'Hors référentiel : ce projet ne compte plus pour ce titre.'
 				: null;
 
@@ -102,6 +111,7 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
 		retired,
 		poolDone,
 		poolTotal: active.length,
+		poolPartialXp,
 		blocker,
 	};
 }
@@ -113,12 +123,20 @@ export function buildDashRow(project: SimulatorProject, where: string[], ctx: Da
  */
 export function categoryEffect(row: DashRow, current: { count: number; xp: number }) {
 	if (row.status === 'validated' || row.retired) return null;
-	if (row.isPool && !row.isSimulated) return null;
+	// Piscine en partie cochée : ses modules cochés comptent déjà, sans le projet.
+	if (row.poolPartialXp > 0) {
+		return {
+			before: { count: current.count, xp: current.xp - row.poolPartialXp },
+			after: current,
+			gain: row.poolPartialXp,
+			partial: true,
+		};
+	}
 	const before = row.isSimulated
 		? { count: current.count - 1, xp: current.xp - row.gain }
 		: current;
 	const after = row.isSimulated
 		? current
 		: { count: current.count + 1, xp: current.xp + row.gain };
-	return { before, after, gain: row.gain };
+	return { before, after, gain: row.gain, partial: false };
 }
