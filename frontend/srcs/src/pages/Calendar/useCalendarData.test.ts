@@ -157,9 +157,10 @@ describe('alternanceSource — planning de la base ou copie locale', () => {
 		expect(alternanceFingerprint({ a: '1' })).not.toBe(alternanceFingerprint({ a: '2' }));
 		expect(alternanceFingerprint({})).not.toBe(alternanceFingerprint({ a: '1' }));
 	});
-	it('navigateur sans marqueur : base vide → copie locale (pas de perte sans retour), sinon la base', () => {
-		expect(alternanceSource({}, false, 'unknown')).toBe('local');
-		expect(alternanceSource(plan, false, 'unknown')).toBe('db');
+	it('navigateur sans marqueur : base vide et copie locale remplie → on demande ; sinon la base', () => {
+		expect(alternanceSource({}, false, 'unknown', true)).toBe('ask');
+		expect(alternanceSource({}, false, 'unknown', false)).toBe('db');
+		expect(alternanceSource(plan, false, 'unknown', true)).toBe('db');
 	});
 	it('modifié pendant le chargement, ou champ absent : copie locale', () => {
 		expect(alternanceSource(plan, true, 'synced')).toBe('local');
