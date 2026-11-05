@@ -1,19 +1,23 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { CalendarRange, FileSpreadsheet, Trash2, Upload, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Trash2, Upload } from 'lucide-react';
 import {
 	formatDateKey, formatShortYear, parseDateKey, plural, validateDateRange,
 	type DateRange,
 } from './calendarModel';
+import './SettingsDialog.scss';
 
 /**
  * Réglages du calendrier (roue dentée en haut de page) : la période affichée
- * et le planning d'alternance. Rassemblés ici pour libérer la barre d'outils —
- * on les règle une fois, on ne s'en sert pas à chaque visite.
+ * et le planning d'alternance.
  *
- * `<dialog>` natif + showModal() : Échap, piège du focus et premier plan sont
- * gérés par le navigateur. Le formulaire est RECRÉÉ à chaque ouverture
- * (`sessionKey`) : une saisie abandonnée (Échap, clic à côté) ne réapparaît
- * jamais à l'ouverture suivante — constaté avec une recopie manuelle de l'état.
+ * Même fenêtre que le reste de l'app (fond sombre flouté `.modal-overlay`,
+ * carte avec en-tête / corps / pied, animation framer-motion — voir
+ * AddCustomProjectModal, ProjectPercentageModal) au lieu d'un <dialog> natif
+ * stylé à part. Rendue dans <body> (portail) : les styles de la page
+ * Calendrier ne la touchent pas. Le formulaire est RECRÉÉ à chaque ouverture
+ * (`sessionKey`) : une saisie abandonnée ne réapparaît jamais ensuite.
  */
 
 export type ImportResult =
@@ -87,8 +91,8 @@ const SettingsForm: React.FC<SettingsFormProps> = ({
 		}
 	};
 
-	// Appliqué tout de suite (comme l'ancien « Oui ») : l'import l'est déjà, et
-	// fermer la fenêtre ne doit pas perdre ces dates.
+	// Appliqué tout de suite : l'import l'est déjà, et fermer la fenêtre ne doit
+	// pas perdre ces dates.
 	const applyContractDates = () => {
 		if (!contract || validateDateRange(contract.start, contract.end) !== null) return;
 		onSaveRange(contract);
@@ -99,112 +103,129 @@ const SettingsForm: React.FC<SettingsFormProps> = ({
 	};
 
 	return (
-		<form className="cal-dialog-body" onSubmit={handleSave}>
-			<div className="cal-dialog-head">
-				<h2 id={titleId}>Réglages du calendrier</h2>
-				<button type="button" className="cal-icon-btn cal-icon-btn--ghost" onClick={onClose} aria-label="Fermer les réglages">
-					<X size={18} aria-hidden="true" />
-				</button>
+		<form onSubmit={handleSave} noValidate>
+			<div className="modal-header">
+				<h3 id={titleId}>Réglages du calendrier</h3>
+				<button type="button" className="close-button" onClick={onClose} aria-label="Fermer les réglages">✕</button>
 			</div>
 
-			<section className="cal-dialog-section" aria-labelledby={`${titleId}-range`}>
-				<h3 id={`${titleId}-range`}><CalendarRange size={16} aria-hidden="true" />Période affichée</h3>
-				<p className="cal-muted">En général, la durée de ton contrat d'alternance.</p>
-				<div className="cal-dialog-dates">
-					<label>
-						<span>Du</span>
-						<input type="date" value={start} onChange={ev => setStart(ev.target.value)} required />
-					</label>
-					<label>
-						<span>Au</span>
-						<input type="date" value={end} onChange={ev => setEnd(ev.target.value)} min={start || undefined} required />
-					</label>
-				</div>
-				{rangeError && <p className="cal-field-error" role="alert">{rangeError}</p>}
-			</section>
-
-			<section className="cal-dialog-section" aria-labelledby={`${titleId}-alt`}>
-				<h3 id={`${titleId}-alt`}><FileSpreadsheet size={16} aria-hidden="true" />Planning d'alternance</h3>
-				<p className="cal-muted">
-					{alternanceDayCount > 0
-						? `Importé : ${plural(alternanceDayCount, 'jour')} coloré${alternanceDayCount > 1 ? 's' : ''} (école, entreprise, distanciel). Un nouvel import s'applique tout de suite.`
-						: 'Importe le fichier .xlsx de ton école pour voir ton rythme sur la frise.'}
-				</p>
-				<input ref={fileRef} type="file" accept=".xlsx" hidden onChange={handleFile} />
-				<div className="cal-dialog-actions-row">
-					<button type="button" className="cal-btn" onClick={() => fileRef.current?.click()} disabled={importing}>
-						<Upload size={16} aria-hidden="true" />
-						{importing ? 'Lecture…' : alternanceDayCount > 0 ? 'Remplacer le fichier' : 'Importer un fichier'}
-					</button>
-					{alternanceDayCount > 0 && (
-						<button type="button" className="cal-btn cal-btn--danger-quiet" onClick={() => { const restore = onClearAlternance(); setRestoreCleared(() => restore); setImportMsg(null); setContract(null); }}>
-							<Trash2 size={16} aria-hidden="true" />
-							Effacer
-						</button>
-					)}
-				</div>
-				{restoreCleared && alternanceDayCount === 0 && (
-					<div className="cal-dialog-contract" role="status">
-						<span>Planning d'alternance effacé.</span>
-						<button type="button" className="cal-btn" onClick={() => { restoreCleared(); setRestoreCleared(null); }}>Annuler</button>
+			<div className="modal-body">
+				<section className="form-group" aria-labelledby={`${titleId}-range`}>
+					<h4 id={`${titleId}-range`}>Période affichée</h4>
+					<p className="field-hint">En général, la durée de ton contrat d'alternance.</p>
+					<div className="cal-settings-dates">
+						<label>
+							<span>Du</span>
+							<input type="date" className="text-input" value={start} onChange={ev => setStart(ev.target.value)} />
+						</label>
+						<label>
+							<span>Au</span>
+							<input type="date" className="text-input" value={end} onChange={ev => setEnd(ev.target.value)} min={start || undefined} />
+						</label>
 					</div>
-				)}
-				{importMsg && (
-					<p className={importMsg.kind === 'error' ? 'cal-field-error' : 'cal-field-ok'} role={importMsg.kind === 'error' ? 'alert' : 'status'}>
-						{importMsg.text}
+					{rangeError && <p className="cal-settings-error" role="alert">{rangeError}</p>}
+				</section>
+
+				<section className="form-group" aria-labelledby={`${titleId}-alt`}>
+					<h4 id={`${titleId}-alt`}>Planning d'alternance</h4>
+					<p className="field-hint">
+						{alternanceDayCount > 0
+							? `Importé : ${plural(alternanceDayCount, 'jour')} coloré${alternanceDayCount > 1 ? 's' : ''} (école, entreprise, distanciel). Un nouvel import s'applique tout de suite.`
+							: 'Importe le fichier .xlsx de ton école pour voir ton rythme sur la frise.'}
 					</p>
-				)}
-				{contract && (
-					<div className="cal-dialog-contract" role="status">
-						<span>
-							Contrat détecté du <strong>{formatShortYear(contract.start)}</strong> au <strong>{formatShortYear(contract.end)}</strong>.
-						</span>
-						<button type="button" className="cal-btn" onClick={applyContractDates}>Utiliser ces dates</button>
+					<input ref={fileRef} type="file" accept=".xlsx" hidden onChange={handleFile} />
+					<div className="cal-settings-actions">
+						<button type="button" className="cal-settings-btn" onClick={() => fileRef.current?.click()} disabled={importing}>
+							<Upload size={16} aria-hidden="true" />
+							{importing ? 'Lecture…' : alternanceDayCount > 0 ? 'Remplacer le fichier' : 'Importer un fichier'}
+						</button>
+						{alternanceDayCount > 0 && (
+							<button
+								type="button"
+								className="cal-settings-btn cal-settings-btn--danger"
+								onClick={() => { const restore = onClearAlternance(); setRestoreCleared(() => restore); setImportMsg(null); setContract(null); }}
+							>
+								<Trash2 size={16} aria-hidden="true" />
+								Effacer
+							</button>
+						)}
 					</div>
-				)}
-			</section>
+					{restoreCleared && alternanceDayCount === 0 && (
+						<div className="cal-settings-notice" role="status">
+							<span>Planning d'alternance effacé.</span>
+							<button type="button" className="cal-settings-btn" onClick={() => { restoreCleared(); setRestoreCleared(null); }}>Annuler</button>
+						</div>
+					)}
+					{importMsg && (
+						<p className={importMsg.kind === 'error' ? 'cal-settings-error' : 'cal-settings-ok'} role={importMsg.kind === 'error' ? 'alert' : 'status'}>
+							{importMsg.text}
+						</p>
+					)}
+					{contract && (
+						<div className="cal-settings-notice" role="status">
+							<span>
+								Contrat détecté du <strong>{formatShortYear(contract.start)}</strong> au <strong>{formatShortYear(contract.end)}</strong>.
+							</span>
+							<button type="button" className="cal-settings-btn" onClick={applyContractDates}>Utiliser ces dates</button>
+						</div>
+					)}
+				</section>
+			</div>
 
-			<div className="cal-dialog-foot">
-				<button type="button" className="cal-btn" onClick={onClose}>Fermer</button>
-				<button type="submit" className="cal-btn cal-btn--primary" disabled={!!rangeError}>Enregistrer</button>
+			<div className="modal-footer">
+				<button type="button" className="cancel-button" onClick={onClose}>Fermer</button>
+				<button type="submit" className="save-button" disabled={!!rangeError}>Enregistrer</button>
 			</div>
 		</form>
 	);
 };
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({ open, sessionKey, ...formProps }) => {
-	const dialogRef = useRef<HTMLDialogElement>(null);
 	const titleId = useId();
+	const panelRef = useRef<HTMLDivElement>(null);
 	const onCloseRef = useRef(formProps.onClose);
 	onCloseRef.current = formProps.onClose;
 
+	// Échap ferme ; le focus va dans la fenêtre à l'ouverture et revient à ce qui
+	// l'a ouverte (la roue dentée) à la fermeture.
 	useEffect(() => {
-		const dlg = dialogRef.current;
-		if (!dlg) return;
-		if (open && !dlg.open) dlg.showModal();
-		else if (!open && dlg.open) dlg.close();
+		if (!open) return;
+		const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		panelRef.current?.focus({ preventScroll: true });
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
+		};
+		window.addEventListener('keydown', onKey, true);
+		return () => {
+			window.removeEventListener('keydown', onKey, true);
+			if (opener?.isConnected) opener.focus({ preventScroll: true });
+		};
 	}, [open]);
 
-	// Fermeture par le navigateur (Échap…) : écouteur natif. La prop React
-	// `onClose` ne remettait pas l'état à « fermé » (constaté) — la roue dentée
-	// ne rouvrait alors plus rien.
-	useEffect(() => {
-		const dlg = dialogRef.current;
-		if (!dlg) return;
-		const handle = () => onCloseRef.current();
-		dlg.addEventListener('close', handle);
-		return () => dlg.removeEventListener('close', handle);
-	}, []);
-
-	return (
-		<dialog
-			ref={dialogRef}
-			className="cal-dialog"
-			aria-labelledby={titleId}
-			onClick={ev => { if (ev.target === dialogRef.current) formProps.onClose(); }}
-		>
-			{open && <SettingsForm key={sessionKey} titleId={titleId} {...formProps} />}
-		</dialog>
+	if (typeof document === 'undefined') return null;
+	return createPortal(
+		<AnimatePresence>
+			{open && (
+				<div className="modal-overlay cal-settings-overlay" onClick={formProps.onClose}>
+					<motion.div
+						ref={panelRef}
+						className="cal-settings-modal"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby={titleId}
+						tabIndex={-1}
+						onClick={(e) => e.stopPropagation()}
+						initial={{ opacity: 0, scale: 0.9, y: -20 }}
+						animate={{ opacity: 1, scale: 1, y: 0 }}
+						exit={{ opacity: 0, scale: 0.9, y: -20 }}
+						transition={{ duration: 0.2 }}
+					>
+						<SettingsForm key={sessionKey} titleId={titleId} {...formProps} />
+					</motion.div>
+				</div>
+			)}
+		</AnimatePresence>,
+		document.body,
 	);
 };
 
