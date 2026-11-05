@@ -1,335 +1,596 @@
+// ── Panneau d'administration ────────────────────────────────────────────────
+// Même famille visuelle que Mes projets et le Dashboard : couleurs --mp-* posées
+// par `.mp-scope`, clair et sombre. Grand écran : menu à gauche. Tablette et
+// téléphone : le menu devient une bande qui défile. Cibles tactiles de 44 px.
+
 @use '../../styles/variables' as *;
-@use '../../styles/mixins' as *;
 
-// Les pages admin suivent le design system du projet (variables de _themes.scss) :
-// elles doivent rester lisibles en thème CLAIR comme en thème SOMBRE. Rien de codé en
-// dur ici — un fond sombre fixe rendait les encarts illisibles sur le thème clair.
-// Les boutons sont stylés explicitement : `tailwind.config.js` déclare `colors: {}`,
-// donc les classes shadcn (`bg-primary`…) ne produisent aucune couleur dans ce projet.
+.admin-panel {
+  --adm-warn-bg: #fdf1de;
+  --adm-warn-fg: #8a4b00;
+  --adm-danger-bg: #fdecea;
+  --adm-danger-fg: #a8261b;
+  --adm-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-.admin-page {
-  @include flex-center;
-  min-height: 100vh;
-  padding: $spacing-xl $spacing-md;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-accent) 100%);
+  // Textes secondaires du panneau : contrastés sur les cartes, dans les deux thèmes.
+  .muted { color: var(--mp-muted); font-size: 13.5px; line-height: 1.45; }
 
-  &.admin-panel {
-    align-items: flex-start;
+  code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--mp-subtle);
+    color: var(--mp-accent-text);
+    font-family: var(--adm-mono);
+    font-size: 0.92em;
+    overflow-wrap: anywhere;
   }
+
+  a { color: var(--mp-accent-text); }
 }
 
-.admin-card {
-  @include card;
-  width: 100%;
-  max-width: 440px;
-  color: var(--text-primary);
-
-  &.wide {
-    max-width: 720px;
-  }
-
-  h1 {
-    margin: 0 0 $spacing-xs;
-    font-size: 1.5rem;
-    color: var(--color-primary);
-    font-weight: 700;
-  }
-
-  .subtitle {
-    margin: 0 0 $spacing-lg;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
+.dark .admin-panel {
+  --adm-warn-bg: #3a2a12;
+  --adm-warn-fg: #ffd18a;
+  --adm-danger-bg: #3a1c1c;
+  --adm-danger-fg: #ffb4ab;
 }
 
-.admin-head {
+// Barre du haut sans session 42 (entrée par le token console).
+.adm-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: $spacing-md;
-  margin-bottom: $spacing-md;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--mp-border);
+  background: var(--mp-surface);
 
-  h1 { margin: 0; }
-}
+  &__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: var(--mp-text);
+    font-size: 16px;
+    font-weight: 700;
 
-.admin-section {
-  border-top: 1px solid var(--border-color);
-  padding: $spacing-lg 0;
-
-  &:first-of-type { border-top: none; }
-
-  h2 {
-    font-size: 1.1rem;
-    margin: 0 0 $spacing-sm;
-    color: var(--text-primary);
+    img { border-radius: 8px; }
+    span span { color: var(--mp-accent-text); }
   }
-}
 
-.admin-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-sm $spacing-md;
-  font-size: 0.85rem;
-  margin-bottom: $spacing-md;
-  color: var(--text-muted);
-
-  .warn { color: #d97706; font-weight: 600; }
-  code {
-    background: var(--bg-secondary);
-    color: var(--color-primary);
-    padding: 0.1rem 0.35rem;
-    border-radius: $border-radius-sm;
+  &__theme {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--mp-border);
+    border-radius: 10px;
+    background: var(--mp-surface);
+    color: var(--mp-text);
   }
+
+  @media (max-width: 640px) { padding: 6px 16px; }
 }
 
-// Champs de saisie — mêmes règles pour le formulaire vertical et la ligne inline.
-@mixin admin-input {
-  padding: 0.65rem 0.8rem;
-  border-radius: $border-radius-md;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.95rem;
-
-  &::placeholder { color: var(--text-muted); }
-  &:focus { outline: none; border-color: var(--color-primary); }
-  &:disabled { opacity: 0.5; }
-}
-
-.admin-form {
+.adm-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
   display: flex;
   flex-direction: column;
-  gap: $spacing-md;
+  gap: 16px;
 
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-
-    label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      .optional { font-weight: 400; color: var(--text-muted); }
-    }
-
-    input { @include admin-input; }
-  }
+  @media (max-width: 640px) { padding: 16px 16px 96px; gap: 12px; }
 }
 
-.admin-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 $spacing-md;
-
-  li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: $spacing-md;
-    padding: 0.55rem 0;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 0.88rem;
-
-    &.muted { justify-content: flex-start; }
-    code {
-      background: var(--bg-secondary);
-      color: var(--color-primary);
-      padding: 0.1rem 0.35rem;
-      border-radius: $border-radius-sm;
-    }
-  }
+.adm-loading {
+  margin: 0;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--mp-muted);
 }
 
-// Une ligne de délégué tient sur deux étages : le login et son retrait, puis la
-// grille des zones. `.admin-list li` est un flex en `space-between` ; on le repasse
-// en colonne ici plutôt que de créer une seconde liste.
-.admin-list--delegates {
-  li.delegate-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: $spacing-sm;
-    padding: 0.75rem 0;
-  }
-}
-
-.delegate-row__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-md;
-}
-
-.delegate-row__perms {
+.adm-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+
+  h1 { margin: 4px 0 0; font-size: 28px; }
+  p { margin: 4px 0 0; }
+
+  @media (max-width: 640px) { h1 { font-size: 24px; } }
 }
 
-.delegate-perm {
+.adm-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-
-  input { cursor: pointer; }
-
-  // Une zone accordée doit se distinguer d'un coup d'œil sur une ligne qui en
-  // porte sept.
-  &:has(input:checked) {
-    color: var(--color-primary);
-    font-weight: 600;
-  }
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mp-accent-text);
 }
 
-.admin-inline {
+// ── Menu + contenu ─────────────────────────────────────────────────────────
+
+.adm-body {
   display: flex;
-  gap: $spacing-sm;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
 
-  input {
-    @include admin-input;
-    flex: 1;
-    padding: 0.55rem 0.8rem;
+  @media (max-width: 1099px) { flex-direction: column; align-items: stretch; }
+}
+
+.adm-nav {
+  flex: 0 0 248px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  background: var(--mp-surface);
+  will-change: transform;
+
+  @media (max-width: 1099px) {
+    flex: none;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    margin: 0 -24px;
+    padding: 4px 24px 6px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    scrollbar-width: none;
+    will-change: auto;
+
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  @media (max-width: 640px) { margin: 0 -16px; padding: 4px 16px 6px; }
+}
+
+.adm-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--mp-muted);
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+
+  svg { flex-shrink: 0; }
+
+  &:hover { background: var(--mp-subtle); color: var(--mp-text); }
+
+  &.is-current {
+    background: var(--mp-accent-soft);
+    color: var(--mp-accent-text);
+  }
+
+  @media (max-width: 1099px) {
+    width: auto;
+    flex-shrink: 0;
+    border: 1px solid var(--mp-border);
+    border-radius: 999px;
+    background: var(--mp-surface);
+    white-space: nowrap;
+
+    &.is-current { border-color: var(--mp-accent); background: var(--mp-accent-soft); }
   }
 }
 
-// Bouton d'action principal (voir la note en tête de fichier : shadcn ne colore rien ici).
-.admin-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: $border-radius-md;
-  padding: 0.7rem $spacing-lg;
+.adm-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.adm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  // La barre « Appliquer » est fixe : le bas du rapport doit rester atteignable.
+  &.has-apply-bar { padding-bottom: 88px; }
+}
+
+.adm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  background: var(--mp-surface);
+
+  h2 { margin: 0; font-size: 17px; }
+  > p { margin: 0; }
+
+  @media (max-width: 640px) { padding: 14px 16px; }
+}
+
+.adm-count {
+  margin-left: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--mp-subtle);
+  color: var(--mp-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+
+// ── Boutons ────────────────────────────────────────────────────────────────
+
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--mp-accent);
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: background-color $transition-fast;
+  white-space: nowrap;
 
-  &:hover:not(:disabled) { background: var(--color-primary-hover); }
-  &:disabled { opacity: 0.55; cursor: not-allowed; }
+  &:hover:not(:disabled) { filter: brightness(1.08); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &--ghost {
+    border-color: var(--mp-border);
+    background: var(--mp-surface);
+    color: var(--mp-text);
+
+    &:hover:not(:disabled) { filter: none; border-color: var(--mp-accent); color: var(--mp-accent-text); }
+  }
+
+  &--danger {
+    border-color: var(--mp-border);
+    background: var(--mp-surface);
+    color: var(--adm-danger-fg);
+
+    &:hover:not(:disabled) { filter: none; border-color: var(--adm-danger-fg); background: var(--adm-danger-bg); }
+  }
 }
 
-.admin-form > .admin-btn,
-.admin-card > .admin-btn {
-  width: 100%;
-  margin-bottom: $spacing-sm;
+.dark .adm-btn:not(.adm-btn--ghost):not(.adm-btn--danger) { color: #0b1020; }
+
+.adm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.admin-link {
-  background: none;
-  border: none;
-  color: var(--color-primary);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.35rem 0;
-  text-decoration: underline;
-
-  &:hover { color: var(--color-primary-hover); }
-  &:disabled { opacity: 0.5; cursor: default; }
-  &.danger { color: #dc2626; &:hover { color: #b91c1c; } }
+.adm-dismiss {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
 }
+
+// ── Messages (aussi utilisés par l'écran de connexion) ─────────────────────
 
 .admin-error,
 .admin-ok,
 .admin-info {
   display: flex;
   align-items: flex-start;
-  gap: $spacing-sm;
-  padding: 0.75rem $spacing-md;
-  border-radius: $border-radius-md;
-  font-size: 0.85rem;
-  margin-bottom: $spacing-md;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid transparent;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
 
   p { margin: 0; }
 }
 
-// Fonds translucides + texte tiré du texte courant : lisible sur clair comme sur sombre.
-.admin-error {
-  background: rgba(220, 38, 38, 0.1);
-  border-color: rgba(220, 38, 38, 0.35);
+.admin-error { background: rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.35); }
+.admin-ok { background: rgba(var(--success-rgb), 0.12); border-color: rgba(var(--success-rgb), 0.35); }
+.admin-info { background: rgba(var(--color-primary-rgb), 0.1); border-color: rgba(var(--color-primary-rgb), 0.3); }
+
+// ── Formulaires ────────────────────────────────────────────────────────────
+
+@mixin adm-input {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
   color: var(--text-primary);
-}
-.admin-ok {
-  background: rgba(var(--success-rgb), 0.12);
-  border-color: rgba(var(--success-rgb), 0.35);
-  color: var(--text-primary);
-}
-.admin-info {
-  background: rgba(var(--color-primary-rgb), 0.1);
-  border-color: rgba(var(--color-primary-rgb), 0.3);
-  color: var(--text-primary);
+  // 16 px : en dessous, Safari et Chrome mobile zooment au focus.
+  font-size: 16px;
+
+  &::placeholder { color: var(--text-muted); }
+  &:focus { border-color: var(--color-primary); }
+  &:disabled { opacity: 0.5; }
 }
 
-.muted { color: var(--text-muted); font-size: 0.85rem; }
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 
-/* ===== Référentiel RNCP vs GCC =====
-   Le rapport est dense (quatre RNCP, leurs catégories, des blocs de code à
-   copier) : la hiérarchie visuelle porte tout le sens, d'où les liserés de
-   couleur — vert pour ce qu'on peut ajouter sans risque, rouge pour ce dont la
-   suppression casserait des sauvegardes. */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    label {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+
+      .optional { font-weight: 400; color: var(--text-muted); }
+    }
+
+    input { @include adm-input; }
+  }
+}
+
+.adm-label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.adm-field {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  input { width: 100%; }
+}
+
+.admin-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+
+  input { @include adm-input; }
+  > input { flex: 1 1 220px; min-width: 0; }
+
+  @media (max-width: 640px) {
+    align-items: stretch;
+    flex-direction: column;
+
+    > input, .adm-field { flex: none; width: 100%; }
+  }
+}
+
+// ── Faits, lignes, pastilles ───────────────────────────────────────────────
+
+.adm-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+
+  > div {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--mp-subtle);
+  }
+
+  dt { font-size: 12.5px; color: var(--mp-muted); }
+  dd { margin: 4px 0 0; font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+}
+
+.adm-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+
+  &--ok { background: var(--mp-st-validated-bg); color: var(--mp-st-validated-fg); }
+  &--off { background: var(--mp-st-not_started-bg); color: var(--mp-st-not_started-fg); }
+  &--warn { background: var(--adm-warn-bg); color: var(--adm-warn-fg); }
+  &--danger { background: var(--adm-danger-bg); color: var(--adm-danger-fg); }
+}
+
+.adm-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  > li { padding: 12px 0; border-top: 1px solid var(--mp-border-soft); }
+  > li:first-child { border-top: 0; padding-top: 4px; }
+  > li:last-child { padding-bottom: 0; }
+}
+
+.adm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  font-size: 14.5px;
+
+  &__main { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+  &__detail { display: block; margin-top: 2px; }
+  &__side { flex-shrink: 0; }
+}
+
+.adm-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+
+  &__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--mp-subtle);
+    overflow: hidden;
+
+    span { display: block; height: 100%; background: var(--mp-accent); transition: width 0.3s ease; }
+  }
+}
+
+.adm-code {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: var(--mp-subtle);
+  font-family: var(--adm-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+
+  &--tall { max-height: 320px; overflow: auto; }
+}
+
+// ── Délégués ───────────────────────────────────────────────────────────────
+
+.delegate-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.delegate-row__perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+// Une zone est une pastille à cocher : accordée, elle se voit d'un coup d'œil, par
+// la coche ET par la couleur.
+.delegate-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--mp-border);
+  border-radius: 999px;
+  background: var(--mp-surface);
+  color: var(--mp-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+
+  input { width: 16px; height: 16px; margin: 0; accent-color: var(--mp-accent); cursor: pointer; }
+
+  &:has(input:checked) {
+    border-color: var(--mp-accent);
+    background: var(--mp-accent-soft);
+    color: var(--mp-accent-text);
+  }
+
+  &:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
+  &:has(input:focus-visible) { outline: 2px solid var(--mp-accent); outline-offset: 2px; }
+}
+
+// ── Référentiel RNCP vs GCC ────────────────────────────────────────────────
+// Le rapport est dense : la hiérarchie visuelle porte le sens. Vert pour ce qu'on
+// ajoute sans risque, orange pour ce qui cesse de compter, rouge pour ce qu'on
+// supprime — toujours doublé d'un signe.
 
 .gcc-howto {
-  margin-bottom: $spacing-md;
-  padding: $spacing-md;
-  border: 1px solid var(--border-color);
-  border-radius: $border-radius-md;
+  padding: 10px 12px;
+  border: 1px solid var(--mp-border);
+  border-radius: 12px;
 
-  summary { cursor: pointer; font-weight: 600; }
-  ol { margin: $spacing-sm 0; padding-left: 1.2rem; font-size: 0.9rem; }
-  a { color: var(--color-primary); }
+  summary { min-height: 28px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+  ol { margin: 8px 0; padding-left: 20px; font-size: 14px; line-height: 1.5; }
+  .adm-btn { margin: 8px 0; }
+  p { margin: 0; }
 }
 
 .gcc-token {
-  @include admin-input;
   width: 100%;
-  /* Un jeton JWT fait plus de 1 000 caractères : en police proportionnelle et
-     avec retour à la ligne, on ne voit pas s'il a été collé en entier. */
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.75rem;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  // Un jeton fait plus de 1 000 caractères : en police proportionnelle, on ne voit
+  // pas s'il a été collé en entier.
+  font-family: var(--adm-mono);
+  font-size: 16px;
   resize: vertical;
+
+  @media (min-width: 641px) { font-size: 12.5px; }
+  &:focus { border-color: var(--color-primary); }
 }
 
-.gcc-report { margin-top: $spacing-lg; }
+.gcc-report {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
-/* Un RNCP = un bloc. Sur un rapport de plusieurs écrans, la seule chose qui
-   permet de savoir de quel diplôme on parle, c'est ce bandeau. */
 .gcc-section {
-  margin-bottom: $spacing-lg;
-  border: 1px solid var(--border-color);
-  border-radius: $border-radius-md;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  background: var(--mp-surface);
   overflow: hidden;
 
   &__title {
     margin: 0;
-    padding: 0.5rem $spacing-md;
-    background: rgba(var(--color-primary-rgb), 0.12);
-    border-bottom: 1px solid var(--border-color);
-    font-size: 0.95rem;
-    color: var(--color-primary);
+    padding: 12px 16px;
+    background: var(--mp-accent-soft);
+    border-bottom: 1px solid var(--mp-border-soft);
+    color: var(--mp-accent-text);
+    font-size: 15px;
   }
 
-  /* Tout ce qui suit le bandeau est en retrait : la hiérarchie se lit sans avoir
-     à comparer des tailles de police. Un conteneur dédié plutôt qu'une négation
-     de sélecteur, que Sass juge invalide à juste titre. */
-  &__body {
-    padding: $spacing-sm $spacing-md $spacing-md;
-  }
+  &__body { padding: 8px 16px 16px; }
 }
 
 .gcc-category {
-  margin: $spacing-sm 0 $spacing-md;
-  padding-left: $spacing-md;
-  border-left: 3px solid rgba(var(--color-primary-rgb), 0.35);
+  margin: 12px 0 16px;
+  padding-left: 12px;
+  border-left: 3px solid var(--mp-accent-soft);
 
-  h4 { margin: 0 0 0.35rem; font-size: 0.9rem; }
+  h4 { margin: 0 0 6px; font-size: 14.5px; }
 }
 
-/* Le signe porte la couleur : vert on ajoute, orange on retire du comptage,
-   rouge on supprime. Il reste lisible pour qui ne distingue pas les teintes. */
 .gcc-sign {
   display: inline-block;
   width: 1.1rem;
@@ -337,215 +598,150 @@
   font-weight: 700;
   text-align: center;
 
-  &--add { color: var(--success); }
-  &--retire { color: #d97706; }
-  &--remove { color: #dc2626; }
+  &--add { color: var(--mp-st-validated-fg); }
+  &--retire { color: var(--adm-warn-fg); }
+  &--remove { color: var(--adm-danger-fg); }
 }
 
-.gcc-threshold { margin: 0.2rem 0; font-size: 0.85rem; }
+.gcc-threshold { margin: 4px 0; font-size: 14px; }
 
 .gcc-missing,
 .gcc-extra {
-  margin: $spacing-sm 0;
-  padding: $spacing-sm $spacing-md;
-  border-radius: $border-radius-md;
-  font-size: 0.85rem;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
 
-  p { margin: 0 0 $spacing-sm; }
-  ul { margin: 0; padding-left: 1.2rem; }
-  li { margin-bottom: 0.3rem; }
-}
-
-.gcc-missing {
-  background: rgba(var(--success-rgb), 0.1);
-  border-left: 3px solid rgba(var(--success-rgb), 0.5);
+  > p { margin: 0 0 8px; }
+  > ul { margin: 0; padding-left: 18px; }
+  li { margin-bottom: 4px; overflow-wrap: anywhere; }
+  .adm-btn { margin-top: 8px; }
 
   pre {
-    /* Les lignes gardent leurs tabulations : elles sont faites pour être
-       collées telles quelles dans le référentiel. */
-    margin: 0 0 $spacing-sm;
-    padding: $spacing-sm;
+    margin: 8px 0 0;
+    padding: 8px 10px;
     overflow-x: auto;
-    background: var(--bg-primary);
-    border-radius: $border-radius-md;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.78rem;
+    border-radius: 10px;
+    background: var(--mp-surface);
+    font-family: var(--adm-mono);
+    font-size: 12.5px;
     line-height: 1.5;
   }
 }
 
-.gcc-extra {
-  /* Pas de jeton d'erreur dans le thème : le rouge est écrit en dur, comme
-     dans `.admin-error` plus haut. */
-  background: rgba(220, 38, 38, 0.1);
-  border-left: 3px solid rgba(220, 38, 38, 0.5);
-}
+.gcc-missing { background: var(--mp-st-validated-bg); }
+.gcc-extra { background: var(--adm-danger-bg); }
 
-.gcc-warning {
-  margin: 0.3rem 0;
-  font-size: 0.85rem;
-  color: #d97706;
-}
+.gcc-warning { margin: 4px 0; font-size: 14px; color: var(--adm-warn-fg); }
+.gcc-danger { font-weight: 600; color: var(--adm-danger-fg); }
+.gcc-ok { margin: 4px 0; font-size: 14px; color: var(--mp-st-validated-fg); }
 
-.gcc-danger {
-  font-weight: 600;
-  color: #dc2626;
-}
-
-.gcc-ok {
-  margin: 0.3rem 0;
-  font-size: 0.85rem;
-  color: var(--success);
-}
-
-/* Cases à cocher du rapport GCC : chaque ligne est une décision, et les deux
-   décisions possibles sur un projet en trop s'excluent. */
 .gcc-choices {
   list-style: none;
-  margin: $spacing-sm 0 0;
+  margin: 8px 0 0;
   padding: 0;
 
-  li { margin-bottom: 0.25rem; }
+  li { margin-bottom: 2px; }
 }
 
 .gcc-choice {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  cursor: pointer;
+  gap: 8px;
+  padding: 6px 0;
   line-height: 1.4;
+  cursor: pointer;
 
-  input { margin-top: 0.15rem; flex-shrink: 0; }
-  &:hover { color: var(--color-primary); }
+  input { width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--mp-accent); }
 }
 
-/* Suppression impossible tant que quelqu'un simule le projet : la case reste
-   visible pour que la raison soit lisible, mais elle n'est pas actionnable. */
-.gcc-choice--disabled { cursor: not-allowed; opacity: 0.6; }
-.gcc-choice--risky input { accent-color: #d97706; }
+// Action impossible : la case reste visible pour que la raison soit lisible.
+.gcc-choice--disabled { cursor: not-allowed; opacity: 0.65; }
+.gcc-choice--risky input { accent-color: var(--adm-warn-fg); }
 
-/* Barre d'application : collée en haut du panneau, sinon il faut redescendre
-   chercher le bouton après avoir coché en bas d'un rapport de plusieurs écrans. */
+// Fixe en bas de l'écran, au-dessus de la barre de navigation du téléphone.
 .gcc-apply {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + var(--app-bottom-offset, 0px));
+  transform: translateX(-50%);
+  z-index: 9001; // au-dessus du lien GitHub flottant
+  width: min(720px, calc(100% - 32px));
+  box-sizing: border-box;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: $spacing-md;
-  margin: $spacing-md 0;
-  padding: $spacing-sm $spacing-md;
-  border: 1px solid rgba(var(--color-primary-rgb), 0.4);
-  border-radius: $border-radius-md;
-  background: var(--bg-card);
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--mp-accent);
+  border-radius: 14px;
+  background: var(--mp-surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-size: 14.5px;
 
-  > div { display: flex; align-items: center; gap: $spacing-md; }
+  > div { display: flex; flex-wrap: wrap; gap: 8px; }
 }
 
-.gcc-history-title {
-  margin: $spacing-lg 0 $spacing-sm;
-  font-size: 1rem;
+// ── Historique des versions ────────────────────────────────────────────────
+
+.version__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  font-size: 14.5px;
 }
 
-.gcc-export {
-  margin-top: $spacing-sm;
+.version__title { flex: 1 1 240px; min-width: 0; }
 
-  pre {
-    max-height: 320px;
-    margin-top: $spacing-sm;
-    padding: $spacing-sm;
-    overflow: auto;
-    background: var(--bg-primary);
-    border-radius: $border-radius-md;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.72rem;
-  }
+.version__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 
-/* ===== Historique des versions du référentiel =====
-   Un lot de modifications se lit d'abord en diagonale — combien, de quelle
-   nature — et seulement ensuite dans le détail. D'où la ligne de pastilles au
-   premier plan, et le détail replié. */
+.version__detail {
+  margin-top: 6px;
+  font-size: 14px;
 
-.version-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  summary { min-height: 28px; cursor: pointer; }
 }
 
-.version {
-  padding: $spacing-sm 0;
-  border-bottom: 1px solid var(--border-color);
+.version__group {
+  margin: 6px 0 0 12px;
 
-  &:last-child { border-bottom: none; }
-
-  &__head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: $spacing-md;
-    flex-wrap: wrap;
-    font-size: 0.9rem;
-  }
-
-  &__detail {
-    margin-top: 0.35rem;
-    font-size: 0.85rem;
-
-    summary { cursor: pointer; }
-  }
-
-  &__group {
-    margin: 0.4rem 0 0 $spacing-md;
-
-    ul { margin: 0.15rem 0 0; padding-left: 1.1rem; list-style: none; }
-    li { margin-bottom: 0.1rem; }
-  }
+  ul { margin: 4px 0 0; padding-left: 16px; list-style: none; }
+  li { margin-bottom: 2px; overflow-wrap: anywhere; }
 }
 
-/* Une pastille par nature d'opération : la couleur porte le sens, le signe le
-   redit pour qui ne la distingue pas. */
+.version__legacy {
+  margin: 4px 0 0 12px;
+  padding-left: 18px;
+
+  li { margin-bottom: 2px; }
+}
+
+.version__rncp {
+  margin: 8px 0 0 12px;
+
+  h5 { margin: 0 0 4px; font-size: 14px; color: var(--mp-accent-text); }
+}
+
+// Une pastille par nature d'opération : la couleur porte le sens, le signe le
+// redit pour qui ne la distingue pas.
 .version-chip {
   display: inline-block;
-  margin-right: 0.35rem;
-  padding: 0.05rem 0.35rem;
-  border-radius: $border-radius-md;
-  font-size: 0.78rem;
-  font-weight: 600;
+  margin-right: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
   white-space: nowrap;
-}
 
-.version-chip--added {
-  background: rgba(var(--success-rgb), 0.15);
-  color: var(--success);
-}
-.version-chip--retired {
-  background: rgba(217, 119, 6, 0.15);
-  color: #d97706;
-}
-.version-chip--removed {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
-}
-
-/* Versions antérieures au résumé structuré : une phrase par opération. On les
-   sert en liste plutôt qu'en un seul paragraphe — c'est déjà lisible, et ça
-   évite de réécrire des données historiques pour de la mise en forme. */
-.version__legacy {
-  margin: 0.25rem 0 0 $spacing-md;
-  padding-left: 1.1rem;
-  li { margin-bottom: 0.1rem; }
-}
-
-/* Détail d'une version : RNCP, puis catégories en retrait. Même hiérarchie que
-   le rapport GCC juste au-dessus, pour qu'on n'ait pas à réapprendre à lire. */
-.version__rncp {
-  margin: $spacing-sm 0 0 $spacing-md;
-
-  h5 {
-    margin: 0 0 0.2rem;
-    font-size: 0.85rem;
-    color: var(--color-primary);
-  }
+  &--added { background: var(--mp-st-validated-bg); color: var(--mp-st-validated-fg); }
+  &--retired { background: var(--adm-warn-bg); color: var(--adm-warn-fg); }
+  &--removed { background: var(--adm-danger-bg); color: var(--adm-danger-fg); }
 }

@@ -1,7 +1,26 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
+import {
+  Copy,
+  Globe,
+  KeyRound,
+  LogOut,
+  Moon,
+  Network,
+  Plus,
+  RefreshCw,
+  Ruler,
+  ScrollText,
+  ShieldCheck,
+  Sun,
+  Users,
+  X,
+} from 'lucide-react';
+import Header from '@/components/Header/Header';
+import { useAuth } from '@/contexts/useAuth';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useFollowScroll } from '@/hooks/useFollowScroll';
 import {
   adminService,
   type AdminConfig,
@@ -19,10 +38,13 @@ import {
   type ReferentialState,
   type VersionSummary,
 } from '@/services/admin.service';
-import './Admin.scss';
-import './AdminLogin.scss';
 import { useRncpData } from '@/contexts/useRncpData';
+import '@/pages/MyProjects/MyProjects.scss';
+import './Admin.scss';
 
+
+/** Grand écran : menu à gauche ; en dessous, une bande qui défile. */
+const WIDE_QUERY = '(min-width: 1100px)';
 
 /**
  * Onglets du panneau : chacun n'affiche qu'une chose, au lieu de tout empiler.
@@ -38,15 +60,15 @@ import { useRncpData } from '@/contexts/useRncpData';
  * siennes : afficher les autres l'enverrait vers des écrans qui répondent 403.
  */
 const TABS = [
-  { id: 'secrets', label: 'Secrets API 42', icon: '🔑', mirrored: true, permission: 'secrets42' },
-  { id: 'delegates', label: 'Délégués', icon: '👥', mirrored: true, permission: 'delegates' },
-  { id: 'origins', label: 'Origines autorisées', icon: '🌐', mirrored: false, permission: 'origins' },
-  { id: 'mirror', label: 'Mode miroir', icon: '🪞', mirrored: false, permission: 'mirror' },
-  { id: 'audit', label: "Journal d'audit", icon: '📜', mirrored: false, permission: 'audit' },
-  { id: 'refresh', label: 'Données 42 partagées', icon: '🔄', mirrored: true, permission: 'refresh' },
+  { id: 'secrets', label: 'Secrets API 42', icon: KeyRound, mirrored: true, permission: 'secrets42' },
+  { id: 'delegates', label: 'Délégués', icon: Users, mirrored: true, permission: 'delegates' },
+  { id: 'origins', label: 'Origines autorisées', icon: Globe, mirrored: false, permission: 'origins' },
+  { id: 'mirror', label: 'Mode miroir', icon: Network, mirrored: false, permission: 'mirror' },
+  { id: 'audit', label: "Journal d'audit", icon: ScrollText, mirrored: false, permission: 'audit' },
+  { id: 'refresh', label: 'Données 42 partagées', icon: RefreshCw, mirrored: true, permission: 'refresh' },
   // Le rapport lit le catalogue 42, donc les credentials, qui vivent sur
   // l'instance principale : masqué en miroir comme les autres.
-  { id: 'gcc', label: 'Référentiel RNCP', icon: '📐', mirrored: true, permission: 'referential' },
+  { id: 'gcc', label: 'Référentiel RNCP', icon: Ruler, mirrored: true, permission: 'referential' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -234,13 +256,14 @@ const GccSectionView: React.FC<{
                 <summary className="muted">Voir les lignes TypeScript</summary>
                 <pre>{cat.missing.map((m) => m.line).join('\n')}</pre>
               </details>
-              <Button
+              <button
                 type="button"
-                className="admin-btn"
+                className="adm-btn adm-btn--ghost"
                 onClick={() => navigator.clipboard?.writeText(cat.missing.map((m) => m.line).join('\n'))}
               >
+                <Copy size={16} aria-hidden="true" />
                 Copier les {cat.missing.length} ligne{cat.missing.length > 1 ? 's' : ''}
-              </Button>
+              </button>
               {cat.missing.some((m) => m.slugUnknown) && (
                 <p className="gcc-warning">
                   ⚠ Slug 42 introuvable pour{' '}
@@ -508,6 +531,12 @@ const AdminPanel: React.FC = () => {
   const [gccOps, setGccOps] = useState<Map<string, ReferentialOperation>>(new Map());
   const [referential, setReferential] = useState<ReferentialState | null>(null);
   const [exportedTs, setExportedTs] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isWide = useMediaQuery(WIDE_QUERY);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  // Grand écran : le menu suit le défilement (`position: sticky` ne colle pas ici).
+  useFollowScroll(bodyRef, navRef, isWide);
 
   // En mode miroir, on ne garde que les onglets qui pilotent encore quelque
   // chose ici.
@@ -532,6 +561,13 @@ const AdminPanel: React.FC = () => {
   const activeTab: TabId | null = visibleTabs.some((entry) => entry.id === tab)
     ? tab
     : (visibleTabs[0]?.id ?? null);
+
+  // Tablette et téléphone : le menu est une bande qui défile, l'onglet courant
+  // doit y rester visible.
+  useEffect(() => {
+    if (isWide) return;
+    navRef.current?.querySelector('.is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [activeTab, isWide]);
 
   // Session admin expirée/invalide → on repart proprement vers l'écran d'auth.
   const onAuthError = useCallback((e: any): boolean => {
@@ -941,517 +977,615 @@ const AdminPanel: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="admin-page">
-        <div className="admin-card"><p className="muted">Chargement…</p></div>
+      <div className="admin-panel mp-scope">
+        {user ? <Header /> : <AdminBar />}
+        <main className="adm-container">
+          <p className="adm-loading" role="status">Chargement du panneau…</p>
+        </main>
       </div>
     );
   }
 
+  const zoneTitle = visibleTabs.find((entry) => entry.id === activeTab);
+  const refreshPct = refresh?.running && refresh.usersTotal > 0
+    ? Math.round((refresh.usersDone / refresh.usersTotal) * 100)
+    : null;
+
   return (
-    <div className="admin-page admin-panel">
-      <motion.div className="admin-shell" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <aside className="admin-sidebar">
-          <div className="admin-sidebar__brand">
-            <span className="auth-badge">Administration</span>
-            <h1>CalculatorGCC</h1>
-          </div>
+    <div className="admin-panel mp-scope">
+      {user ? <Header /> : <AdminBar />}
 
-          {mirrorUrl && (
-            <p className="admin-sidebar__note" role="status">
-              {/* Les libellés sont dérivés de TABS : réécrits à la main, ils
-                  mentiraient dès qu'un drapeau `mirrored` change. */}
-              Mode miroir actif : {MIRRORED_LABELS} sont gérés sur l'instance relayée.
+      <main className="adm-container">
+        <header className="adm-head">
+          <div>
+            <span className="adm-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> Administration</span>
+            <h1>{zoneTitle?.label ?? 'Administration'}</h1>
+            <p className="muted">
+              {me?.kind === 'delegate'
+                ? `Compte délégué${me.label ? ` ${me.label.replace(/^delegate:/, '')}` : ''} : seules les zones qui vous sont accordées sont affichées.`
+                : "Accès complet au panneau."}
             </p>
-          )}
+          </div>
+          <button type="button" className="adm-btn adm-btn--ghost" onClick={logout}>
+            <LogOut size={16} aria-hidden="true" />
+            {me?.kind === 'delegate' ? "Retour à l'application" : 'Déconnexion'}
+          </button>
+        </header>
 
-          <nav className="admin-sidebar__nav">
-            {visibleTabs.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                className={`admin-tab${activeTab === entry.id ? ' admin-tab--active' : ''}`}
-                onClick={() => setTab(entry.id)}
-                aria-current={activeTab === entry.id ? 'page' : undefined}
-              >
-                <span className="admin-tab__icon" aria-hidden="true">{entry.icon}</span>
-                {entry.label}
-              </button>
-            ))}
+        {mirrorUrl && (
+          <p className="admin-info" role="status">
+            {/* Les libellés sont dérivés de TABS : réécrits à la main, ils
+                mentiraient dès qu'un drapeau `mirrored` change. */}
+            Mode miroir actif : {MIRRORED_LABELS} sont gérés sur l'instance relayée.
+          </p>
+        )}
+
+        <div className="adm-body" ref={bodyRef}>
+          <nav className="adm-nav" aria-label="Zones d'administration" ref={navRef}>
+            {visibleTabs.map((entry) => {
+              const Icon = entry.icon;
+              const current = activeTab === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`adm-tab${current ? ' is-current' : ''}`}
+                  onClick={() => setTab(entry.id)}
+                  aria-current={current ? 'page' : undefined}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  <span>{entry.label}</span>
+                </button>
+              );
+            })}
           </nav>
 
-          <button className="admin-link admin-sidebar__logout" onClick={logout}>
-            Déconnexion
-          </button>
-        </aside>
-
-        <main className="admin-main">
-
-        {/* `role="status"` : sans lui, succès comme erreurs passaient inaperçus
-            des lecteurs d'écran — or c'est tout l'objet de ce bandeau. */}
-        {msg && (
-          <div className={msg.kind === 'ok' ? 'admin-ok' : 'admin-error'} role="status">
-            <p>{msg.text}</p>
-          </div>
-        )}
-
-        {/* ===== Secrets API 42 ===== */}
-        {activeTab === 'secrets' && (
-        <section className="admin-section">
-          <h2>Secrets API 42</h2>
-          {config && (
-            <div className="admin-status">
-              <span>Client ID : <code>{config.client_id || '—'}</code></span>
-              <span>Secret courant : {config.current_secret_set ? '✓' : '✗'}</span>
-              <span>Next Secret : {config.next_secret_set ? '✓' : '— (à préparer)'}</span>
-              {config.credentials_invalid && (
-                <span className="warn">⚠️ Credentials invalides — mise à jour requise</span>
-              )}
-            </div>
-          )}
-          <form onSubmit={saveSecrets} className="admin-form">
-            <div className="form-group">
-              <label htmlFor="client_id">Client ID</label>
-              <input
-                id="client_id"
-                type="text"
-                value={secretForm.client_id}
-                onChange={(e) => setSecretForm({ ...secretForm, client_id: e.target.value })}
-                placeholder="Client ID 42"
-                required
-                disabled={busy}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="client_secret">Client Secret</label>
-              <input
-                id="client_secret"
-                type="password"
-                value={secretForm.client_secret}
-                onChange={(e) => setSecretForm({ ...secretForm, client_secret: e.target.value })}
-                placeholder="Secret courant 42"
-                autoComplete="off"
-                required
-                disabled={busy}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="client_secret_next">
-                Next Secret <span className="optional">(optionnel — relais automatique)</span>
-              </label>
-              <input
-                id="client_secret_next"
-                type="password"
-                value={secretForm.client_secret_next}
-                onChange={(e) => setSecretForm({ ...secretForm, client_secret_next: e.target.value })}
-                placeholder="Next secret affiché par l'intra"
-                autoComplete="off"
-                disabled={busy}
-              />
-            </div>
-            <Button type="submit" className="admin-btn" disabled={busy}>Enregistrer les secrets</Button>
-          </form>
-        </section>
-        )}
-
-        {/* ===== Admins délégués ===== */}
-        {activeTab === 'delegates' && (
-        <section className="admin-section">
-          <h2>Admins délégués ({delegates.length})</h2>
-          <p className="muted">
-            Ces logins 42 entrent dans ce panneau avec leur session 42 ordinaire, et n'y voient
-            que les zones cochées ci-dessous. Décocher tout laisse le compte enregistré sans
-            aucun accès.
-          </p>
-          {me?.kind === 'delegate' && (
-            <p className="muted">
-              Vous ne pouvez ni vous modifier vous-même, ni accorder une zone que vous ne
-              détenez pas.
-            </p>
-          )}
-          <ul className="admin-list admin-list--delegates">
-            {delegates.map((d) => (
-              <li key={d.login} className="delegate-row">
-                <div className="delegate-row__head">
-                  <span><code>{d.login}</code></span>
-                  <button className="admin-link danger" onClick={() => removeDelegate(d.login)} disabled={busy}>
-                    Retirer
-                  </button>
-                </div>
-                <div className="delegate-row__perms">
-                  {ADMIN_PERMISSIONS.map((perm) => (
-                    <label key={perm} className="delegate-perm">
-                      <input
-                        type="checkbox"
-                        checked={d.permissions.includes(perm)}
-                        onChange={() => toggleDelegatePermission(d, perm)}
-                        disabled={busy}
-                      />
-                      <span>{PERMISSION_LABELS[perm]}</span>
-                    </label>
-                  ))}
-                </div>
-              </li>
-            ))}
-            {delegates.length === 0 && <li className="muted">Aucun délégué.</li>}
-          </ul>
-          <div className="admin-inline">
-            <input
-              type="text"
-              value={newDelegate}
-              onChange={(e) => setNewDelegate(e.target.value)}
-              placeholder="login 42"
-              disabled={busy}
-            />
-            <Button onClick={addDelegate} className="admin-btn" disabled={busy || !newDelegate.trim()}>+ Ajouter</Button>
-          </div>
-          <div className="delegate-row__perms">
-            {ADMIN_PERMISSIONS.map((perm) => (
-              <label key={perm} className="delegate-perm">
-                <input
-                  type="checkbox"
-                  checked={newDelegatePerms.includes(perm)}
-                  onChange={() =>
-                    setNewDelegatePerms((prev) =>
-                      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
-                    )
-                  }
-                  disabled={busy}
-                />
-                <span>{PERMISSION_LABELS[perm]}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-        )}
-
-        {/* ===== Refresh global des données 42 ===== */}
-        {/* ===== Mode miroir (permission `mirror`) ===== */}
-        {/* Vivait DANS la section « Origines autorisées », donc visible de qui a
-            `origins` sans avoir `mirror` : il lisait « base de données locale »
-            — faux, la valeur n'ayant jamais été chargée — et prenait un 403 en
-            enregistrant. Chaque zone a maintenant sa section. */}
-        {activeTab === 'mirror' && (
-        <section className="admin-section">
-          <h2>Mode miroir</h2>
-          <p className="muted">
-            Cette instance peut cesser de servir ses propres données et relayer chaque requête
-            vers une autre. Le panneau d'administration, lui, reste toujours local — sans quoi
-            activer le miroir couperait l'accès qui permet de le désactiver.
-          </p>
-
-          <div className="admin-status">
-            <span>
-              Source des données : <code>{mirrorUrl || 'base de données locale'}</code>
-            </span>
-            <span className="muted">
-              {mirrorUrl
-                ? "Mode miroir : cette instance relaie tout vers l'instance ci-dessus, qui doit avoir autorisé ce domaine."
-                : 'Cette instance sert ses propres données. Renseigne ci-dessous l’API d’une autre instance pour relayer vers elle — sans rien reconstruire.'}
-            </span>
-          </div>
-
-          <div className="admin-inline">
-            <input
-              value={mirrorInput}
-              onChange={(e) => setMirrorInput(e.target.value)}
-              placeholder="https://theomouty.fr/api"
-              disabled={busy}
-            />
-            <Button
-              onClick={() => saveMirror(mirrorInput.trim() || null)}
-              className="admin-btn"
-              disabled={busy || mirrorInput.trim() === (mirrorUrl ?? '')}
-            >
-              {mirrorInput.trim() ? 'Relayer vers cette API' : 'Revenir à la base locale'}
-            </Button>
-          </div>
-        </section>
-        )}
-
-        {/* ===== Journal d'audit (permission `audit`) ===== */}
-        {/* La permission existait, la route backend aussi — mais rien ne l'affichait :
-            cocher `audit` n'ouvrait strictement rien. */}
-        {activeTab === 'audit' && (
-        <section className="admin-section">
-          <h2>Journal d'audit</h2>
-          <p className="muted">
-            Les actions d'administration, les plus récentes en premier.
-          </p>
-          <ul className="admin-list">
-            {audit.map((e) => (
-              <li key={e.id}>
-                <span>
-                  <code>{e.actor}</code> · {e.action}
-                  {e.detail ? ` · ${e.detail}` : ''}
-                </span>
-                <span className="muted">{new Date(e.at).toLocaleString()}</span>
-              </li>
-            ))}
-            {audit.length === 0 && <li className="muted">Aucun événement enregistré.</li>}
-          </ul>
-        </section>
-        )}
-
-        {activeTab === 'origins' && (
-        <section className="admin-section">
-          <h2>Origines autorisées</h2>
-          <p className="muted">
-            Une autre instance peut servir le frontend et proxifier <code>/api</code> vers ce
-            backend : une seule base, un seul serveur, aucun secret partagé. Seules les origines
-            listées ici peuvent appeler l'API depuis un autre domaine et recevoir le retour de
-            connexion 42. Une révocation prend effet immédiatement.
-          </p>
-
-          <ul className="admin-list">
-            <li>
-              <span><code>{originsSelf || '—'}</code></span>
-              <span className="muted">
-                {originsSelfAllowed
-                  ? 'cette instance — toujours autorisée'
-                  : 'origine locale en production — non auto-autorisée'}
-              </span>
-            </li>
-            {origins.map((o) => (
-              <li key={o.origin}>
-                <span>
-                  <code>{o.origin}</code>
-                  {o.label && <span className="muted"> — {o.label}</span>}
-                </span>
-                <button className="admin-link danger" onClick={() => removeOrigin(o.origin)} disabled={busy}>
-                  Révoquer
-                </button>
-              </li>
-            ))}
-            {origins.length === 0 && (
-              <li className="muted">Aucune autre origine autorisée.</li>
-            )}
-          </ul>
-
-          <div className="admin-inline">
-            <input
-              value={newOrigin}
-              onChange={(e) => setNewOrigin(e.target.value)}
-              placeholder="https://calculator.42nice.fr"
-              disabled={busy}
-            />
-            <input
-              value={newOriginLabel}
-              onChange={(e) => setNewOriginLabel(e.target.value)}
-              placeholder="Libellé (facultatif)"
-              disabled={busy}
-            />
-            <Button onClick={addOrigin} className="admin-btn" disabled={busy || !newOrigin.trim()}>
-              + Autoriser
-            </Button>
-          </div>
-        </section>
-        )}
-
-        {activeTab === 'refresh' && (
-        <section className="admin-section">
-          <h2>Données 42 partagées</h2>
-          <p className="muted">
-            Renouvelle le catalogue des projets et le layout du Holy Graph, puis remet à jour
-            l'instantané 42 de tous les utilisateurs. Les requêtes partent au compte-gouttes
-            pour respecter les limites de l'API 42 : l'opération peut durer longtemps.
-          </p>
-
-          <ul className="admin-list">
-            <li>
-              <span>Dernier lancement</span>
-              <span className="muted">
-                {refresh?.startedAt
-                  ? `${new Date(refresh.startedAt).toLocaleString('fr-FR')}${refresh.startedBy ? ` — par ${refresh.startedBy}` : ''}`
-                  : 'jamais'}
-              </span>
-            </li>
-            {refresh?.finishedAt && !refresh.running && (
-              <li>
-                <span>Terminé le</span>
-                <span className="muted">{new Date(refresh.finishedAt).toLocaleString('fr-FR')}</span>
-              </li>
-            )}
-            {refresh?.running && (
-              <li>
-                <span>En cours</span>
-                <span className="muted">{refresh.usersDone} / {refresh.usersTotal} utilisateurs</span>
-              </li>
-            )}
-            {refresh?.cacheEntries.map((entry) => (
-              <li key={entry.key}>
-                <span><code>{entry.key}</code></span>
-                <span className="muted">mis en cache le {new Date(entry.fetchedAt).toLocaleString('fr-FR')}</span>
-              </li>
-            ))}
-            {refresh && refresh.cacheEntries.length === 0 && (
-              <li className="muted">Aucune donnée de référence en cache pour le moment.</li>
-            )}
-            {refresh?.lastError && (
-              <li>
-                <span>Dernière erreur</span>
-                <span className="muted">{refresh.lastError}</span>
-              </li>
-            )}
-          </ul>
-
-          <Button
-            onClick={startGlobalRefresh}
-            className="admin-btn"
-            disabled={busy || !refresh || refresh.running}
-          >
-            {refresh?.running ? 'Refresh en cours…' : 'Lancer un refresh global'}
-          </Button>
-        </section>
-        )}
-
-        {/* ===== Référentiel RNCP vs GCC ===== */}
-        {activeTab === 'gcc' && (
-        <section className="admin-section">
-          <h2>Référentiel RNCP</h2>
-          <p className="muted">
-            Confronte notre référentiel aux règles publiées par GCC, la source de vérité de
-            l'école. Rien n'est modifié automatiquement : le rapport sort les lignes à coller
-            dans <code>rncpReferential.ts</code>, et dit ce qu'une suppression coûterait.
-          </p>
-
-          <details className="gcc-howto">
-            <summary>Où trouver le jeton GCC</summary>
-            <ol>
-              <li>Ouvrir <a href="https://gcc.42.fr" target="_blank" rel="noreferrer">gcc.42.fr</a> et s'y connecter.</li>
-              <li>Ouvrir la console du navigateur et y coller la commande ci-dessous.</li>
-              <li>Le jeton est alors dans le presse-papier : le coller dans le champ.</li>
-            </ol>
-            <pre>{GCC_TOKEN_SNIPPET}</pre>
-            <Button
-              type="button"
-              className="admin-btn"
-              onClick={() => navigator.clipboard?.writeText(GCC_TOKEN_SNIPPET)}
-            >
-              Copier la commande
-            </Button>
-            <p className="muted">
-              Le jeton vaut cinq minutes. Il n'est ni stocké ni journalisé : il sert à cet appel
-              et disparaît.
-            </p>
-          </details>
-
-          <form onSubmit={compareGcc} className="admin-form">
-            <label htmlFor="gcc-token">Jeton de session GCC</label>
-            <textarea
-              id="gcc-token"
-              className="admin-input gcc-token"
-              value={gccToken}
-              onChange={(e) => setGccToken(e.target.value)}
-              placeholder="eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6…"
-              rows={3}
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <Button type="submit" className="admin-btn" disabled={gccRunning || !gccToken.trim()}>
-              {gccRunning ? 'Comparaison en cours…' : 'Comparer avec GCC'}
-            </Button>
-          </form>
-
-          {/* Barre d'application : visible dès qu'une case est cochée, pour ne pas
-              avoir à redescendre chercher un bouton en bas d'un rapport long. */}
-          {gccOps.size > 0 && (
-            <div className="gcc-apply" role="status">
-              <span>
-                <strong>{gccOps.size}</strong> modification{gccOps.size > 1 ? 's' : ''} sélectionnée
-                {gccOps.size > 1 ? 's' : ''}
-              </span>
-              <div>
-                <Button type="button" className="admin-btn" onClick={applyGccOps} disabled={busy}>
-                  Appliquer
-                </Button>
-                <button type="button" className="admin-link" onClick={() => setGccOps(new Map())}>
-                  Tout décocher
+          <div className="adm-content">
+            {/* `role="status"` : sans lui, succès comme erreurs passaient inaperçus
+                des lecteurs d'écran — or c'est tout l'objet de ce bandeau. */}
+            {msg && (
+              <div className={msg.kind === 'ok' ? 'admin-ok' : 'admin-error'} role="status">
+                <p>{msg.text}</p>
+                <button type="button" className="adm-dismiss" onClick={() => setMsg(null)} aria-label="Fermer ce message">
+                  <X size={16} aria-hidden="true" />
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {gccReport && (
-            <div className="gcc-report">
-              {gccReport.warnings.map((warning) => (
-                <p key={warning} className="gcc-warning">⚠ {warning}</p>
-              ))}
-              {!gccReport.anyDiff && (
-                <p className="gcc-ok">
-                  Aucun écart : le référentiel est aligné sur GCC ({gccReport.rncpCount} RNCP
-                  analysés).
-                </p>
-              )}
-              {gccReport.common && (
-                <GccSectionView section={gccReport.common} selected={gccOps} onToggle={toggleGccOp} />
-              )}
-              {gccReport.rncps.map((section) => (
-                <GccSectionView
-                  key={section.title}
-                  section={section}
-                  selected={gccOps}
-                  onToggle={toggleGccOp}
-                />
-              ))}
-            </div>
-          )}
+            {!activeTab && <p className="adm-card muted">Aucune zone d'administration n'est disponible ici.</p>}
 
-          <h3 className="gcc-history-title">
-            Référentiel en base — version {referential?.version ?? '?'}
-          </h3>
-          <p className="muted">
-            La base fait foi à l'exécution ; <code>rncpReferential.ts</code> n'est que la graine du
-            premier démarrage. Pas besoin de la tenir à jour : l'export ci-dessous existe pour
-            remettre le dépôt d'accord quand ça t'arrange, et si tu ne le fais jamais, seule une
-            installation neuve repart d'un référentiel périmé — qu'une comparaison GCC rattrape.
-          </p>
+            {/* ===== Secrets API 42 ===== */}
+            {activeTab === 'secrets' && (
+              <section className="adm-stack" aria-label="Secrets API 42">
+                {config && (
+                  <div className="adm-card">
+                    <h2>État actuel</h2>
+                    <dl className="adm-facts">
+                      <div><dt>Client ID</dt><dd><code>{config.client_id || '—'}</code></dd></div>
+                      <div>
+                        <dt>Secret courant</dt>
+                        <dd><span className={`adm-pill ${config.current_secret_set ? 'adm-pill--ok' : 'adm-pill--danger'}`}>{config.current_secret_set ? 'Défini' : 'Manquant'}</span></dd>
+                      </div>
+                      <div>
+                        <dt>Next Secret</dt>
+                        <dd><span className={`adm-pill ${config.next_secret_set ? 'adm-pill--ok' : 'adm-pill--off'}`}>{config.next_secret_set ? 'Défini' : 'À préparer'}</span></dd>
+                      </div>
+                    </dl>
+                    {config.credentials_invalid && (
+                      <p className="admin-error adm-inset">Credentials invalides : mise à jour requise.</p>
+                    )}
+                  </div>
+                )}
+                <form onSubmit={saveSecrets} className="adm-card admin-form">
+                  <h2>Mettre à jour</h2>
+                  <div className="form-group">
+                    <label htmlFor="client_id">Client ID</label>
+                    <input
+                      id="client_id"
+                      type="text"
+                      value={secretForm.client_id}
+                      onChange={(e) => setSecretForm({ ...secretForm, client_id: e.target.value })}
+                      placeholder="Client ID 42"
+                      required
+                      disabled={busy}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="client_secret">Client Secret</label>
+                    <input
+                      id="client_secret"
+                      type="password"
+                      value={secretForm.client_secret}
+                      onChange={(e) => setSecretForm({ ...secretForm, client_secret: e.target.value })}
+                      placeholder="Secret courant 42"
+                      autoComplete="off"
+                      required
+                      disabled={busy}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="client_secret_next">
+                      Next Secret <span className="optional">(optionnel — relais automatique)</span>
+                    </label>
+                    <input
+                      id="client_secret_next"
+                      type="password"
+                      value={secretForm.client_secret_next}
+                      onChange={(e) => setSecretForm({ ...secretForm, client_secret_next: e.target.value })}
+                      placeholder="Next secret affiché par l'intra"
+                      autoComplete="off"
+                      disabled={busy}
+                    />
+                  </div>
+                  <div className="adm-actions">
+                    <button type="submit" className="adm-btn" disabled={busy}>Enregistrer les secrets</button>
+                  </div>
+                </form>
+              </section>
+            )}
 
-          <Button type="button" className="admin-btn" onClick={exportReferential}>
-            Exporter en TypeScript
-          </Button>
-          {exportedTs && (
-            <div className="gcc-export">
-              <Button
-                type="button"
-                className="admin-btn"
-                onClick={() => navigator.clipboard?.writeText(exportedTs)}
-              >
-                Copier
-              </Button>
-              <pre>{exportedTs}</pre>
-            </div>
-          )}
+            {/* ===== Admins délégués ===== */}
+            {activeTab === 'delegates' && (
+              <section className="adm-stack" aria-label="Délégués">
+                <div className="adm-card">
+                  <h2>Comptes délégués <span className="adm-count">{delegates.length}</span></h2>
+                  <p className="muted">
+                    Ces logins 42 entrent dans ce panneau avec leur session 42 ordinaire, et n'y voient
+                    que les zones cochées ci-dessous. Décocher tout laisse le compte enregistré sans
+                    aucun accès.
+                  </p>
+                  {me?.kind === 'delegate' && (
+                    <p className="muted">
+                      Vous ne pouvez ni vous modifier vous-même, ni accorder une zone que vous ne
+                      détenez pas.
+                    </p>
+                  )}
+                  <ul className="adm-rows">
+                    {delegates.map((d) => (
+                      <li key={d.login} className="delegate-row">
+                        <div className="delegate-row__head">
+                          <code>{d.login}</code>
+                          <button type="button" className="adm-btn adm-btn--danger" onClick={() => removeDelegate(d.login)} disabled={busy}>
+                            Retirer
+                          </button>
+                        </div>
+                        <div className="delegate-row__perms" role="group" aria-label={`Zones de ${d.login}`}>
+                          {ADMIN_PERMISSIONS.map((perm) => (
+                            <label key={perm} className="delegate-perm">
+                              <input
+                                type="checkbox"
+                                checked={d.permissions.includes(perm)}
+                                onChange={() => toggleDelegatePermission(d, perm)}
+                                disabled={busy}
+                              />
+                              <span>{PERMISSION_LABELS[perm]}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                    {delegates.length === 0 && <li className="muted">Aucun délégué.</li>}
+                  </ul>
+                </div>
 
-          <ul className="version-list">
-            {referential?.versions.map((v) => (
-              <li key={v.version} className="version">
-                <div className="version__head">
-                  <span>
-                    <code>v{v.version}</code> <VersionHeadline summary={v.summary} />
-                  </span>
-                  <span className="muted">
-                    {v.createdBy} · {new Date(v.createdAt).toLocaleString('fr-FR')}
-                    {v.version !== referential.version && (
+                <div className="adm-card">
+                  <h2>Ajouter un délégué</h2>
+                  <label className="adm-label" htmlFor="new-delegate">Login 42</label>
+                  <div className="admin-inline">
+                    <input
+                      id="new-delegate"
+                      type="text"
+                      value={newDelegate}
+                      onChange={(e) => setNewDelegate(e.target.value)}
+                      placeholder="login 42"
+                      disabled={busy}
+                    />
+                    <button type="button" onClick={addDelegate} className="adm-btn" disabled={busy || !newDelegate.trim()}>
+                      <Plus size={16} aria-hidden="true" /> Ajouter
+                    </button>
+                  </div>
+                  <div className="delegate-row__perms" role="group" aria-label="Zones du nouveau délégué">
+                    {ADMIN_PERMISSIONS.map((perm) => (
+                      <label key={perm} className="delegate-perm">
+                        <input
+                          type="checkbox"
+                          checked={newDelegatePerms.includes(perm)}
+                          onChange={() =>
+                            setNewDelegatePerms((prev) =>
+                              prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
+                            )
+                          }
+                          disabled={busy}
+                        />
+                        <span>{PERMISSION_LABELS[perm]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ===== Mode miroir (permission `mirror`) ===== */}
+            {/* Vivait DANS la section « Origines autorisées », donc visible de qui a
+                `origins` sans avoir `mirror` : il lisait « base de données locale »
+                — faux, la valeur n'ayant jamais été chargée — et prenait un 403 en
+                enregistrant. Chaque zone a maintenant sa section. */}
+            {activeTab === 'mirror' && (
+              <section className="adm-stack" aria-label="Mode miroir">
+                <div className="adm-card">
+                  <h2>Source des données</h2>
+                  <p className="muted">
+                    Cette instance peut cesser de servir ses propres données et relayer chaque requête
+                    vers une autre. Le panneau d'administration, lui, reste toujours local — sans quoi
+                    activer le miroir couperait l'accès qui permet de le désactiver.
+                  </p>
+                  <dl className="adm-facts">
+                    <div>
+                      <dt>Actuellement</dt>
+                      <dd><code>{mirrorUrl || 'base de données locale'}</code></dd>
+                    </div>
+                  </dl>
+                  <p className="muted">
+                    {mirrorUrl
+                      ? "Mode miroir : cette instance relaie tout vers l'instance ci-dessus, qui doit avoir autorisé ce domaine."
+                      : 'Cette instance sert ses propres données. Renseigne ci-dessous l’API d’une autre instance pour relayer vers elle — sans rien reconstruire.'}
+                  </p>
+                  <label className="adm-label" htmlFor="mirror-url">API de l'instance à relayer</label>
+                  <div className="admin-inline">
+                    <input
+                      id="mirror-url"
+                      value={mirrorInput}
+                      onChange={(e) => setMirrorInput(e.target.value)}
+                      placeholder="https://theomouty.fr/api"
+                      disabled={busy}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveMirror(mirrorInput.trim() || null)}
+                      className="adm-btn"
+                      disabled={busy || mirrorInput.trim() === (mirrorUrl ?? '')}
+                    >
+                      {mirrorInput.trim() ? 'Relayer vers cette API' : 'Revenir à la base locale'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ===== Journal d'audit (permission `audit`) ===== */}
+            {/* La permission existait, la route backend aussi — mais rien ne l'affichait :
+                cocher `audit` n'ouvrait strictement rien. */}
+            {activeTab === 'audit' && (
+              <section className="adm-stack" aria-label="Journal d'audit">
+                <div className="adm-card">
+                  <h2>Actions d'administration <span className="adm-count">{audit.length}</span></h2>
+                  <p className="muted">Les plus récentes en premier.</p>
+                  <ul className="adm-rows">
+                    {audit.map((e) => (
+                      <li key={e.id} className="adm-row">
+                        <span className="adm-row__main">
+                          <code>{e.actor}</code> <strong>{e.action}</strong>
+                          {e.detail && <span className="muted adm-row__detail">{e.detail}</span>}
+                        </span>
+                        <span className="muted adm-row__side">{new Date(e.at).toLocaleString('fr-FR')}</span>
+                      </li>
+                    ))}
+                    {audit.length === 0 && <li className="muted">Aucun événement enregistré.</li>}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'origins' && (
+              <section className="adm-stack" aria-label="Origines autorisées">
+                <div className="adm-card">
+                  <h2>Domaines autorisés <span className="adm-count">{origins.length}</span></h2>
+                  <p className="muted">
+                    Une autre instance peut servir le frontend et proxifier <code>/api</code> vers ce
+                    backend : une seule base, un seul serveur, aucun secret partagé. Seules les origines
+                    listées ici peuvent appeler l'API depuis un autre domaine et recevoir le retour de
+                    connexion 42. Une révocation prend effet immédiatement.
+                  </p>
+                  <ul className="adm-rows">
+                    <li className="adm-row">
+                      <span className="adm-row__main"><code>{originsSelf || '—'}</code></span>
+                      <span className={`adm-pill ${originsSelfAllowed ? 'adm-pill--ok' : 'adm-pill--warn'}`}>
+                        {originsSelfAllowed ? 'Cette instance, toujours autorisée' : 'Origine locale en production : non auto-autorisée'}
+                      </span>
+                    </li>
+                    {origins.map((o) => (
+                      <li key={o.origin} className="adm-row">
+                        <span className="adm-row__main">
+                          <code>{o.origin}</code>
+                          {o.label && <span className="muted adm-row__detail">{o.label}</span>}
+                        </span>
+                        <button type="button" className="adm-btn adm-btn--danger" onClick={() => removeOrigin(o.origin)} disabled={busy}>
+                          Révoquer
+                        </button>
+                      </li>
+                    ))}
+                    {origins.length === 0 && <li className="muted">Aucune autre origine autorisée.</li>}
+                  </ul>
+                </div>
+
+                <div className="adm-card">
+                  <h2>Autoriser une origine</h2>
+                  <div className="admin-inline">
+                    <label className="adm-field">
+                      <span className="adm-label">Origine</span>
+                      <input
+                        value={newOrigin}
+                        onChange={(e) => setNewOrigin(e.target.value)}
+                        placeholder="https://calculator.42nice.fr"
+                        disabled={busy}
+                      />
+                    </label>
+                    <label className="adm-field">
+                      <span className="adm-label">Libellé (facultatif)</span>
+                      <input
+                        value={newOriginLabel}
+                        onChange={(e) => setNewOriginLabel(e.target.value)}
+                        placeholder="42 Nice"
+                        disabled={busy}
+                      />
+                    </label>
+                    <button type="button" onClick={addOrigin} className="adm-btn" disabled={busy || !newOrigin.trim()}>
+                      <Plus size={16} aria-hidden="true" /> Autoriser
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'refresh' && (
+              <section className="adm-stack" aria-label="Données 42 partagées">
+                <div className="adm-card">
+                  <h2>Refresh global</h2>
+                  <p className="muted">
+                    Renouvelle le catalogue des projets et le layout du Holy Graph, puis remet à jour
+                    l'instantané 42 de tous les utilisateurs. Les requêtes partent au compte-gouttes
+                    pour respecter les limites de l'API 42 : l'opération peut durer longtemps.
+                  </p>
+                  <dl className="adm-facts">
+                    <div>
+                      <dt>Dernier lancement</dt>
+                      <dd>
+                        {refresh?.startedAt
+                          ? `${new Date(refresh.startedAt).toLocaleString('fr-FR')}${refresh.startedBy ? ` — par ${refresh.startedBy}` : ''}`
+                          : 'Jamais'}
+                      </dd>
+                    </div>
+                    {refresh?.finishedAt && !refresh.running && (
+                      <div><dt>Terminé le</dt><dd>{new Date(refresh.finishedAt).toLocaleString('fr-FR')}</dd></div>
+                    )}
+                  </dl>
+                  {refresh?.running && (
+                    <div className="adm-progress">
+                      <span>En cours : {refresh.usersDone} / {refresh.usersTotal} utilisateurs</span>
+                      <div
+                        className="adm-progress__bar"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={refreshPct ?? 0}
+                        aria-label="Avancement du refresh global"
+                      >
+                        <span style={{ width: `${refreshPct ?? 0}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {refresh?.lastError && (
+                    <p className="admin-error adm-inset">Dernière erreur : {refresh.lastError}</p>
+                  )}
+                  <div className="adm-actions">
+                    <button
+                      type="button"
+                      onClick={startGlobalRefresh}
+                      className="adm-btn"
+                      disabled={busy || !refresh || refresh.running}
+                    >
+                      <RefreshCw size={16} aria-hidden="true" />
+                      {refresh?.running ? 'Refresh en cours…' : 'Lancer un refresh global'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="adm-card">
+                  <h2>Données de référence en cache</h2>
+                  <ul className="adm-rows">
+                    {refresh?.cacheEntries.map((entry) => (
+                      <li key={entry.key} className="adm-row">
+                        <span className="adm-row__main"><code>{entry.key}</code></span>
+                        <span className="muted adm-row__side">{new Date(entry.fetchedAt).toLocaleString('fr-FR')}</span>
+                      </li>
+                    ))}
+                    {refresh && refresh.cacheEntries.length === 0 && (
+                      <li className="muted">Aucune donnée de référence en cache pour le moment.</li>
+                    )}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            {/* ===== Référentiel RNCP vs GCC ===== */}
+            {activeTab === 'gcc' && (
+              <section className={`adm-stack${gccOps.size > 0 ? ' has-apply-bar' : ''}`} aria-label="Référentiel RNCP">
+                <div className="adm-card">
+                  <h2>Comparer avec GCC</h2>
+                  <p className="muted">
+                    Confronte notre référentiel aux règles publiées par GCC, la source de vérité de
+                    l'école. Rien n'est modifié automatiquement : le rapport sort les lignes à coller
+                    dans <code>rncpReferential.ts</code>, et dit ce qu'une suppression coûterait.
+                  </p>
+
+                  <details className="gcc-howto">
+                    <summary>Où trouver le jeton GCC</summary>
+                    <ol>
+                      <li>Ouvrir <a href="https://gcc.42.fr" target="_blank" rel="noreferrer">gcc.42.fr</a> et s'y connecter.</li>
+                      <li>Ouvrir la console du navigateur et y coller la commande ci-dessous.</li>
+                      <li>Le jeton est alors dans le presse-papier : le coller dans le champ.</li>
+                    </ol>
+                    <pre className="adm-code">{GCC_TOKEN_SNIPPET}</pre>
+                    <button
+                      type="button"
+                      className="adm-btn adm-btn--ghost"
+                      onClick={() => navigator.clipboard?.writeText(GCC_TOKEN_SNIPPET)}
+                    >
+                      <Copy size={16} aria-hidden="true" /> Copier la commande
+                    </button>
+                    <p className="muted">
+                      Le jeton vaut cinq minutes. Il n'est ni stocké ni journalisé : il sert à cet appel
+                      et disparaît.
+                    </p>
+                  </details>
+
+                  <form onSubmit={compareGcc} className="admin-form">
+                    <div className="form-group">
+                      <label htmlFor="gcc-token">Jeton de session GCC</label>
+                      <textarea
+                        id="gcc-token"
+                        className="gcc-token"
+                        value={gccToken}
+                        onChange={(e) => setGccToken(e.target.value)}
+                        placeholder="eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6…"
+                        rows={3}
+                        spellCheck={false}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="adm-actions">
+                      <button type="submit" className="adm-btn" disabled={gccRunning || !gccToken.trim()}>
+                        {gccRunning ? 'Comparaison en cours…' : 'Comparer avec GCC'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Barre d'application : toujours à l'écran dès qu'une case est cochée,
+                    pour ne pas avoir à redescendre chercher un bouton en bas d'un
+                    rapport long. Fixe, car `sticky` ne colle pas dans cette app
+                    (`body { overflow-x: hidden }`). */}
+                {gccOps.size > 0 && (
+                  <div className="gcc-apply" role="status">
+                    <span>
+                      <strong>{gccOps.size}</strong> modification{gccOps.size > 1 ? 's' : ''} sélectionnée
+                      {gccOps.size > 1 ? 's' : ''}
+                    </span>
+                    <div>
+                      <button type="button" className="adm-btn adm-btn--ghost" onClick={() => setGccOps(new Map())}>
+                        Tout décocher
+                      </button>
+                      <button type="button" className="adm-btn" onClick={applyGccOps} disabled={busy}>
+                        Appliquer
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {gccReport && (
+                  <div className="gcc-report">
+                    {gccReport.warnings.map((warning) => (
+                      <p key={warning} className="gcc-warning">⚠ {warning}</p>
+                    ))}
+                    {!gccReport.anyDiff && (
+                      <p className="gcc-ok">
+                        Aucun écart : le référentiel est aligné sur GCC ({gccReport.rncpCount} RNCP
+                        analysés).
+                      </p>
+                    )}
+                    {gccReport.common && (
+                      <GccSectionView section={gccReport.common} selected={gccOps} onToggle={toggleGccOp} />
+                    )}
+                    {gccReport.rncps.map((section) => (
+                      <GccSectionView
+                        key={section.title}
+                        section={section}
+                        selected={gccOps}
+                        onToggle={toggleGccOp}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="adm-card">
+                  <h2>Référentiel en base <span className="adm-count">version {referential?.version ?? '?'}</span></h2>
+                  <p className="muted">
+                    La base fait foi à l'exécution ; <code>rncpReferential.ts</code> n'est que la graine du
+                    premier démarrage. Pas besoin de la tenir à jour : l'export ci-dessous existe pour
+                    remettre le dépôt d'accord quand ça t'arrange, et si tu ne le fais jamais, seule une
+                    installation neuve repart d'un référentiel périmé — qu'une comparaison GCC rattrape.
+                  </p>
+
+                  <div className="adm-actions">
+                    <button type="button" className="adm-btn adm-btn--ghost" onClick={exportReferential}>
+                      Exporter en TypeScript
+                    </button>
+                    {exportedTs && (
                       <button
                         type="button"
-                        className="admin-link"
-                        onClick={() => revertReferential(v.version)}
-                        disabled={busy}
+                        className="adm-btn adm-btn--ghost"
+                        onClick={() => navigator.clipboard?.writeText(exportedTs)}
                       >
-                        Revenir ici
+                        <Copy size={16} aria-hidden="true" /> Copier
                       </button>
                     )}
-                  </span>
+                  </div>
+                  {exportedTs && <pre className="adm-code adm-code--tall">{exportedTs}</pre>}
+
+                  <ul className="adm-rows version-list">
+                    {referential?.versions.map((v) => (
+                      <li key={v.version} className="version">
+                        <div className="version__head">
+                          <span className="version__title">
+                            <code>v{v.version}</code> <VersionHeadline summary={v.summary} />
+                          </span>
+                          <span className="version__meta">
+                            <span className="muted">{v.createdBy} · {new Date(v.createdAt).toLocaleString('fr-FR')}</span>
+                            {v.version !== referential.version && (
+                              <button
+                                type="button"
+                                className="adm-btn adm-btn--ghost"
+                                onClick={() => revertReferential(v.version)}
+                                disabled={busy}
+                              >
+                                Revenir ici
+                              </button>
+                            )}
+                          </span>
+                        </div>
+                        <VersionDetail summary={v.summary} />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <VersionDetail summary={v.summary} />
-              </li>
-            ))}
-          </ul>
-        </section>
-        )}
-        </main>
-      </motion.div>
+              </section>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
+  );
+};
+
+/**
+ * Barre du haut pour qui est entré par le token console, sans session 42 : les
+ * liens de l'en-tête du site le renverraient vers la connexion. Le panneau doit
+ * rester utilisable justement quand 42 ne répond plus.
+ */
+const AdminBar: React.FC = () => {
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+  const label = theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre';
+  return (
+    <header className="adm-bar">
+      <button type="button" className="adm-bar__brand" onClick={() => navigate('/')} aria-label="CalculatorGCC — accueil">
+        <img src="/icons/icon-192.png" alt="" width={32} height={32} />
+        <span>Calculator<span>GCC</span></span>
+      </button>
+      <button type="button" className="adm-bar__theme" onClick={toggleTheme} title={label} aria-label={label}>
+        {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+      </button>
+    </header>
   );
 };
 
