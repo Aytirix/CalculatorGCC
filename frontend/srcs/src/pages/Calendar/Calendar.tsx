@@ -500,12 +500,14 @@ const Calendar: React.FC = () => {
 
 				</div>
 
-				<div className={`cal-body${showTray ? '' : ' cal-body--no-tray'}`}>
+				<div className="cal-body">
 					{showTray && (
 						<Tray
 							projects={trayProjects}
 							onPlace={p => placeProject(p)}
-							layout={isWide ? 'column' : 'strip'}
+							// Toujours en bande au-dessus de la vue : sur grand écran, la frise
+							// récupère la largeur de l'ancienne colonne de gauche.
+							layout="strip"
 							canDrop={isWide && view !== 'agenda'}
 						/>
 					)}

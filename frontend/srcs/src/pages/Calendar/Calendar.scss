@@ -159,13 +159,15 @@
 	min-width: 0;
 }
 
+// Grand écran : la vue (frise…) et la fiche à droite ; la liste « À placer »
+// passe en bande sur toute la largeur, au-dessus.
 .cal-container.is-wide .cal-body {
 	display: grid;
-	grid-template-columns: 260px minmax(0, 1fr) 320px;
+	grid-template-columns: minmax(0, 1fr) 320px;
 	align-items: start;
 	gap: 20px;
 
-	&.cal-body--no-tray { grid-template-columns: minmax(0, 1fr) 320px; }
+	> .cal-tray { grid-column: 1 / -1; }
 }
 
 .cal-main { min-width: 0; }

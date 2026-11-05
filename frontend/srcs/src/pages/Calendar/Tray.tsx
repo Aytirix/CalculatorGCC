@@ -29,7 +29,11 @@ const Tray: React.FC<TrayProps> = ({ projects, onPlace, layout, canDrop }) => {
 			<div className="cal-tray-head">
 				<h2 id="cal-tray-title">À placer</h2>
 				<span className="cal-count"><span aria-hidden="true">{projects.length}</span><span className="cal-sr-only">{projects.length > 1 ? `${projects.length} projets` : `${projects.length} projet`}</span></span>
-				{layout === 'strip' && projects.length > 0 && <span className="cal-muted cal-tray-hint-inline">Touche + pour placer à partir d'aujourd'hui</span>}
+				{layout === 'strip' && projects.length > 0 && (
+					<span className="cal-muted cal-tray-hint-inline">
+						{canDrop ? 'Glisse un projet sur la frise ou sur un jour, ou appuie sur +' : 'Touche + pour placer à partir d\'aujourd\'hui'}
+					</span>
+				)}
 			</div>
 
 			{projects.length === 0 ? (
