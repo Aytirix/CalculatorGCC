@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMyProjects, simulationBlocker } from './myProjects.types';
+import { buildMyProjects, compareRows, simulatedRowGain, simulationBlocker, type MyProjectRow } from './myProjects.types';
 import type { RNCP } from '@/types/rncp.types';
 import type { Project42 } from '@/services/backend-api42.service';
 
@@ -247,5 +247,63 @@ describe('modules de piscine — jamais simulés en double', () => {
     const mod = rows.find(r => r.id === 'api-2191')!;
     expect(mod.isPoolModule).toBe(true);
     expect(simulationBlocker(mod, false)).toMatch(/Module de piscine/);
+  });
+
+  it('reconnu par son NOM seul (identifiant 42 différent) : bloqué aussi', () => {
+    const rows = build({ rncpData: withPool(), apiProjects: [apiEntry(9999, 'django-0-starting')] });
+    expect(rows.find(r => r.id === 'api-9999')!.isPoolModule).toBe(true);
+  });
+
+  it('module déjà coché (ancienne simulation) : la case reste utilisable pour le décocher', () => {
+    const rows = build({ rncpData: withPool(), apiProjects: [apiEntry(2191, 'django-0-starting')], simulatedIds: ['42-2191'] });
+    const mod = rows.find(r => r.id === 'api-2191')!;
+    expect(mod.isSimulated).toBe(true);
+    expect(simulationBlocker(mod, false)).toBeNull();
+  });
+
+  it('projet perso du même nom qu’un module : jamais bloqué', () => {
+    const rows = build({
+      rncpData: withPool(),
+      customProjects: [{ id: 'custom-1', name: 'django-0-starting', xp: 300 } as never],
+    });
+    const perso = rows.find(r => r.id === 'custom-1')!;
+    expect(perso.isPoolModule).toBe(false);
+    expect(simulationBlocker(perso, false)).toBeNull();
+  });
+});
+
+const row = (over: Partial<MyProjectRow>): MyProjectRow => ({
+  id: 'x', name: 'x', slug: 'x', xp: 1000, status: 'not_started', source: 'rncp', finalMark: null,
+  isSimulated: false, simulatedPercentage: null, date: null, rncpNames: [], isCustom: false,
+  simId: 'x', coalitionBoost: false, note: '', isPool: false, isPoolModule: false, maxPercentage: null,
+  ...over,
+});
+
+describe('compareRows — tri par date', () => {
+  const old = row({ id: 'a', name: 'a', date: '2024-01-01' });
+  const recent = row({ id: 'b', name: 'b', date: '2026-01-01' });
+  const none = row({ id: 'c', name: 'c', date: null });
+  const ids = (dir: 'asc' | 'desc') => [none, recent, old].sort((x, y) => compareRows(x, y, 'date', dir)).map(r => r.id);
+
+  it('un projet sans date va en fin de liste, dans les deux sens', () => {
+    expect(ids('asc')).toEqual(['a', 'b', 'c']);
+    expect(ids('desc')).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('simulatedRowGain — même XP que le Dashboard', () => {
+  const customs = new Map([['42-7', 2000]]);
+  it('référentiel : XP du projet, note bornée au maximum, bonus', () => {
+    expect(simulatedRowGain(row({ isSimulated: true, simulatedPercentage: 150 }), customs, 125)).toBe(1250);
+    expect(simulatedRowGain(row({ isSimulated: true, coalitionBoost: true }), customs, 125)).toBe(Math.round(1000 * 1.042));
+  });
+  it('hors référentiel : XP de customProjects ; sans entrée (ancien module coché seul), rien', () => {
+    expect(simulatedRowGain(row({ source: 'extra42', simId: '42-7', isSimulated: true }), customs, 125)).toBe(2000);
+    expect(simulatedRowGain(row({ source: 'extra42', simId: '42-8', isSimulated: true }), customs, 125)).toBe(0);
+  });
+  it('non simulé, piscine ou déjà validé : rien', () => {
+    expect(simulatedRowGain(row({}), customs, 125)).toBe(0);
+    expect(simulatedRowGain(row({ isSimulated: true, isPool: true }), customs, 125)).toBe(0);
+    expect(simulatedRowGain(row({ isSimulated: true, status: 'validated' }), customs, 125)).toBe(0);
   });
 });

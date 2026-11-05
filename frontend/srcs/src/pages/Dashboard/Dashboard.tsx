@@ -16,6 +16,7 @@ import { normaliserExperiences } from '@/utils/experienceMigration';
 import { compterExperiencesApi, compterExperiencesApiValidees, estExperienceApi } from '@/utils/experienceCount';
 import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
+import { createSimulationSaver, type SimulationSaver } from '@/services/simulationStore';
 import ProfExpList from '@/components/ProfExpList/ProfExpList';
 import type { SimulatorProject, RNCPValidation, UserProgress } from '@/types/rncp.types';
 import type { ProfessionalExperience } from '@/types/professionalExperience.types';
@@ -132,7 +133,14 @@ const Dashboard: React.FC = () => {
 
 	// Flag pour éviter de sauvegarder pendant le chargement initial
 	const isInitialLoad = useRef(true);
-	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Enregistrement partagé : 2 s après le dernier changement, et envoyé (non
+	// plus annulé) quand on quitte la page ou qu'on passe sur un autre profil.
+	// Le Dashboard tient sa propre copie locale et seul il modifie le guide et
+	// les % d'expérience.
+	const saverRef = useRef<SimulationSaver | null>(null);
+	if (!saverRef.current) {
+		saverRef.current = createSimulationSaver(undefined, 2000, { writeCache: false, sendSettings: true });
+	}
 
 	// Charger les données de simulation (backend puis fallback localStorage)
 	useEffect(() => {
@@ -324,33 +332,25 @@ const Dashboard: React.FC = () => {
 	// Sauvegarder la simulation vers le backend (debounced 2s)
 	const saveToBackend = useCallback(() => {
 		if (isInitialLoad.current) return;
-		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-		saveTimerRef.current = setTimeout(async () => {
-			try {
-				const data: SimulationData = {
-					simulatedProjects: simulatedProjects.map((id: string) => ({
-						projectId: id,
-						percentage: projectPercentages[id] ?? 100,
-						coalitionBoost: coalitionBoosts[id] ?? false,
-						note: projectNotes[id],
-					})),
-					simulatedSubProjects,
-					customProjects,
-					// Les expériences ne partent PLUS d'ici : elles ont leur route dédiée,
-					// et deux écrivains sur le même champ se écrasaient l'un l'autre. La
-					// sauvegarde générale étant retardée de 2 s, elle transportait un
-					// instantané périmé : supprimer une expérience juste après avoir touché
-					// un projet la faisait réapparaître. Le serveur, lui, ne remet plus la
-					// colonne à vide quand la clé est absente du corps.
-					apiExpPercentages,
-					hasSeenTour: localStorage.getItem('gcc_tour_seen_v1') === 'true',
-				};
-				await simulationService.save(data);
-				console.log('[Dashboard] Simulation sauvegardée vers le backend');
-			} catch (err) {
-				console.warn('[Dashboard] Erreur sauvegarde backend:', err);
-			}
-		}, 2000);
+		const data: SimulationData = {
+			simulatedProjects: simulatedProjects.map((id: string) => ({
+				projectId: id,
+				percentage: projectPercentages[id] ?? 100,
+				coalitionBoost: coalitionBoosts[id] ?? false,
+				note: projectNotes[id],
+			})),
+			simulatedSubProjects,
+			customProjects,
+			// Les expériences ne partent PLUS d'ici : elles ont leur route dédiée,
+			// et deux écrivains sur le même champ se écrasaient l'un l'autre. La
+			// sauvegarde générale étant retardée de 2 s, elle transportait un
+			// instantané périmé : supprimer une expérience juste après avoir touché
+			// un projet la faisait réapparaître. Le serveur, lui, ne remet plus la
+			// colonne à vide quand la clé est absente du corps.
+			apiExpPercentages,
+			hasSeenTour: localStorage.getItem('gcc_tour_seen_v1') === 'true',
+		};
+		saverRef.current?.schedule(data);
 	}, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages]);
 
 	useEffect(() => {
@@ -386,10 +386,9 @@ const Dashboard: React.FC = () => {
 		}
 	}, []);
 
-	// Nettoyer le timer de sauvegarde au démontage (évite une fuite / un save perdu).
-	useEffect(() => () => {
-		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-	}, []);
+	// Quitter la page envoie tout de suite ce qui attend : l'annuler perdait la
+	// dernière modification faite dans les 2 s.
+	useEffect(() => () => saverRef.current?.flush(), []);
 
 	// Réconciliation automatique simulation ↔ réalité. Un projet qu'on avait SIMULÉ et
 	// qu'on a depuis VALIDÉ pour de vrai sur l'intra n'a plus rien à faire dans la

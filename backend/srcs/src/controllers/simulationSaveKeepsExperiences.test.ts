@@ -89,3 +89,25 @@ describe('PUT /simulation — la colonne des expériences', () => {
 		expect(data.apiExpPercentages).toEqual({ 7: 110 });
 	});
 });
+
+describe('PUT /simulation — guide et % des expériences', () => {
+	it('absents : rien n’est transmis, la base garde ses valeurs', async () => {
+		// Mes projets et le Holy Graph ne les envoient plus : leur copie datait du
+		// chargement et écrasait un guide terminé ou un % changé ailleurs entre-temps.
+		const data = await appeler({ simulatedProjects: [] });
+		expect(data.hasSeenTour).toBeUndefined();
+		expect(data.apiExpPercentages).toBeUndefined();
+	});
+
+	it('présents : transmis tels quels, false compris', async () => {
+		const data = await appeler({ hasSeenTour: false, apiExpPercentages: {} });
+		expect(data.hasSeenTour).toBe(false);
+		expect(data.apiExpPercentages).toEqual({});
+	});
+
+	it('mal formés : ignorés plutôt que remis à zéro', async () => {
+		const data = await appeler({ hasSeenTour: 'true', apiExpPercentages: [1] });
+		expect(data.hasSeenTour).toBeUndefined();
+		expect(data.apiExpPercentages).toBeUndefined();
+	});
+});

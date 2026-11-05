@@ -214,8 +214,13 @@ export const ProjectSheet: React.FC<{ open: boolean; label: string; onClose: () 
 		const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		panelRef.current?.focus({ preventScroll: true });
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); return; }
 			const panel = panelRef.current;
+			// Une autre fenêtre ouverte par-dessus (palette Ctrl+K…) garde ses
+			// touches : Échap la ferme ELLE, et Tab reste chez elle.
+			const target = e.target instanceof Element ? e.target : null;
+			const otherDialog = target?.closest('[role="dialog"]');
+			if (otherDialog && otherDialog !== panel) return;
+			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); return; }
 			if (e.key !== 'Tab' || !panel) return;
 			const focusables = [...panel.querySelectorAll<HTMLElement>(
 				'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -236,9 +241,15 @@ export const ProjectSheet: React.FC<{ open: boolean; label: string; onClose: () 
 			}
 		};
 		window.addEventListener('keydown', onKey, true);
+		const panel = panelRef.current;
 		return () => {
 			window.removeEventListener('keydown', onKey, true);
-			if (opener?.isConnected) opener.focus({ preventScroll: true });
+			// Rendre le focus seulement s'il est encore chez nous : une fenêtre
+			// ouverte à la place (teammates) l'a déjà pris, le lui voler le
+			// renvoyait derrière elle.
+			const active = document.activeElement;
+			const stillOurs = !active || active === document.body || !!panel?.contains(active);
+			if (stillOurs && opener?.isConnected) opener.focus({ preventScroll: true });
 		};
 	}, [open]);
 

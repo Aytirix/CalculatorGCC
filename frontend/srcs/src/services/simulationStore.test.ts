@@ -14,8 +14,10 @@ afterAll(() => {
 });
 
 let readOnly = false;
+const switchHooks = new Set<() => void>();
 vi.mock('./simulation.service', () => ({
 	isReadOnlyMode: () => readOnly,
+	onBeforeViewSwitch: (fn: () => void) => { switchHooks.add(fn); return () => switchHooks.delete(fn); },
 	simulationService: { save: vi.fn(async (d: unknown) => d) },
 }));
 
@@ -35,7 +37,7 @@ const data: SimulationData = {
 	seenTourSteps: ['a'],
 };
 
-beforeEach(() => { memoire.clear(); readOnly = false; vi.useRealTimers(); });
+beforeEach(() => { memoire.clear(); readOnly = false; switchHooks.clear(); vi.useRealTimers(); });
 
 describe('writeSimulationCache — copie locale au format du Dashboard', () => {
 	it('écrit les mêmes clés que le Dashboard (le Calendrier les lit)', () => {
@@ -103,5 +105,39 @@ describe('createSimulationSaver', () => {
 		saver.schedule(data);
 		saver.flush();
 		expect(save).not.toHaveBeenCalled();
+	});
+
+	it('autres pages : guide et % d’expérience ne partent pas (valeurs de LEUR chargement, périmées)', () => {
+		const save = vi.fn(async () => undefined);
+		const saver = createSimulationSaver(save, 800);
+		saver.schedule(data);
+		saver.flush();
+		const sent = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+		expect(sent).not.toHaveProperty('hasSeenTour');
+		expect(sent).not.toHaveProperty('apiExpPercentages');
+	});
+
+	it('Dashboard : les envoie, et ne réécrit pas la copie locale (il tient la sienne)', () => {
+		const save = vi.fn(async () => undefined);
+		const saver = createSimulationSaver(save, 2000, { writeCache: false, sendSettings: true });
+		saver.schedule(data);
+		saver.flush();
+		const sent = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+		expect(sent.hasSeenTour).toBe(true);
+		expect(sent.apiExpPercentages).toEqual({});
+		expect(memoire.size).toBe(0);
+	});
+
+	it('passer sur un autre profil (Ctrl+K) envoie d’abord ce qui attend', () => {
+		vi.useFakeTimers();
+		const save = vi.fn(async () => undefined);
+		const saver = createSimulationSaver(save, 800);
+		saver.schedule(data);
+		expect(switchHooks.size).toBe(1);
+		for (const fn of [...switchHooks]) fn();
+		expect(save).toHaveBeenCalledOnce();
+		expect(switchHooks.size).toBe(0);
+		vi.advanceTimersByTime(800);
+		expect(save).toHaveBeenCalledOnce();
 	});
 });

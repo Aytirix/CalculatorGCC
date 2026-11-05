@@ -9,7 +9,21 @@ const BACKEND_URL = config.backendUrl;
 // ID de l'utilisateur consulté (mode lecture seule), null = profil propre
 let _viewSimUserId: number | null = null;
 
+// Enregistrements en attente à envoyer AVANT de passer sur le profil d'un autre :
+// une fois en consultation, `save()` n'écrit plus rien — une modification faite
+// juste avant Ctrl+K était perdue.
+const beforeViewSwitch = new Set<() => void>();
+
+/** Appelé juste avant de changer de profil consulté. Renvoie de quoi se désinscrire. */
+export function onBeforeViewSwitch(fn: () => void): () => void {
+  beforeViewSwitch.add(fn);
+  return () => { beforeViewSwitch.delete(fn); };
+}
+
 export function setSimulationViewUserId(id: number | null) {
+  if (id !== _viewSimUserId) {
+    for (const fn of [...beforeViewSwitch]) fn();
+  }
   _viewSimUserId = id;
 }
 
@@ -35,8 +49,10 @@ export interface SimulationData {
 	 * colonne intacte. Toujours renvoyé par `load()`.
 	 */
 	manualExperiences?: unknown[];
-	apiExpPercentages: Record<string, number>;
-	hasSeenTour: boolean;
+	/** Absent à l'enregistrement : le serveur garde sa valeur. */
+	apiExpPercentages?: Record<string, number>;
+	/** Absent à l'enregistrement : le serveur garde sa valeur. */
+	hasSeenTour?: boolean;
 	/**
 	 * Étapes du guide déjà vues. Renvoyé par le serveur au chargement ; la
 	 * sauvegarde générale ne le porte pas (il a son propre point d'entrée).
@@ -100,7 +116,7 @@ export interface UserSearchResult {
 // à la fermeture) puis ouvrir le Dashboard lisait la base AVANT l'écriture —
 // et le Dashboard renvoyait ensuite cette version périmée : modification perdue.
 let pendingSave: Promise<unknown> = Promise.resolve();
-const PENDING_SAVE_MAX_WAIT_MS = 8000;
+export const PENDING_SAVE_MAX_WAIT_MS = 4000;
 
 export const simulationService = {
 	/**
@@ -110,8 +126,14 @@ export const simulationService = {
 		if (_viewSimUserId !== null) {
 			return request<SimulationData>(`/simulation/user/${_viewSimUserId}`);
 		}
-		// Attente bornée : un enregistrement bloqué ne doit pas figer la page.
-		await Promise.race([pendingSave, new Promise(resolve => setTimeout(resolve, PENDING_SAVE_MAX_WAIT_MS))]);
+		// Attente bornée : un enregistrement bloqué ne doit pas figer la page. Un
+		// enregistrement sain prend moins d'une seconde.
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		await Promise.race([
+			pendingSave,
+			new Promise(resolve => { timer = setTimeout(resolve, PENDING_SAVE_MAX_WAIT_MS); }),
+		]);
+		clearTimeout(timer);
 		return request<SimulationData>('/simulation');
 	},
 

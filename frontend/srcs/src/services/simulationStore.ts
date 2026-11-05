@@ -1,4 +1,4 @@
-import { isReadOnlyMode, simulationService, type SimulationData } from './simulation.service';
+import { isReadOnlyMode, onBeforeViewSwitch, simulationService, type SimulationData } from './simulation.service';
 
 /**
  * Enregistrement de la simulation pour les pages AUTRES que le Dashboard
@@ -18,14 +18,18 @@ import { isReadOnlyMode, simulationService, type SimulationData } from './simula
 
 const SAVE_DELAY_MS = 800;
 
-/** Champs que la sauvegarde générale ne doit PAS renvoyer (ils ont leur propre route). */
-function forSave(data: SimulationData): SimulationData {
-	// Renvoyer les expériences chargées écraserait celles modifiées entre-temps
-	// ailleurs : le serveur laisse la colonne intacte quand le champ est absent.
-	const { manualExperiences: _experiences, seenTourSteps: _steps, ...rest } = data;
+/**
+ * Champs que la sauvegarde générale ne doit PAS renvoyer : le serveur garde sa
+ * valeur quand ils sont absents. Expériences et étapes du guide ont leur propre
+ * route. Le guide et les % d'expérience ne sont modifiés que par le Dashboard :
+ * les renvoyer depuis une autre page, c'était renvoyer la valeur de SON
+ * chargement, et écraser un changement fait entre-temps ailleurs.
+ */
+function forSave(data: SimulationData, sendSettings: boolean): SimulationData {
+	const { manualExperiences: _experiences, seenTourSteps: _steps, apiExpPercentages, hasSeenTour, ...rest } = data;
 	void _experiences;
 	void _steps;
-	return rest;
+	return sendSettings ? { ...rest, apiExpPercentages, hasSeenTour } : rest;
 }
 
 /** Réécrit la copie locale de la simulation au format du Dashboard. */
@@ -59,30 +63,42 @@ export interface SimulationSaver {
 	flush: () => void;
 }
 
+export interface SimulationSaverOptions {
+	/** Réécrire la copie locale (non pour le Dashboard, qui tient la sienne). */
+	writeCache?: boolean;
+	/** Envoyer guide et % d'expérience (seul le Dashboard les modifie). */
+	sendSettings?: boolean;
+}
+
 export function createSimulationSaver(
 	save: (data: SimulationData) => Promise<unknown> = d => simulationService.save(d),
 	delayMs = SAVE_DELAY_MS,
+	{ writeCache = true, sendSettings = false }: SimulationSaverOptions = {},
 ): SimulationSaver {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let pending: SimulationData | null = null;
+	// Inscrit seulement tant qu'un envoi attend : passer sur le profil d'un autre
+	// envoie d'abord ce qui attend (après, `save()` n'écrirait plus rien).
+	let unregister: (() => void) | undefined;
 	const run = () => {
+		if (timer) clearTimeout(timer);
 		timer = undefined;
+		unregister?.();
+		unregister = undefined;
 		const data = pending;
 		pending = null;
 		if (!data) return;
-		save(forSave(data)).catch(err => console.warn('[Simulation] Sauvegarde échouée :', err));
+		save(forSave(data, sendSettings)).catch(err => console.warn('[Simulation] Sauvegarde échouée :', err));
 	};
 	return {
 		schedule(next) {
 			if (isReadOnlyMode()) return;
-			writeSimulationCache(next);
+			if (writeCache) writeSimulationCache(next);
 			pending = next;
 			if (timer) clearTimeout(timer);
 			timer = setTimeout(run, delayMs);
+			unregister ??= onBeforeViewSwitch(run);
 		},
-		flush() {
-			if (timer) clearTimeout(timer);
-			run();
-		},
+		flush: run,
 	};
 }

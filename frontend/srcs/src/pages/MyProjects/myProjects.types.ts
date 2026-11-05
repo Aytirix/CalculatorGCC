@@ -3,6 +3,7 @@ import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { isPoolCovered } from '@/services/xp.service';
+import { simulatedGain } from '@/utils/simulationEdit';
 
 /**
  * Assemblage de TOUT ce que l'utilisateur a comme relation avec un projet :
@@ -98,6 +99,51 @@ export function simulationBlocker(
 	// Un projet validé encore coché (réconciliation pas encore passée) peut être décoché.
 	if (row.status === 'validated' && !row.isSimulated) return 'Déjà validé : rien à simuler.';
 	return null;
+}
+
+export type SortKey = 'name' | 'xp' | 'date' | 'mark' | 'status';
+
+/** Ordre des puces et du tri par statut : ce qui demande une action d'abord. */
+export const STATUS_ORDER: ProjectStatus[] = ['in_progress', 'simulated', 'validated', 'failed', 'not_started'];
+const statusRank = (row: MyProjectRow) =>
+	STATUS_ORDER.indexOf(row.status === 'not_started' && row.isSimulated ? 'simulated' : row.status);
+
+/**
+ * Ordre de la liste. Un projet SANS date (jamais commencé) va toujours en fin
+ * de liste, dans un sens comme dans l'autre : compté comme 1970, il passait en
+ * tête du tri croissant.
+ */
+export function compareRows(a: MyProjectRow, b: MyProjectRow, sort: SortKey, direction: 'asc' | 'desc'): number {
+	const sign = direction === 'asc' ? 1 : -1;
+	const byName = a.name.localeCompare(b.name, 'fr');
+	switch (sort) {
+		case 'name': return sign * byName;
+		case 'xp': return sign * (a.xp - b.xp) || byName;
+		case 'mark': return sign * ((a.finalMark ?? -1) - (b.finalMark ?? -1)) || byName;
+		case 'date': {
+			const ta = a.date ? new Date(a.date).getTime() : NaN;
+			const tb = b.date ? new Date(b.date).getTime() : NaN;
+			const hasA = !Number.isNaN(ta);
+			const hasB = !Number.isNaN(tb);
+			if (hasA !== hasB) return hasA ? -1 : 1;
+			return (hasA ? sign * (ta - tb) : 0) || byName;
+		}
+		default: return sign * (statusRank(a) - statusRank(b)) || byName;
+	}
+}
+
+/**
+ * XP qu'un projet simulé ajoute, calculé EXACTEMENT comme le Dashboard :
+ * hors référentiel, l'XP vient de `customProjects` (pas d'entrée = rien,
+ * c'est le cas d'un ancien module de piscine coché seul) ; la note est bornée
+ * au maximum du projet.
+ */
+export function simulatedRowGain(row: MyProjectRow, customXp: Map<string, number>, defaultMax: number): number {
+	if (!row.isSimulated || row.isPool || row.status === 'validated') return 0;
+	const xp = row.source === 'rncp' ? row.xp : (customXp.get(row.simId) ?? 0);
+	if (xp <= 0) return 0;
+	const pct = Math.min(row.simulatedPercentage ?? 100, row.maxPercentage ?? defaultMax);
+	return simulatedGain(xp, pct, row.coalitionBoost);
 }
 
 /** Statut d'un projet d'après son entrée `projects_users` côté 42. */
@@ -320,7 +366,9 @@ export function buildMyProjects({
 		rows.push({
 			...simExtras(custom.id),
 			isPool: false,
-			isPoolModule: isPoolModule(custom.id, custom.name),
+			// Un vrai projet perso (`custom-…`) n'est jamais un module, même s'il
+			// en porte le nom : le bloquer empêchait de le simuler.
+			isPoolModule: isGraphSimulationId(custom.id) && isPoolModule(custom.id, custom.name),
 			maxPercentage: null,
 			id: custom.id,
 			name: custom.name,

@@ -11,13 +11,17 @@ import { useProjectTeams } from '@/contexts/useProjectTeams';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import TeammateModal from '@/components/TeammateModal/TeammateModal';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
-import { setSimulated, simulatedGain, updateSimulated } from '@/utils/simulationEdit';
+import { setSimulated, updateSimulated } from '@/utils/simulationEdit';
 import { deserializeProjects } from '@/pages/Calendar/calendarModel';
 import { DEFAULT_PROJECT_MAX_PERCENTAGE } from '@/utils/projectPercentage';
 import type { SimulatorProject } from '@/types/rncp.types';
 import {
 	buildMyProjects,
+	compareRows,
+	simulatedRowGain,
 	simulationBlocker,
+	STATUS_ORDER,
+	type SortKey,
 	STATUS_LABELS,
 	type MyProjectRow,
 	type ProjectSource,
@@ -43,8 +47,6 @@ const WIDE_QUERY = '(min-width: 1100px)';
 /** Marge entre le haut de l'écran et la fiche quand elle suit le défilement. */
 const SIDE_STICKY_TOP = 16;
 
-type SortKey = 'name' | 'xp' | 'date' | 'mark' | 'status';
-
 interface Filters {
 	search: string;
 	statuses: ProjectStatus[];
@@ -67,8 +69,7 @@ const DEFAULT_FILTERS: Filters = {
 	direction: 'asc',
 };
 
-// Ordre des puces : ce qui demande une action d'abord.
-const ALL_STATUSES: ProjectStatus[] = ['in_progress', 'simulated', 'validated', 'failed', 'not_started'];
+const ALL_STATUSES = STATUS_ORDER;
 
 const SORT_LABELS: Record<SortKey, string> = {
 	status: 'statut',
@@ -126,7 +127,7 @@ function readLocalCalendar(): unknown | null {
 	}
 }
 
-const statusOrder = (row: MyProjectRow) => ALL_STATUSES.indexOf(row.status === 'not_started' && row.isSimulated ? 'simulated' : row.status);
+const rowDomId = (id: string) => `mp-row-${id}`;
 
 const MyProjects: React.FC = () => {
 	const { rncpData, loading: rncpLoading } = useRncpData();
@@ -146,6 +147,10 @@ const MyProjects: React.FC = () => {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [teammateRow, setTeammateRow] = useState<MyProjectRow | null>(null);
+	// Où rendre le focus quand la fenêtre des teammates se ferme : le bouton de
+	// la fiche (grand écran), sinon la ligne du projet (le panneau du bas, lui,
+	// est déjà fermé).
+	const teamReturnRef = useRef<HTMLElement | null>(null);
 	const saverRef = useRef<ReturnType<typeof createSimulationSaver> | null>(null);
 	if (!saverRef.current) saverRef.current = createSimulationSaver();
 
@@ -304,16 +309,7 @@ const MyProjects: React.FC = () => {
 				filters.statuses.includes(row.status)
 				// Un projet peut être en cours (ou validé, ou raté) ET simulé.
 				|| (filters.statuses.includes('simulated') && row.isSimulated));
-		const sign = filters.direction === 'asc' ? 1 : -1;
-		return filtered.sort((a, b) => {
-			switch (filters.sort) {
-				case 'name': return sign * a.name.localeCompare(b.name, 'fr');
-				case 'xp': return sign * (a.xp - b.xp);
-				case 'mark': return sign * ((a.finalMark ?? -1) - (b.finalMark ?? -1));
-				case 'date': return sign * (new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
-				default: return sign * (statusOrder(a) - statusOrder(b)) || a.name.localeCompare(b.name, 'fr');
-			}
-		});
+		return filtered.sort((a, b) => compareRows(a, b, filters.sort, filters.direction));
 	}, [inScope, searching, filters]);
 
 	const groups = useMemo(() => {
@@ -321,7 +317,8 @@ const MyProjects: React.FC = () => {
 		const done = visible.filter(r => r.status === 'validated' || r.status === 'failed');
 		return [
 			{ key: 'todo', title: 'À faire', sub: readOnly ? '' : 'coche pour simuler', rows: todo },
-			{ key: 'done', title: 'Faits', sub: '', rows: done },
+			// Un projet raté se simule (pour le retenter) ; un validé, non.
+			{ key: 'done', title: 'Faits', sub: !readOnly && done.some(r => r.status === 'failed') ? 'raté : coche pour le retenter' : '', rows: done },
 		].filter(g => g.rows.length > 0);
 	}, [visible, readOnly]);
 
@@ -347,19 +344,19 @@ const MyProjects: React.FC = () => {
 		// Comme le Dashboard : un projet déjà validé (pas encore retiré par la
 		// réconciliation) ne rapporte plus rien, et la note est bornée au maximum.
 		const simulatedRows = rows.filter(r => r.isSimulated && !r.isPool && r.status !== 'validated');
+		const customXp = new Map<string, number>();
+		for (const c of (simulation?.customProjects as SimulatorProject[] | undefined) ?? []) {
+			if (c && typeof c.id === 'string' && typeof c.xp === 'number') customXp.set(c.id, c.xp);
+		}
 		return {
-			gain: simulatedRows.reduce((sum, r) => sum + simulatedGain(
-				r.xp,
-				Math.min(r.simulatedPercentage ?? 100, r.maxPercentage ?? DEFAULT_PROJECT_MAX_PERCENTAGE),
-				r.coalitionBoost,
-			), 0),
+			gain: simulatedRows.reduce((sum, r) => sum + simulatedRowGain(r, customXp, DEFAULT_PROJECT_MAX_PERCENTAGE), 0),
 			simCount: rows.filter(r => r.isSimulated).length,
 			validated: rows.filter(r => r.status === 'validated').length,
 			validatedRncp: rows.filter(r => r.status === 'validated' && r.source === 'rncp').length,
 			inProgress: rows.filter(r => r.status === 'in_progress'),
 			toPlace: simulatedRows.filter(r => !slots.has(r.simId)).length,
 		};
-	}, [rows, slots]);
+	}, [rows, slots, simulation]);
 
 	const selected = rows.find(r => r.id === selectedId) ?? null;
 
@@ -407,7 +404,11 @@ const MyProjects: React.FC = () => {
 				onOpenCalendar={openCalendar}
 				// Le panneau du bas se ferme d'abord : la fenêtre des teammates
 				// s'ouvrait DESSOUS (inutilisable au doigt comme au clavier).
-				onTeammates={() => { setSheetOpen(false); setTeammateRow(row); }}
+				onTeammates={() => {
+					teamReturnRef.current = isWide && document.activeElement instanceof HTMLElement ? document.activeElement : null;
+					setSheetOpen(false);
+					setTeammateRow(row);
+				}}
 			/>
 		);
 	};
@@ -597,7 +598,17 @@ const MyProjects: React.FC = () => {
 			{teammateRow && (
 				<TeammateModal
 					isOpen
-					onClose={() => setTeammateRow(null)}
+					onClose={() => {
+						const rowId = teammateRow.id;
+						setTeammateRow(null);
+						requestAnimationFrame(() => {
+							const back = teamReturnRef.current?.isConnected
+								? teamReturnRef.current
+								: document.getElementById(rowDomId(rowId));
+							teamReturnRef.current = null;
+							back?.focus();
+						});
+					}}
 					projectId={teammateRow.id}
 					projectName={teammateRow.name}
 					teamInfo={getTeamInfo({ id: teammateRow.id, name: teammateRow.name, slug: teammateRow.slug })}
@@ -651,7 +662,7 @@ const ProjectRow: React.FC<{
 					{blocker && <span id={reasonId} className="mp-sr-only">{blocker}</span>}
 				</button>
 			)}
-			<button type="button" className="mp-row-main" aria-current={selected ? 'true' : undefined} onClick={onSelect}>
+			<button type="button" id={rowDomId(row.id)} className="mp-row-main" aria-current={selected ? 'true' : undefined} onClick={onSelect}>
 				<span className="mp-row-text">
 					<span className="mp-row-name">{row.name}</span>
 					<span className="mp-row-sub">{sub}</span>

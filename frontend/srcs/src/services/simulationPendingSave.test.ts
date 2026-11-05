@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./backend-auth.service', () => ({ backendAuthService: { getToken: () => 'jwt', logout: vi.fn() } }));
 vi.mock('@/config/config', () => ({ config: { backendUrl: '' } }));
 
-const { simulationService } = await import('./simulation.service');
+const { simulationService, PENDING_SAVE_MAX_WAIT_MS, setSimulationViewUserId, onBeforeViewSwitch } = await import('./simulation.service');
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('simulationService — une lecture attend l’enregistrement en cours', () => {
 	it('quitter une page juste après une modification : le Dashboard lit la version ENREGISTRÉE', async () => {
@@ -40,5 +40,36 @@ describe('simulationService — une lecture attend l’enregistrement en cours',
 		const data = { simulatedProjects: [], simulatedSubProjects: {}, customProjects: [], apiExpPercentages: {}, hasSeenTour: true };
 		await expect(simulationService.save(data)).rejects.toThrow();
 		await expect(simulationService.load()).resolves.toEqual({ simulatedProjects: [] });
+	});
+
+	it('enregistrement bloqué : la lecture part après l’attente maximale, sans minuteur oublié', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('fetch', vi.fn((_url: string, opts?: RequestInit) => opts?.method === 'PUT'
+			? new Promise(() => {}) // ne répond jamais
+			: Promise.resolve({ ok: true, status: 200, json: async () => ({ simulatedProjects: [] }) })));
+		const data = { simulatedProjects: [], simulatedSubProjects: {}, customProjects: [] };
+		void simulationService.save(data);
+		let done = false;
+		const loading = simulationService.load().then(() => { done = true; });
+		await vi.advanceTimersByTimeAsync(PENDING_SAVE_MAX_WAIT_MS - 1);
+		expect(done).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		await loading;
+		expect(done).toBe(true);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
+describe('changer de profil consulté', () => {
+	it('les enregistrements en attente partent AVANT de passer en consultation', () => {
+		const seen: boolean[] = [];
+		const off = onBeforeViewSwitch(() => seen.push(true));
+		setSimulationViewUserId(7);
+		setSimulationViewUserId(7); // même profil : rien de plus
+		setSimulationViewUserId(null);
+		off();
+		setSimulationViewUserId(8);
+		setSimulationViewUserId(null);
+		expect(seen).toEqual([true, true]);
 	});
 });

@@ -4,6 +4,10 @@ import { simulationRepository } from '../db/simulationRepository.js';
 import { filtrerExperiences } from '../services/experienceValidation.js';
 import { prisma } from '../db/connection.js';
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export const SimulationController = {
 	/**
 	 * GET /simulation - Récupère la simulation de l'utilisateur connecté
@@ -200,8 +204,14 @@ export const SimulationController = {
 			// antérieure du frontend continue de l'envoyer, et son instantané périmé
 			// écrasait ce que la route dédiée venait d'enregistrer. Une seule porte.
 			manualExperiences: undefined,
-			apiExpPercentages: body.apiExpPercentages ?? {},
-			hasSeenTour: body.hasSeenTour === true,
+			// ABSENTS = laissés tels quels en base. Mes projets et le Holy Graph ne
+			// les modifient pas : les renvoyer depuis leur chargement écrasait ce
+			// qu'un autre onglet (ou appareil) venait de changer — guide terminé,
+			// % d'une expérience.
+			apiExpPercentages: isPlainObject(body.apiExpPercentages)
+				? (body.apiExpPercentages as Record<string, number>)
+				: undefined,
+			hasSeenTour: typeof body.hasSeenTour === 'boolean' ? body.hasSeenTour : undefined,
 		};
 
 		const { saved, dropped } = await simulationRepository.save(

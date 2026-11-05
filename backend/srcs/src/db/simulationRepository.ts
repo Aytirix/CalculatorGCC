@@ -34,8 +34,10 @@ export interface SimulationData {
 	 * chaque sauvegarde générale les aurait supprimées.
 	 */
 	manualExperiences?: unknown[];
-	apiExpPercentages: Record<string, number>;
-	hasSeenTour: boolean;
+	/** Absent à l'enregistrement : la valeur en base est gardée. */
+	apiExpPercentages?: Record<string, number>;
+	/** Absent à l'enregistrement : la valeur en base est gardée. */
+	hasSeenTour?: boolean;
 	/**
 	 * Étapes du guide déjà vues (permet de ne proposer que les nouvelles).
 	 * Optionnel : la sauvegarde générale de la simulation ne le porte pas, il a
@@ -419,7 +421,7 @@ export const simulationRepository = {
 				...(data.manualExperiences !== undefined && {
 					manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
 				}),
-				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
+				apiExpPercentages: (data.apiExpPercentages ?? {}) as Prisma.InputJsonValue,
 			},
 			update: {
 				login,
@@ -431,15 +433,19 @@ export const simulationRepository = {
 				...(data.manualExperiences !== undefined && {
 					manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
 				}),
-				apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
+				...(data.apiExpPercentages !== undefined && {
+					apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
+				}),
 			},
 		});
 
-		await prisma.$executeRaw`
-			UPDATE user_simulation
-			SET hasSeenTour = ${data.hasSeenTour ? 1 : 0}
-			WHERE userId42 = ${userId42}
-		`;
+		if (data.hasSeenTour !== undefined) {
+			await prisma.$executeRaw`
+				UPDATE user_simulation
+				SET hasSeenTour = ${data.hasSeenTour ? 1 : 0}
+				WHERE userId42 = ${userId42}
+			`;
+		}
 
 		// Mise à jour DIFFÉRENTIELLE des projets simulés.
 		//
