@@ -318,7 +318,7 @@ const MyProjects: React.FC = () => {
 		return [
 			{ key: 'todo', title: 'À faire', sub: readOnly ? '' : 'coche pour simuler', rows: todo },
 			// Un projet raté se simule (pour le retenter) ; un validé, non.
-			{ key: 'done', title: 'Faits', sub: !readOnly && done.some(r => r.status === 'failed') ? 'raté : coche pour le retenter' : '', rows: done },
+			{ key: 'done', title: 'Faits', sub: done.some(r => r.status === 'failed' && !simulationBlocker(r, readOnly)) ? 'raté : coche pour le retenter' : '', rows: done },
 		].filter(g => g.rows.length > 0);
 	}, [visible, readOnly]);
 
@@ -405,7 +405,9 @@ const MyProjects: React.FC = () => {
 				// Le panneau du bas se ferme d'abord : la fenêtre des teammates
 				// s'ouvrait DESSOUS (inutilisable au doigt comme au clavier).
 				onTeammates={() => {
-					teamReturnRef.current = isWide && document.activeElement instanceof HTMLElement ? document.activeElement : null;
+					// Safari ne donne pas le focus à un bouton cliqué : `body` n'est pas une cible.
+					const active = document.activeElement;
+					teamReturnRef.current = isWide && active instanceof HTMLElement && active !== document.body ? active : null;
 					setSheetOpen(false);
 					setTeammateRow(row);
 				}}

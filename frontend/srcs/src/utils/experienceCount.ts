@@ -116,3 +116,14 @@ export function compterExperiencesApi(entrees: EntreeApi[]): number {
 export function compterExperiencesApiValidees(entrees: EntreeApi[]): number {
 	return compter(entrees.filter(estExperienceValidee));
 }
+
+/**
+ * Retire les expériences détectées que l'utilisateur a désactivées (une
+ * alternance enregistrée pour 2 ans qui n'en durera qu'un, par exemple) : elles
+ * ne comptent plus nulle part, ni en nombre ni en XP prévu.
+ */
+export function sansExperiencesDesactivees<T extends { id: number }>(entrees: T[], desactivees: readonly number[]): T[] {
+	if (desactivees.length === 0) return entrees;
+	const exclues = new Set(desactivees);
+	return entrees.filter(e => !exclues.has(e.id));
+}

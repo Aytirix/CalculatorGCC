@@ -115,16 +115,18 @@ describe('createSimulationSaver', () => {
 		const sent = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
 		expect(sent).not.toHaveProperty('hasSeenTour');
 		expect(sent).not.toHaveProperty('apiExpPercentages');
+		expect(sent).not.toHaveProperty('disabledApiExperiences');
 	});
 
 	it('Dashboard : les envoie, et ne réécrit pas la copie locale (il tient la sienne)', () => {
 		const save = vi.fn(async () => undefined);
 		const saver = createSimulationSaver(save, 2000, { writeCache: false, sendSettings: true });
-		saver.schedule(data);
+		saver.schedule({ ...data, disabledApiExperiences: [7] });
 		saver.flush();
 		const sent = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
 		expect(sent.hasSeenTour).toBe(true);
 		expect(sent.apiExpPercentages).toEqual({});
+		expect(sent.disabledApiExperiences).toEqual([7]);
 		expect(memoire.size).toBe(0);
 	});
 
@@ -139,5 +141,16 @@ describe('createSimulationSaver', () => {
 		expect(switchHooks.size).toBe(0);
 		vi.advanceTimersByTime(800);
 		expect(save).toHaveBeenCalledOnce();
+	});
+
+	it('né en consultation d’un autre profil : n’enregistre jamais, même une fois la consultation coupée', () => {
+		readOnly = true;
+		const save = vi.fn(async () => undefined);
+		const saver = createSimulationSaver(save, 800);
+		readOnly = false; // retour à son profil avant le démontage de la page
+		saver.schedule(data);
+		saver.flush();
+		expect(save).not.toHaveBeenCalled();
+		expect(memoire.size).toBe(0);
 	});
 });

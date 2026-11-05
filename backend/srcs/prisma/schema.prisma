@@ -62,6 +62,9 @@ model UserSimulation {
   customProjects        Json?    // SimulatorProject[]
   manualExperiences     Json?    // ProfessionalExperience[]
   apiExpPercentages     Json?    // Record<number, number>
+  // Expériences détectées sur l'intra (ids projects_users) que l'utilisateur a
+  // désactivées : elles ne comptent plus (ni XP prévu ni nombre d'expériences).
+  disabledApiExperiences Json?   // number[]
   calendarData          Json?    // CalendarData { placedProjects, dateRange, alternanceDays }
   updatedAt             DateTime @updatedAt
   createdAt             DateTime @default(now())

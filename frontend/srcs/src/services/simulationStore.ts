@@ -21,15 +21,16 @@ const SAVE_DELAY_MS = 800;
 /**
  * Champs que la sauvegarde générale ne doit PAS renvoyer : le serveur garde sa
  * valeur quand ils sont absents. Expériences et étapes du guide ont leur propre
- * route. Le guide et les % d'expérience ne sont modifiés que par le Dashboard :
+ * route. Le guide, les % d'expérience et les expériences désactivées ne sont
+ * modifiés que par le Dashboard :
  * les renvoyer depuis une autre page, c'était renvoyer la valeur de SON
  * chargement, et écraser un changement fait entre-temps ailleurs.
  */
 function forSave(data: SimulationData, sendSettings: boolean): SimulationData {
-	const { manualExperiences: _experiences, seenTourSteps: _steps, apiExpPercentages, hasSeenTour, ...rest } = data;
+	const { manualExperiences: _experiences, seenTourSteps: _steps, apiExpPercentages, hasSeenTour, disabledApiExperiences, ...rest } = data;
 	void _experiences;
 	void _steps;
-	return sendSettings ? { ...rest, apiExpPercentages, hasSeenTour } : rest;
+	return sendSettings ? { ...rest, apiExpPercentages, hasSeenTour, disabledApiExperiences } : rest;
 }
 
 /** Réécrit la copie locale de la simulation au format du Dashboard. */
@@ -77,6 +78,11 @@ export function createSimulationSaver(
 ): SimulationSaver {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let pending: SimulationData | null = null;
+	// Les pages sont recréées à chaque changement de profil consulté : un
+	// enregistreur né en consultation n'enregistre JAMAIS. Sans ça, revenir à son
+	// profil coupait la consultation avant le démontage de la page, et
+	// l'enregistrement envoyé au départ portait la simulation de l'autre.
+	const bornReadOnly = isReadOnlyMode();
 	// Inscrit seulement tant qu'un envoi attend : passer sur le profil d'un autre
 	// envoie d'abord ce qui attend (après, `save()` n'écrirait plus rien).
 	let unregister: (() => void) | undefined;
@@ -92,7 +98,7 @@ export function createSimulationSaver(
 	};
 	return {
 		schedule(next) {
-			if (isReadOnlyMode()) return;
+			if (bornReadOnly || isReadOnlyMode()) return;
 			if (writeCache) writeSimulationCache(next);
 			pending = next;
 			if (timer) clearTimeout(timer);

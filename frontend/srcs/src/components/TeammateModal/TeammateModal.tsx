@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
 	isReadOnlyMode,
 	simulationService,
@@ -88,6 +88,18 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	const [hasTeam, setHasTeam] = useState(false);
 	const [teamSize, setTeamSize] = useState(2);
 	const [teamError, setTeamError] = useState<string | null>(null);
+
+	// Échap ferme la fenêtre, comme les autres de l'app.
+	const onCloseRef = useRef(onClose);
+	onCloseRef.current = onClose;
+	useEffect(() => {
+		if (!isOpen) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, [isOpen]);
 
 	useEffect(() => {
 		const val = isOpen ? 'hidden' : '';
@@ -235,14 +247,20 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 
 	return (
 		<div className="teammate-modal-overlay" onClick={onClose}>
-			<div className="teammate-modal teammate-modal--wide" onClick={(e) => e.stopPropagation()}>
+			<div
+				className="teammate-modal teammate-modal--wide"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="teammate-modal-title"
+				onClick={(e) => e.stopPropagation()}
+			>
 				<div className="teammate-modal__header">
-					<h3 className="teammate-modal__title">Trouver des teammates</h3>
+					<h3 className="teammate-modal__title" id="teammate-modal-title">Trouver des teammates</h3>
 					<p className="teammate-modal__project">
 						{projectName}
 						{teamLabel && <span className="teammate-modal__team-size"> · {teamLabel}</span>}
 					</p>
-					<button className="teammate-modal__close" onClick={onClose}>×</button>
+					<button className="teammate-modal__close" onClick={onClose} aria-label="Fermer">×</button>
 				</div>
 
 				<div className="teammate-modal__toolbar">

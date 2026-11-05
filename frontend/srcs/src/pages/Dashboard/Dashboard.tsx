@@ -13,7 +13,7 @@ import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import { professionalExperienceMath, professionalExperienceStorage } from '@/utils/professionalExperienceStorage';
 import { resoudreExperiences } from '@/utils/experienceLoad';
 import { normaliserExperiences } from '@/utils/experienceMigration';
-import { compterExperiencesApi, compterExperiencesApiValidees, estExperienceApi } from '@/utils/experienceCount';
+import { compterExperiencesApi, compterExperiencesApiValidees, estExperienceApi, sansExperiencesDesactivees } from '@/utils/experienceCount';
 import { isReadOnlyMode, simulationService } from '@/services/simulation.service';
 import type { SimulationData } from '@/services/simulation.service';
 import { createSimulationSaver, type SimulationSaver } from '@/services/simulationStore';
@@ -102,6 +102,15 @@ const Dashboard: React.FC = () => {
 	const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
 	// En consultation d'un autre profil, on part de rien : le localStorage ne
 	// contient QUE mes données, et les siennes arrivent du backend juste après.
+	// Expériences détectées sur l'intra que l'utilisateur a désactivées.
+	const [disabledApiExps, setDisabledApiExps] = useState<number[]>(() => {
+		try {
+			const saved = JSON.parse(localStorage.getItem('disabled_api_experiences') ?? '[]');
+			return Array.isArray(saved) ? saved.filter((v: unknown) => Number.isSafeInteger(v)) : [];
+		} catch {
+			return [];
+		}
+	});
 	const [apiExpPercentages, setApiExpPercentages] = useState<Record<number, number>>(() => {
 		if (isReadOnlyMode()) return {};
 		const saved = localStorage.getItem('api_exp_percentages');
@@ -181,6 +190,10 @@ const Dashboard: React.FC = () => {
 				if (viewingOther || Object.keys(remotePercentages).length > 0) {
 					setApiExpPercentages(remotePercentages);
 				}
+				const remoteDisabled = Array.isArray(data.disabledApiExperiences)
+					? data.disabledApiExperiences.filter(v => Number.isSafeInteger(v))
+					: [];
+				setDisabledApiExps(remoteDisabled);
 
 				// Normalisées comme celles du stockage : la base contient les mêmes
 				// `isSimulation: false` subis, écrits avant que l'interrupteur existe.
@@ -226,6 +239,7 @@ const Dashboard: React.FC = () => {
 					localStorage.setItem('project_notes', JSON.stringify(notes));
 					localStorage.setItem('coalition_boosts', JSON.stringify(boosts));
 					localStorage.setItem('api_exp_percentages', JSON.stringify(data.apiExpPercentages ?? {}));
+					localStorage.setItem('disabled_api_experiences', JSON.stringify(remoteDisabled));
 				}
 			} catch (err) {
 				console.warn('[Dashboard] Backend indisponible, chargement depuis localStorage', err);
@@ -331,7 +345,9 @@ const Dashboard: React.FC = () => {
 
 	// Sauvegarder la simulation vers le backend (debounced 2s)
 	const saveToBackend = useCallback(() => {
-		if (isInitialLoad.current) return;
+		// En consultation, l'état est celui de l'AUTRE : rien à enregistrer, même
+		// si la consultation vient d'être coupée (retour à son profil).
+		if (isInitialLoad.current || isViewingOther) return;
 		const data: SimulationData = {
 			simulatedProjects: simulatedProjects.map((id: string) => ({
 				projectId: id,
@@ -348,10 +364,11 @@ const Dashboard: React.FC = () => {
 			// un projet la faisait réapparaître. Le serveur, lui, ne remet plus la
 			// colonne à vide quand la clé est absente du corps.
 			apiExpPercentages,
+			disabledApiExperiences: disabledApiExps,
 			hasSeenTour: localStorage.getItem('gcc_tour_seen_v1') === 'true',
 		};
 		saverRef.current?.schedule(data);
-	}, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages]);
+	}, [simulatedProjects, simulatedSubProjects, projectPercentages, coalitionBoosts, projectNotes, customProjects, apiExpPercentages, disabledApiExps, isViewingOther]);
 
 	useEffect(() => {
 		saveToBackend();
@@ -759,7 +776,7 @@ const Dashboard: React.FC = () => {
 			}
 			return false;
 		};
-		const apiEntries = apiStages.filter(p => !p.validated && isMainApiEntry(p));
+		const apiEntries = sansExperiencesDesactivees(apiStages, disabledApiExps).filter(p => !p.validated && isMainApiEntry(p));
 		for (const p of apiEntries) {
 			const nameL = p.project.name.toLowerCase();
 			const evalsForEntry = apiStages.filter(e => isEval(e.project.name) && (p.created_at ? new Date(p.created_at).getFullYear() : 0) === (e.created_at ? new Date(e.created_at).getFullYear() : 0));
@@ -779,7 +796,7 @@ const Dashboard: React.FC = () => {
 
 		const newLevel = xpService.getLevelFromXP(totalXP);
 		setProjectedLevel(newLevel);
-	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, manualExpVersion, manualExperiences, customProjects, rncpData]);
+	}, [simulatedProjects, simulatedSubProjects, userProgress, projectPercentages, coalitionBoosts, apiStages, apiExpPercentages, disabledApiExps, manualExpVersion, manualExperiences, customProjects, rncpData]);
 
 	const handleToggleSimulation = (projectId: string) => {
 		setSimulatedProjects(prev => {
@@ -959,10 +976,15 @@ const Dashboard: React.FC = () => {
 	// `duration === 2 ? 2 : 1` comptait une alternance de 3 ans pour UNE.
 	const simulatedManualProfExpCount = professionalExperienceMath.simulatedCount(manualExperiences);
 
-	const apiEnCoursProfExpCount = compterExperiencesApi(apiStages.map(entreeApi));
+	// Expériences détectées encore actives : une désactivée ne compte plus.
+	const activeApiStages = sansExperiencesDesactivees(apiStages, disabledApiExps);
+	const apiEnCoursProfExpCount = compterExperiencesApi(activeApiStages.map(entreeApi));
+	// Même décompte que `userProgress.professionalExperience` (calculé au
+	// chargement sur toutes les entrées), mais sans les désactivées.
+	const apiValideesProfExpCount = compterExperiencesApiValidees(activeApiStages.map(entreeApi));
 
 	const projectedProfExp =
-		(userProgress?.professionalExperience ?? 0) +
+		apiValideesProfExpCount +
 		professionalExperienceMath.realCount(manualExperiences) +
 		simulatedManualProfExpCount +
 		apiEnCoursProfExpCount;
@@ -970,7 +992,7 @@ const Dashboard: React.FC = () => {
 	// Le même décompte, sans rien de simulé ni d'en cours : c'est ce qui est
 	// réellement acquis, et c'est ce qui doit décider d'un « validé ».
 	const realProfExp =
-		(userProgress?.professionalExperience ?? 0) +
+		apiValideesProfExpCount +
 		professionalExperienceMath.realCount(manualExperiences);
 
 	// Mémoriser les validations RNCP et les recalculer quand les dépendances changent

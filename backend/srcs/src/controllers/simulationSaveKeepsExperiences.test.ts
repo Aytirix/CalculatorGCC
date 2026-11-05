@@ -111,3 +111,23 @@ describe('PUT /simulation — guide et % des expériences', () => {
 		expect(data.apiExpPercentages).toBeUndefined();
 	});
 });
+
+describe('PUT /simulation — expériences détectées désactivées', () => {
+	it('liste d’identifiants : transmise, doublons retirés', async () => {
+		const data = await appeler({ disabledApiExperiences: [4549567, 4549567, 12] });
+		expect(data.disabledApiExperiences).toEqual([4549567, 12]);
+	});
+
+	it('liste vide : transmise (tout réactiver)', async () => {
+		const data = await appeler({ disabledApiExperiences: [] });
+		expect(data.disabledApiExperiences).toEqual([]);
+	});
+
+	it('absente ou mal formée : rien n’est transmis, la base garde sa valeur', async () => {
+		for (const tordu of [undefined, 'x', [1.5], [-3], ['12'], { 0: 1 }, Array.from({ length: 51 }, (_, i) => i + 1)]) {
+			enregistrer.mockClear();
+			const data = await appeler({ disabledApiExperiences: tordu });
+			expect(data.disabledApiExperiences).toBeUndefined();
+		}
+	});
+});

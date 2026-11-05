@@ -8,6 +8,20 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Plafond : un compte a quelques expériences, pas des centaines. */
+const MAX_DISABLED_API_EXPERIENCES = 50;
+
+/**
+ * Expériences détectées que l'utilisateur a désactivées (ids `projects_users`).
+ * Absent ou mal formé : `undefined`, la valeur en base est gardée — jamais
+ * remise à zéro sur un corps douteux.
+ */
+export function parseDisabledApiExperiences(value: unknown): number[] | undefined {
+	if (!Array.isArray(value) || value.length > MAX_DISABLED_API_EXPERIENCES) return undefined;
+	if (!value.every(v => Number.isSafeInteger(v) && (v as number) > 0)) return undefined;
+	return [...new Set(value as number[])];
+}
+
 export const SimulationController = {
 	/**
 	 * GET /simulation - Récupère la simulation de l'utilisateur connecté
@@ -34,6 +48,7 @@ export const SimulationController = {
 				customProjects: [],
 				manualExperiences: [],
 				apiExpPercentages: {},
+				disabledApiExperiences: [],
 				hasSeenTour: false,
 				seenTourSteps: [],
 			});
@@ -126,6 +141,7 @@ export const SimulationController = {
 				customProjects: [],
 				manualExperiences: [],
 				apiExpPercentages: {},
+				disabledApiExperiences: [],
 				hasSeenTour: false,
 				seenTourSteps: [],
 			});
@@ -212,6 +228,7 @@ export const SimulationController = {
 				? (body.apiExpPercentages as Record<string, number>)
 				: undefined,
 			hasSeenTour: typeof body.hasSeenTour === 'boolean' ? body.hasSeenTour : undefined,
+			disabledApiExperiences: parseDisabledApiExperiences(body.disabledApiExperiences),
 		};
 
 		const { saved, dropped } = await simulationRepository.save(

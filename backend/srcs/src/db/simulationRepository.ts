@@ -39,6 +39,11 @@ export interface SimulationData {
 	/** Absent à l'enregistrement : la valeur en base est gardée. */
 	hasSeenTour?: boolean;
 	/**
+	 * Expériences détectées sur l'intra que l'utilisateur a désactivées (ids
+	 * `projects_users`). Absent à l'enregistrement : la valeur en base est gardée.
+	 */
+	disabledApiExperiences?: number[];
+	/**
 	 * Étapes du guide déjà vues (permet de ne proposer que les nouvelles).
 	 * Optionnel : la sauvegarde générale de la simulation ne le porte pas, il a
 	 * son propre point d'entrée.
@@ -365,6 +370,9 @@ export const simulationRepository = {
 			customProjects: (userSim.customProjects as unknown[]) ?? [],
 			manualExperiences: (userSim.manualExperiences as unknown[]) ?? [],
 			apiExpPercentages: (userSim.apiExpPercentages as Record<string, number>) ?? {},
+			disabledApiExperiences: Array.isArray(userSim.disabledApiExperiences)
+				? (userSim.disabledApiExperiences as number[])
+				: [],
 			hasSeenTour: await getTourSeenFlag(userId42),
 			seenTourSteps: await simulationRepository.getSeenTourSteps(userId42),
 		};
@@ -422,6 +430,7 @@ export const simulationRepository = {
 					manualExperiences: data.manualExperiences as Prisma.InputJsonValue,
 				}),
 				apiExpPercentages: (data.apiExpPercentages ?? {}) as Prisma.InputJsonValue,
+				disabledApiExperiences: (data.disabledApiExperiences ?? []) as Prisma.InputJsonValue,
 			},
 			update: {
 				login,
@@ -435,6 +444,9 @@ export const simulationRepository = {
 				}),
 				...(data.apiExpPercentages !== undefined && {
 					apiExpPercentages: data.apiExpPercentages as Prisma.InputJsonValue,
+				}),
+				...(data.disabledApiExperiences !== undefined && {
+					disabledApiExperiences: data.disabledApiExperiences as Prisma.InputJsonValue,
 				}),
 			},
 		});

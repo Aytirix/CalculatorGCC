@@ -54,6 +54,12 @@ export interface SimulationData {
 	/** Absent à l'enregistrement : le serveur garde sa valeur. */
 	hasSeenTour?: boolean;
 	/**
+	 * Expériences détectées sur l'intra (ids `projects_users`) que l'utilisateur
+	 * a désactivées : elles ne comptent plus. Absent à l'enregistrement : le
+	 * serveur garde sa valeur.
+	 */
+	disabledApiExperiences?: number[];
+	/**
 	 * Étapes du guide déjà vues. Renvoyé par le serveur au chargement ; la
 	 * sauvegarde générale ne le porte pas (il a son propre point d'entrée).
 	 */
@@ -116,7 +122,17 @@ export interface UserSearchResult {
 // à la fermeture) puis ouvrir le Dashboard lisait la base AVANT l'écriture —
 // et le Dashboard renvoyait ensuite cette version périmée : modification perdue.
 let pendingSave: Promise<unknown> = Promise.resolve();
-export const PENDING_SAVE_MAX_WAIT_MS = 4000;
+export const PENDING_SAVE_MAX_WAIT_MS = 8000;
+
+/** Attend l'enregistrement en cours, au plus PENDING_SAVE_MAX_WAIT_MS : un envoi bloqué ne fige rien. */
+async function waitPendingSave(): Promise<void> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	await Promise.race([
+		pendingSave,
+		new Promise(resolve => { timer = setTimeout(resolve, PENDING_SAVE_MAX_WAIT_MS); }),
+	]);
+	clearTimeout(timer);
+}
 
 export const simulationService = {
 	/**
@@ -126,14 +142,10 @@ export const simulationService = {
 		if (_viewSimUserId !== null) {
 			return request<SimulationData>(`/simulation/user/${_viewSimUserId}`);
 		}
-		// Attente bornée : un enregistrement bloqué ne doit pas figer la page. Un
-		// enregistrement sain prend moins d'une seconde.
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		await Promise.race([
-			pendingSave,
-			new Promise(resolve => { timer = setTimeout(resolve, PENDING_SAVE_MAX_WAIT_MS); }),
-		]);
-		clearTimeout(timer);
+		// Attente bornée : un enregistrement bloqué ne doit pas figer la page. 8 s
+		// et pas moins : sur un réseau lent, lire avant la fin de l'écriture fait
+		// renvoyer au Dashboard une version périmée (modification perdue).
+		await waitPendingSave();
 		return request<SimulationData>('/simulation');
 	},
 
@@ -185,10 +197,10 @@ export const simulationService = {
 			// Ne jamais modifier les données d'un autre utilisateur
 			return data;
 		}
-		const saving = request<SimulationData>('/simulation', {
-			method: 'PUT',
-			body: JSON.stringify(data),
-		});
+		// Un enregistrement attend le précédent : deux PUT en vol pouvaient arriver
+		// dans le désordre, et la version la plus ancienne gagnait.
+		const body = JSON.stringify(data);
+		const saving = waitPendingSave().then(() => request<SimulationData>('/simulation', { method: 'PUT', body }));
 		// Une erreur d'enregistrement ne doit pas bloquer les lectures suivantes.
 		pendingSave = saving.catch(() => undefined);
 		return saving;

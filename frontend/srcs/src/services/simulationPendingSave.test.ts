@@ -25,7 +25,8 @@ describe('simulationService — une lecture attend l’enregistrement en cours',
 		const data = { simulatedProjects: [], simulatedSubProjects: {}, customProjects: [], apiExpPercentages: {}, hasSeenTour: true };
 		const saving = simulationService.save(data);
 		const loading = simulationService.load();
-		await Promise.resolve();
+		await vi.waitFor(() => expect(order).toEqual(['put:start']));
+		await new Promise(r => setTimeout(r, 20));
 		expect(order).toEqual(['put:start']); // la lecture attend
 		finishPut();
 		await saving;
@@ -57,6 +58,34 @@ describe('simulationService — une lecture attend l’enregistrement en cours',
 		await loading;
 		expect(done).toBe(true);
 		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
+describe('simulationService.save — un enregistrement attend le précédent', () => {
+	it('deux PUT ne sont jamais en vol en même temps', async () => {
+		const events: string[] = [];
+		const finish: (() => void)[] = [];
+		vi.stubGlobal('fetch', vi.fn((_url: string, opts?: RequestInit) => {
+			const n = JSON.parse(String(opts?.body)).simulatedProjects.length;
+			events.push(`start:${n}`);
+			return new Promise(resolve => {
+				finish.push(() => { events.push(`end:${n}`); resolve({ ok: true, status: 200, json: async () => ({}) }); });
+			});
+		}));
+		// Un test plus haut laisse un enregistrement bloqué : l'attente bornée
+		// le laisse derrière (sinon plus rien ne partirait jamais).
+		vi.useFakeTimers();
+		const base = { simulatedSubProjects: {}, customProjects: [] };
+		const a = simulationService.save({ ...base, simulatedProjects: [] });
+		await vi.advanceTimersByTimeAsync(PENDING_SAVE_MAX_WAIT_MS);
+		vi.useRealTimers();
+		const b = simulationService.save({ ...base, simulatedProjects: [{ projectId: 'x', percentage: 100, coalitionBoost: false }] });
+		await vi.waitFor(() => expect(events).toEqual(['start:0']));
+		finish[0]();
+		await a;
+		await vi.waitFor(() => expect(events).toEqual(['start:0', 'end:0', 'start:1']));
+		finish[1]();
+		await b;
 	});
 });
 

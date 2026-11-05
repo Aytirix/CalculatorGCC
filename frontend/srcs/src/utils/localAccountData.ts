@@ -22,6 +22,7 @@ export const ACCOUNT_DATA_KEYS = [
 	'custom_projects',
 	'coalition_boosts',
 	'api_exp_percentages',
+	'disabled_api_experiences',
 	'professional_experiences',
 	'professional_experiences_synced',
 	// Calendrier
