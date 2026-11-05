@@ -1,9 +1,11 @@
 // ── Mes projets ─────────────────────────────────────────────────────────────
 // Couleurs en variables --mp-* : thème clair par défaut, surchargées sous
 // `.dark` (classe posée sur <html> par ThemeContext). Texte ≥ 4,5:1 partout.
-// Même famille visuelle que le Calendrier.
+// Même famille visuelle que le Calendrier. `.mp-scope` porte les mêmes
+// couleurs et réglages pour le Dashboard, qui réutilise ces composants.
 
-.my-projects-page {
+.my-projects-page,
+.mp-scope {
 	--mp-bg: var(--bg-primary);
 	--mp-surface: var(--bg-card);
 	--mp-border: var(--border-color);
@@ -23,6 +25,7 @@
 	--mp-st-simulated-bg: #f1eafb; --mp-st-simulated-fg: #5b2a9e;
 	--mp-st-failed-bg: #fdecea; --mp-st-failed-fg: #a8261b;
 	--mp-st-not_started-bg: #eef1f5; --mp-st-not_started-fg: #4a5260;
+	--mp-team-bg: #e3f2ef; --mp-team-fg: #0e5e52;
 	--mp-radius: 16px;
 
 	min-height: 100vh;
@@ -44,6 +47,7 @@
 }
 
 .dark .my-projects-page,
+.dark .mp-scope,
 .dark .mp-sheet-overlay {
 	--mp-muted: #a8afba;
 	--mp-accent: #6b9bff;
@@ -58,6 +62,7 @@
 	--mp-st-simulated-bg: #2c2142; --mp-st-simulated-fg: #d8c4fa;
 	--mp-st-failed-bg: #3a1c1c; --mp-st-failed-fg: #ffb4ab;
 	--mp-st-not_started-bg: #2a2e36; --mp-st-not_started-fg: #cfd4de;
+	--mp-team-bg: #12332e; --mp-team-fg: #9fe3d6;
 }
 
 .mp-muted { color: var(--mp-muted); }
@@ -424,6 +429,39 @@
 	&[aria-disabled='true'] { cursor: not-allowed; }
 	&[aria-disabled='true'] > span:first-child { border-color: var(--mp-off); background: var(--mp-subtle); }
 	&[aria-disabled='true'].is-on > span:first-child { opacity: 0.6; }
+}
+
+// Projet déjà validé : la case est cochée en vert, et inactive.
+.mp-check.is-done > span:first-child,
+.mp-check[aria-disabled='true'].is-done > span:first-child {
+	background: var(--mp-st-validated-bg);
+	border-color: var(--mp-st-validated-fg);
+	color: var(--mp-st-validated-fg);
+	opacity: 1;
+}
+
+// Solo ou groupe : la forme (contour / plein) et l'icône changent, pas
+// seulement la couleur.
+.mp-team {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 8px;
+	box-sizing: border-box;
+	border: 1px solid var(--mp-check-border);
+	border-radius: 999px;
+	background: var(--mp-surface);
+	color: var(--mp-muted);
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+
+	&--group {
+		border-color: transparent;
+		background: var(--mp-team-bg);
+		color: var(--mp-team-fg);
+	}
 }
 
 .mp-check-static {

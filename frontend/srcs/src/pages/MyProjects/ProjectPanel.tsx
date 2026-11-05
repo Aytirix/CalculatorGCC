@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Minus, Plus, Users, X } from 'lucide-react';
+import { CalendarDays, Info, Minus, Plus, Users, X } from 'lucide-react';
 import { DEFAULT_PROJECT_MAX_PERCENTAGE } from '@/utils/projectPercentage';
 import { simulatedGain } from '@/utils/simulationEdit';
 import { formatShort } from '@/pages/Calendar/calendarModel';
@@ -31,6 +31,14 @@ export interface ProjectPanelProps {
 	onNote: (value: string) => void;
 	onOpenCalendar: () => void;
 	onTeammates: () => void;
+	/** Taille d'équipe (« Solo », « Groupe de 2 à 4 »), en pastille. */
+	teamText?: string;
+	/** Remplace la raison de blocage par défaut (page qui sait faire autrement : piscine cochée ici). */
+	blockerOverride?: string | null;
+	/** Ouvre le détail complet du projet (durée, prérequis, description). */
+	onDetails?: () => void;
+	/** Contenu propre à la page, sous la simulation (effet sur une catégorie, modules d'une piscine). */
+	children?: React.ReactNode;
 }
 
 function formatDate(iso: string | null): string | null {
@@ -55,11 +63,12 @@ const Switch: React.FC<{ checked: boolean; label: string; disabled?: boolean; on
 
 export const ProjectPanel: React.FC<ProjectPanelProps> = ({
 	row, readOnly, slot, hasTeam, teamLabel, onToggle, onPercentage, onBoost, onNote, onOpenCalendar, onTeammates,
+	teamText, blockerOverride, onDetails, children,
 }) => {
 	const titleId = useId();
 	const max = row.maxPercentage ?? DEFAULT_PROJECT_MAX_PERCENTAGE;
 	const pct = row.simulatedPercentage ?? 100;
-	const blocker = simulationBlocker(row, readOnly);
+	const blocker = !readOnly && blockerOverride !== undefined ? blockerOverride : simulationBlocker(row, readOnly);
 	// Saisies locales, validées en quittant le champ : borner pendant la frappe
 	// transformait « 1 » (début de « 110 ») en 50.
 	const [pctDraft, setPctDraft] = useState(String(pct));
@@ -87,6 +96,7 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({
 				<div className="mp-pills">
 					<span className={`mp-pill mp-pill--${shownStatus}`}>{STATUS_LABELS[shownStatus]}</span>
 					<span className="mp-pill mp-pill--source">{SOURCE_LABELS[row.source]}</span>
+					{teamText && <span className="mp-pill mp-pill--source">{teamText}</span>}
 				</div>
 				<h2 id={titleId}>{row.name}</h2>
 				<p className="mp-muted">
@@ -175,6 +185,8 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({
 				)}
 			</section>
 
+			{children}
+
 			{row.isSimulated && !readOnly && (
 				<div className="mp-cal">
 					<CalendarDays size={20} aria-hidden="true" />
@@ -192,6 +204,13 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({
 				<button type="button" className="mp-btn" onClick={onTeammates}>
 					<Users size={18} aria-hidden="true" />
 					{teamLabel}
+				</button>
+			)}
+
+			{onDetails && (
+				<button type="button" className="mp-btn" onClick={onDetails}>
+					<Info size={18} aria-hidden="true" />
+					Détails du projet
 				</button>
 			)}
 		</div>

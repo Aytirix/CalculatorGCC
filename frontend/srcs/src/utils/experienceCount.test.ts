@@ -7,6 +7,7 @@ import {
 	nombreExperiences,
 	type EntreeApi,
 } from './experienceCount';
+import { sansExperiencesDesactivees } from './experienceCount';
 
 /**
  * « Alternance 2 ans = 2 expériences pro, 1 an = 1 expérience pro. »
@@ -133,3 +134,14 @@ describe('compterExperiencesApi — les expériences EN COURS', () => {
 		])).toBe(1);
 	});
 });
+
+describe('sansExperiencesDesactivees', () => {
+	const entrees = [{ id: 1, nom: 'FR - Alternance - 2 ans' }, { id: 2, nom: 'Work Experience I' }];
+	it('retire les désactivées, garde les autres', () => {
+		expect(sansExperiencesDesactivees(entrees, [1]).map(e => e.id)).toEqual([2]);
+	});
+	it('rien de désactivé : la même liste', () => {
+		expect(sansExperiencesDesactivees(entrees, [])).toBe(entrees);
+	});
+});
+

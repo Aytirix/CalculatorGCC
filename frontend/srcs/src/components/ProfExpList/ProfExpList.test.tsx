@@ -32,23 +32,64 @@ const rendu = (experiences: ProfessionalExperience[]) =>
 describe('ProfExpList — simulé vs acquis', () => {
 	it('MARQUE une expérience simulée', () => {
 		const html = rendu([exp({ isSimulation: true })]);
-		expect(html).toContain('prof-exp-item__simule');
-		expect(html).toContain('Simulé');
+		expect(html).toContain('prof-exp-pill--simulated');
+		expect(html).toContain('Simulée');
 	});
 
 	it('ne marque PAS une expérience acquise', () => {
-		expect(rendu([exp({ isSimulation: false })])).not.toContain('prof-exp-item__simule');
+		expect(rendu([exp({ isSimulation: false })])).not.toContain('prof-exp-pill--simulated');
 	});
 
 	it('réserve la pastille verte aux expériences ACQUISES', () => {
 		// `validated` sur une simulation contredirait, sur la même page, le calcul
 		// qui vient de la déclasser en projection.
-		expect(rendu([exp({ isSimulation: false })])).toContain('prof-exp-item__status validated');
+		expect(rendu([exp({ isSimulation: false })])).toContain('prof-exp-pill--validated');
 		expect(rendu([exp({ isSimulation: true })])).not.toContain('validated');
 	});
 
 	it('affiche le pourcentage dans les deux cas', () => {
-		expect(rendu([exp({ isSimulation: true })])).toContain('110%');
-		expect(rendu([exp({ isSimulation: false })])).toContain('110%');
+		expect(rendu([exp({ isSimulation: true })])).toContain('110 %');
+		expect(rendu([exp({ isSimulation: false })])).toContain('110 %');
 	});
 });
+
+const alternanceApi = {
+	id: 4549567, final_mark: null, validated: false, status: 'in_progress',
+	project: { id: 1, name: 'FR - Alternance - RNCP7 - 2 ans', slug: 'fr-alternance-rncp7-2-ans' },
+} as never;
+
+const renduApi = (props: Record<string, unknown>) =>
+	renderToStaticMarkup(
+		React.createElement(ProfExpList, {
+			entries: [alternanceApi], evalsByParent: {}, manualExperiences: [],
+			getParentKey: () => '', onDeleteManual: () => {}, onEditManual: () => {},
+			apiExpPercentages: {}, onApiExpPercentageChange: () => {},
+			onToggleDisabled: () => {}, ...props,
+		})
+	);
+
+describe('ProfExpList — expérience détectée désactivable', () => {
+	it('active : pourcentage réglable, XP prévu, bouton « Désactiver »', () => {
+		const html = renduApi({});
+		expect(html).toMatch(/180\s000 XP prévus/);
+		expect(html).toContain('Désactiver');
+		expect(html).toContain('<input');
+	});
+
+	it('désactivée : barrée, plus d’XP prévu ni de réglage, « Réactiver » et l’explication', () => {
+		const html = renduApi({ disabledIds: [4549567] });
+		expect(html).toContain('is-disabled');
+		expect(html).toContain('Désactivée');
+		expect(html).toContain('Réactiver');
+		expect(html).toContain('Ne compte plus');
+		expect(html).not.toContain('XP prévus');
+		expect(html).not.toContain('<input');
+	});
+
+	it('consultation : ni bouton ni réglage', () => {
+		const html = renduApi({ readOnly: true });
+		expect(html).not.toContain('Désactiver');
+		expect(html).not.toContain('<input');
+	});
+});
+

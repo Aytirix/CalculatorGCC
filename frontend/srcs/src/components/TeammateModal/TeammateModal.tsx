@@ -95,7 +95,13 @@ const TeammateModal: React.FC<TeammateModalProps> = ({
 	useEffect(() => {
 		if (!isOpen) return;
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); }
+			if (e.key !== 'Escape') return;
+			// Une fenêtre ouverte par-dessus (palette Ctrl+K) garde son Échap.
+			const target = e.target instanceof Element ? e.target : null;
+			const dialog = target?.closest('[role="dialog"]');
+			if (dialog && !dialog.classList.contains('teammate-modal')) return;
+			e.stopPropagation();
+			onCloseRef.current();
 		};
 		window.addEventListener('keydown', onKey);
 		return () => window.removeEventListener('keydown', onKey);

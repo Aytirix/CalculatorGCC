@@ -66,8 +66,8 @@ export interface SimulationData {
 	seenTourSteps?: string[];
 }
 
-async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-	const jwtToken = backendAuthService.getToken();
+async function request<T>(endpoint: string, options?: RequestInit, token?: string | null): Promise<T> {
+	const jwtToken = token ?? backendAuthService.getToken();
 
 	if (!jwtToken) {
 		throw new Error('No authentication token available. Please login first.');
@@ -200,7 +200,10 @@ export const simulationService = {
 		// Un enregistrement attend le précédent : deux PUT en vol pouvaient arriver
 		// dans le désordre, et la version la plus ancienne gagnait.
 		const body = JSON.stringify(data);
-		const saving = waitPendingSave().then(() => request<SimulationData>('/simulation', { method: 'PUT', body }));
+		// Jeton lu À L'APPEL : l'envoi peut partir après une déconnexion qui
+		// l'efface, et la dernière modification serait alors perdue.
+		const token = backendAuthService.getToken();
+		const saving = waitPendingSave().then(() => request<SimulationData>('/simulation', { method: 'PUT', body }, token));
 		// Une erreur d'enregistrement ne doit pas bloquer les lectures suivantes.
 		pendingSave = saving.catch(() => undefined);
 		return saving;

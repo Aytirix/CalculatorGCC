@@ -1,14 +1,114 @@
+// Liste des expériences pro (Dashboard). Couleurs --mp-* posées par `.mp-scope`.
 
-/* Expérience SIMULÉE : projetée, pas acquise. Sans ce marqueur, deux lignes
-   identiques étaient comptées différemment par le calcul RNCP sans que rien ne
-   le montre à l'écran. */
-.prof-exp-item__simule {
-	flex: 0 0 auto;
-	padding: 0.1rem 0.45rem;
+.prof-exp-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.prof-exp-empty {
+	padding: 14px 0;
+	color: var(--mp-muted);
+	font-size: 14px;
+}
+
+.prof-exp-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	padding: 12px 0;
+	border-top: 1px solid var(--mp-border-soft);
+
+	&:first-child { border-top: 0; }
+
+	&.is-disabled .prof-exp-item__name { color: var(--mp-muted); text-decoration: line-through; }
+
+	&__icon {
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
+		border-radius: 10px;
+		background: var(--mp-subtle);
+		color: var(--mp-muted);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	&__main {
+		flex: 1 1 200px;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	&__name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+	&__sub { font-size: 12.5px; color: var(--mp-muted); }
+	&__hint { font-size: 12.5px; color: var(--mp-text); }
+
+	&__pct {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		height: 44px;
+		padding: 0 10px;
+		border: 1px solid var(--mp-border);
+		border-radius: 10px;
+		background: var(--mp-surface);
+		font-size: 14px;
+		font-weight: 600;
+
+		input {
+			width: 3ch;
+			border: 0;
+			background: transparent;
+			color: var(--mp-text);
+			text-align: right;
+			font-size: 15px;
+			font-weight: 700;
+			outline: none;
+		}
+
+		&:focus-within { border-color: var(--mp-accent); }
+	}
+
+	&__actions { display: inline-flex; gap: 6px; }
+}
+
+.prof-exp-pill {
+	padding: 3px 9px;
 	border-radius: 999px;
-	border: 1px solid rgba(168, 85, 247, 0.45);
-	background: rgba(168, 85, 247, 0.14);
-	color: #c084fc;
-	font-size: 0.72rem;
+	font-size: 12.5px;
+	font-weight: 700;
+	white-space: nowrap;
+
+	&--validated { background: var(--mp-st-validated-bg); color: var(--mp-st-validated-fg); }
+	&--progress { background: var(--mp-st-in_progress-bg); color: var(--mp-st-in_progress-fg); }
+	&--simulated { background: var(--mp-st-simulated-bg); color: var(--mp-st-simulated-fg); }
+	&--off { background: var(--mp-st-not_started-bg); color: var(--mp-st-not_started-fg); }
+}
+
+.prof-exp-btn {
+	min-height: 44px;
+	padding: 0 12px;
+	border: 1px solid var(--mp-border);
+	border-radius: 10px;
+	background: var(--mp-surface);
+	color: var(--mp-text);
+	font-size: 13.5px;
+	font-weight: 600;
+
+	&:hover { border-color: var(--mp-accent); color: var(--mp-accent-text); }
+	&--danger:hover { border-color: var(--mp-st-failed-fg); color: var(--mp-st-failed-fg); }
+}
+
+.prof-exp-sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
 	white-space: nowrap;
 }

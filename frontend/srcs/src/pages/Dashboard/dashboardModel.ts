@@ -1,5 +1,6 @@
 import type { CategoryValidation, ProjectCategory, RNCP, RNCPValidation } from '@/types/rncp.types';
 import { formatLevel } from '@/services/xp.service';
+import type { ProjectTeamInfo } from '@/services/backend-api42.service';
 
 /**
  * Ce que le Dashboard affiche d'un titre RNCP, calculé hors du composant :
@@ -37,6 +38,13 @@ const withProjection = (real: string, projected: string, required: string) =>
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
+/**
+ * Écart de niveau ARRONDI AU-DESSUS : le niveau affiché est tronqué (on ne
+ * l'annonce jamais atteint trop tôt), l'écart ne doit donc jamais paraître plus
+ * petit qu'il n'est — 21 − 19,53 s'afficherait « 1.46 ».
+ */
+const missingLevelText = (gap: number) => (Math.ceil(gap * 100 - 1e-6) / 100).toFixed(2);
+
 /** Les trois conditions communes à tous les titres (le titre « Global » n'en a pas). */
 export function generalConditions(rncp: RNCP, validation: RNCPValidation, progress: Progress): Condition[] {
 	const levelState = stateOf(validation.isRealLevelValid, validation.isLevelValid);
@@ -54,7 +62,7 @@ export function generalConditions(rncp: RNCP, validation: RNCPValidation, progre
 				? 'Acquis.'
 				: levelState === 'sim'
 					? 'Atteint avec ta simulation.'
-					: `Il manque ${formatLevel(missingLevel)} niveau${missingLevel >= 2 ? 'x' : ''}, même avec ta simulation.`,
+					: `Il manque ${missingLevelText(missingLevel)} niveau${missingLevel >= 2 ? 'x' : ''}, même avec ta simulation.`,
 		},
 		{
 			key: 'events',
@@ -147,4 +155,23 @@ export function levelScale(currentLevel: number, projectedLevel: number, thresho
 	const max = Math.ceil(Math.max(projectedLevel, currentLevel, ...thresholds)) + 1;
 	const at = (level: number) => share(level - min, max - min);
 	return { min, max, at };
+}
+
+/** Identifiant DOM d'une ligne (retour du focus après une fenêtre). */
+export const rowDomId = (categoryId: string, projectId: string) => `db-row-${categoryId}-${projectId}`;
+
+/** « Solo », « Groupe de 2 », « Groupe de 2 à 4 » : la taille d'équipe en toutes lettres. */
+export function teamText(team: ProjectTeamInfo | null): string | undefined {
+	if (!team) return undefined;
+	if (team.solo) return 'Solo';
+	if (team.groupMin == null || team.groupMax == null) return 'En groupe';
+	return team.groupMin === team.groupMax ? `Groupe de ${team.groupMin}` : `Groupe de ${team.groupMin} à ${team.groupMax}`;
+}
+
+/** Libellé du bouton « teammates » : « (groupe de 2) », « (2 à 4) ». */
+export function teammatesLabel(team: Pick<ProjectTeamInfo, 'groupMin' | 'groupMax'> | null): string {
+	if (team?.groupMin == null || team.groupMax == null) return 'Trouver des teammates';
+	return team.groupMin === team.groupMax
+		? `Trouver des teammates (groupe de ${team.groupMin})`
+		: `Trouver des teammates (${team.groupMin} à ${team.groupMax})`;
 }

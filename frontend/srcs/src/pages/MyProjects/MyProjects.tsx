@@ -9,6 +9,8 @@ import { createSimulationSaver } from '@/services/simulationStore';
 import { useRncpData } from '@/contexts/useRncpData';
 import { useProjectTeams } from '@/contexts/useProjectTeams';
 import { useViewingUser } from '@/contexts/useViewingUser';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useFollowScroll } from '@/hooks/useFollowScroll';
 import TeammateModal from '@/components/TeammateModal/TeammateModal';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { setSimulated, updateSimulated } from '@/utils/simulationEdit';
@@ -28,6 +30,7 @@ import {
 	type ProjectStatus,
 } from './myProjects.types';
 import { ProjectPanel, ProjectSheet, type CalendarSlot } from './ProjectPanel';
+import { teammatesLabel } from '@/pages/Dashboard/dashboardModel';
 import './MyProjects.scss';
 
 /**
@@ -103,18 +106,6 @@ function loadFilters(): Filters {
 	} catch {
 		return DEFAULT_FILTERS;
 	}
-}
-
-function useMediaQuery(query: string): boolean {
-	const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
-	useEffect(() => {
-		const mql = window.matchMedia(query);
-		const onChange = () => setMatches(mql.matches);
-		onChange();
-		mql.addEventListener('change', onChange);
-		return () => mql.removeEventListener('change', onChange);
-	}, [query]);
-	return matches;
 }
 
 /** Projets placés au calendrier : copie locale (la plus fraîche) sinon la base. */
@@ -194,28 +185,7 @@ const MyProjects: React.FC = () => {
 	// qu'on choisissait un projet plus bas.
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const sideRef = useRef<HTMLElement>(null);
-	useEffect(() => {
-		if (!isWide) return;
-		const update = () => {
-			const body = bodyRef.current;
-			const side = sideRef.current;
-			if (!body || !side) return;
-			const room = Math.max(0, body.offsetHeight - side.offsetHeight);
-			const offset = Math.max(0, Math.min(SIDE_STICKY_TOP - body.getBoundingClientRect().top, room));
-			side.style.transform = offset > 0 ? `translateY(${Math.round(offset)}px)` : '';
-		};
-		update();
-		window.addEventListener('scroll', update, { passive: true });
-		window.addEventListener('resize', update);
-		const observer = new ResizeObserver(update);
-		if (bodyRef.current) observer.observe(bodyRef.current);
-		if (sideRef.current) observer.observe(sideRef.current);
-		return () => {
-			window.removeEventListener('scroll', update);
-			window.removeEventListener('resize', update);
-			observer.disconnect();
-		};
-	}, [isWide]);
+	useFollowScroll(bodyRef, sideRef, isWide, SIDE_STICKY_TOP);
 
 	// Passé en grand écran, la fiche est à droite : le panneau du bas ne doit
 	// pas se rouvrir tout seul en revenant à une fenêtre étroite.
@@ -394,9 +364,7 @@ const MyProjects: React.FC = () => {
 				readOnly={readOnly}
 				slot={slots.get(row.simId) ?? null}
 				hasTeam={!!team}
-				teamLabel={team?.groupMin != null && team.groupMax != null
-					? `Trouver des teammates (${team.groupMin} à ${team.groupMax})`
-					: 'Trouver des teammates'}
+				teamLabel={teammatesLabel(team)}
 				onToggle={() => toggleSimulated(row)}
 				onPercentage={v => applySimulation(d => updateSimulated(d, row.simId, { percentage: v }))}
 				onBoost={v => applySimulation(d => updateSimulated(d, row.simId, { coalitionBoost: v }))}

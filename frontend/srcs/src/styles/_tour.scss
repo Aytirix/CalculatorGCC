@@ -358,14 +358,12 @@
 }
 
 // --- Correction du clipping par les parents overflow:hidden ---
-// Les conteneurs de CategorySection ont overflow:hidden, ce qui clippe
+// Les cartes de catégorie du Dashboard ont overflow:hidden, ce qui clippe
 // l'outline et le box-shadow des éléments mis en évidence par le guide.
 // :has() permet de rendre le conteneur parent transparent à l'overflow
 // uniquement quand il contient un enfant ciblé par le tour.
 
-.project-card-wrapper:has(.gcc-tour-target),
-.projects-grid:has(.gcc-tour-target),
-.category-section:has(.gcc-tour-target) {
+.db-cat:has(.gcc-tour-target) {
   overflow: visible !important;
 }
 

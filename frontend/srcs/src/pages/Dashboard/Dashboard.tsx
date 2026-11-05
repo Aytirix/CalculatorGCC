@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import Header from '@/components/Header/Header';
-import RNCPCard from '@/components/RNCPCard/RNCPCard';
 import AddExperienceModal from '@/components/AddExperienceModal/AddExperienceModal';
 import { getRncpData } from '@/data/rncp.data';
 import { BackendAPI42Service } from '@/services/backend-api42.service';
 import type { Project42, UserData } from '@/services/backend-api42.service';
-import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired, formatLevel } from '@/services/xp.service';
+import { xpService, isPoolCovered, effectiveProjectXP, isProjectAcquired } from '@/services/xp.service';
 import { isProjectCompleted, matchesProject } from '@/utils/projectMatcher';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { isGraphSimulationId } from '@/utils/holyGraphSimulation';
@@ -25,7 +26,37 @@ import { useRefresh } from '@/contexts/useRefresh';
 import { useViewingUser } from '@/contexts/useViewingUser';
 import { useAuth } from '@/contexts/useAuth';
 import { useRncpData } from '@/contexts/useRncpData';
+import { useProjectTeams } from '@/contexts/useProjectTeams';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useFollowScroll } from '@/hooks/useFollowScroll';
+import { calendarService } from '@/services/calendar.service';
+import { deserializeProjects } from '@/pages/Calendar/calendarModel';
+import { ProjectPanel, ProjectSheet, type CalendarSlot } from '@/pages/MyProjects/ProjectPanel';
+import TeammateModal from '@/components/TeammateModal/TeammateModal';
+import ProjectDetailsModal from '@/components/ProjectDetailsModal/ProjectDetailsModal';
+import { generalConditions, levelScale, rowDomId, teamText, teammatesLabel, validationProgress } from './dashboardModel';
+import { buildDashRow, categoryEffect, type DashRow, type DashRowContext } from './dashboardRows';
+import {
+	CategoryBlock,
+	CategoryEffect,
+	LevelCard,
+	PoolModules,
+	RncpConditions,
+	RncpPicker,
+	type LevelMark,
+	type RncpChoice,
+} from './DashboardParts';
+import '@/pages/MyProjects/MyProjects.scss';
 import './Dashboard.scss';
+
+/** Grand écran : la fiche à droite de la liste ; en dessous, elle monte du bas. */
+const WIDE_QUERY = '(min-width: 1100px)';
+
+/** « RNCP 6 - Développement Web et Mobile » → niveau « RNCP 6 », nom « Développement Web et Mobile ». */
+function splitRncpName(name: string): { level: string; name: string } {
+	const i = name.indexOf(' - ');
+	return i > 0 ? { level: name.slice(0, i), name: name.slice(i + 3) } : { level: 'Tous les projets', name };
+}
 
 const findConfiguredProjectById = (
 	projectId: string,
@@ -100,10 +131,9 @@ const Dashboard: React.FC = () => {
 	const [syncing, setSyncing] = useState(false);
 	const [apiStages, setApiStages] = useState<Project42[]>([]);
 	const [showProfExpForm, setShowProfExpForm] = useState<'stage' | 'alternance' | null>(null);
-	// En consultation d'un autre profil, on part de rien : le localStorage ne
-	// contient QUE mes données, et les siennes arrivent du backend juste après.
 	// Expériences détectées sur l'intra que l'utilisateur a désactivées.
 	const [disabledApiExps, setDisabledApiExps] = useState<number[]>(() => {
+		if (isReadOnlyMode()) return [];
 		try {
 			const saved = JSON.parse(localStorage.getItem('disabled_api_experiences') ?? '[]');
 			return Array.isArray(saved) ? saved.filter((v: unknown) => Number.isSafeInteger(v)) : [];
@@ -111,6 +141,8 @@ const Dashboard: React.FC = () => {
 			return [];
 		}
 	});
+	// En consultation d'un autre profil, on part de rien : le localStorage ne
+	// contient QUE mes données, et les siennes arrivent du backend juste après.
 	const [apiExpPercentages, setApiExpPercentages] = useState<Record<number, number>>(() => {
 		if (isReadOnlyMode()) return {};
 		const saved = localStorage.getItem('api_exp_percentages');
@@ -124,6 +156,8 @@ const Dashboard: React.FC = () => {
 	/** Sauvegarde des expériences impossible : l'édition reste à l'écran, pas en base. */
 	const [erreurExperiences, setErreurExperiences] = useState<string | null>(null);
 	const [tourStatusLoaded, setTourStatusLoaded] = useState(false);
+	// Projets commencés sur l'intra sans être validés : en cours, ou ratés.
+	const [apiProgress, setApiProgress] = useState<{ inProgress: string[]; failed: string[] }>({ inProgress: [], failed: [] });
 
 	const { startTour, hasPendingSteps, syncTourSeen } = useTour();
 	const { job, requestRefresh, refreshing, cooldownSeconds, completedTick, syncJob } = useRefresh();
@@ -538,6 +572,11 @@ const Dashboard: React.FC = () => {
 		setCompletedProjectsPercentages(realPercentages);
 		setCompletedSubProjects(computeCompletedSubProjects(completedProjectSlugs));
 		setApiStages(userData.allProjects.filter(stageFilter));
+		const started = userData.allProjects.filter(p => p.validated !== true && !stageFilter(p));
+		setApiProgress({
+			inProgress: started.filter(p => p.status !== 'finished').map(p => p.project.slug).filter(Boolean),
+			failed: started.filter(p => p.status === 'finished').map(p => p.project.slug).filter(Boolean),
+		});
 
 		// Les expériences saisies à la main sont ajoutées plus bas (`projectedProfExp`),
 		// à partir du state : elles dépendent du profil affiché, pas du localStorage.
@@ -945,33 +984,6 @@ const Dashboard: React.FC = () => {
 		return projects;
 	};
 
-	const getSimulatedProjectsDetails = (): SimulatorProject[] => {
-		const projects: SimulatorProject[] = [];
-		rncpData.forEach(rncp => {
-			rncp.categories.forEach(category => {
-				category.projects.forEach(project => {
-					// Par IDENTIFIANT : c'est sous cette clé que la simulation est
-					// enregistrée partout ailleurs. Tester le slug en priorité écartait
-					// silencieusement les projets dont les deux diffèrent — ils
-					// restaient affichés comme non cochés tout en comptant dans le
-					// total, ce qui est incompréhensible à l'écran.
-					if (simulatedProjects.includes(project.id)) {
-						projects.push(project);
-					}
-				});
-			});
-		});
-		// Projets simulés depuis le Holy Graph : ils n'existent pas dans le référentiel RNCP,
-		// mais ils comptent dans le total — les omettre ici afficherait « 8 projets
-		// simulés » au-dessus d'une liste qui n'en montre que 7.
-		customProjects.forEach(project => {
-			if (isGraphSimulationId(project.id) && simulatedProjects.includes(project.id)) {
-				projects.push(project);
-			}
-		});
-		return projects;
-	};
-
 	// Expérience professionnelle projetée : réelle + manuelle simulée + API en cours
 	// `duration === 2 ? 2 : 1` comptait une alternance de 3 ans pour UNE.
 	const simulatedManualProfExpCount = professionalExperienceMath.simulatedCount(manualExperiences);
@@ -1050,6 +1062,48 @@ const Dashboard: React.FC = () => {
 			);
 		});
 	}, [userProgress, projectedLevel, projectedProfExp, realProfExp, simulatedProjects, simulatedSubProjects, completedSubProjects, projectPercentages, completedProjectsPercentages, coalitionBoosts, rncpData]);
+
+	// ── Affichage : liste + fiche (grand écran) ou panneau du bas ──────────
+	const navigate = useNavigate();
+	const { getTeamInfo } = useProjectTeams();
+	const isWide = useMediaQuery(WIDE_QUERY);
+	/** `<catégorie>:<projet>` : un même projet peut compter dans deux catégories. */
+	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+	const [sheetOpen, setSheetOpen] = useState(false);
+	const [showDone, setShowDone] = useState(false);
+	const [teammateProject, setTeammateProject] = useState<SimulatorProject | null>(null);
+	const [detailsProject, setDetailsProject] = useState<SimulatorProject | null>(null);
+	const [calendarRaw, setCalendarRaw] = useState<unknown>(null);
+	const teamReturnRef = useRef<HTMLElement | null>(null);
+	const bodyRef = useRef<HTMLDivElement>(null);
+	const sideRef = useRef<HTMLElement>(null);
+	useFollowScroll(bodyRef, sideRef, isWide);
+	// Passé en grand écran, la fiche est à droite : le panneau du bas ne se
+	// rouvre pas tout seul en revenant à une fenêtre étroite.
+	useEffect(() => { if (isWide) setSheetOpen(false); }, [isWide]);
+	useEffect(() => { setSelectedKey(null); setSheetOpen(false); }, [selectedRNCPIndex]);
+	// Projets placés au calendrier (copie locale, la plus fraîche, sinon la base).
+	useEffect(() => {
+		if (isViewingOther) return;
+		let cancelled = false;
+		let local: unknown = null;
+		try {
+			const raw = localStorage.getItem('calendar_projects');
+			local = raw ? JSON.parse(raw) : null;
+		} catch { local = null; }
+		if (local) setCalendarRaw(local);
+		else {
+			calendarService.load()
+				.then(d => { if (!cancelled) setCalendarRaw(d?.placedProjects ?? null); })
+				.catch(() => undefined);
+		}
+		return () => { cancelled = true; };
+	}, [isViewingOther]);
+	const slots = useMemo(() => {
+		const map = new Map<string, CalendarSlot>();
+		for (const p of deserializeProjects(calendarRaw)) map.set(p.projectId, { start: p.startDate, end: p.endDate });
+		return map;
+	}, [calendarRaw]);
 
 	// Le référentiel n'a pas pu être construit : on le dit, au lieu d'afficher un
 	// simulateur vide ou de tourner indéfiniment sur l'écran de chargement.
@@ -1161,7 +1215,6 @@ const Dashboard: React.FC = () => {
 
 
 	const completedProjects = getCompletedProjects();
-	const simulatedProjectsDetails = getSimulatedProjectsDetails();
 	const selectedRNCP = rncpData[selectedRNCPIndex];
 	const selectedValidation = rncpValidations[selectedRNCPIndex];
 
@@ -1208,269 +1261,383 @@ const Dashboard: React.FC = () => {
 		evalsByParent[key].push(p);
 	});
 
-	// XP simulé des stages/alternances API (entrées non validées avec pourcentage éditable)
-	const getApiEntryXP = (p: Project42, pct: number): number => {
-		const lower = p.project.name.toLowerCase();
-		const slug = p.project.slug?.toLowerCase() || '';
-		if (isAlternanceApiEntry(p)) {
-			const match = lower.match(/(\d+)\s*an/);
-			const years = match ? parseInt(match[1]) : 1;
-			return Math.round(90000 * years * (pct / 100));
-		}
-		// Stage / Work Experience (6 mois par défaut)
-		if (slug.startsWith('work-experience') || lower.includes('stage')) {
-			return Math.round(10500 * 6 * (pct / 100));
-		}
-		return 0;
+	// ── Ce que la page affiche ───────────────────────────────────────────
+	const isGlobal = selectedRNCP?.id === 'rncp-global';
+	const completedIds = new Set(completedProjects.map(p => p.id));
+	const rowContext: DashRowContext = {
+		completedIds,
+		simulatedIds: new Set(simulatedProjects),
+		simulatedSubProjects,
+		completedSubProjects,
+		percentages: projectPercentages,
+		completedPercentages: completedProjectsPercentages,
+		boosts: coalitionBoosts,
+		notes: projectNotes,
+		readOnly: isViewingOther,
+		apiStatus: (project) => {
+			const key = project.slug || project.id;
+			if (isProjectCompleted(key, apiProgress.inProgress)) return 'in_progress';
+			if (isProjectCompleted(key, apiProgress.failed)) return 'failed';
+			return null;
+		},
 	};
-	const apiExpXP = profExpDisplayEntries
-		.filter((p: Project42) => !p.validated)
-		.reduce((sum: number, p: Project42) => {
-			const evals = evalsByParent[getParentKey(p)] || [];
-			const pct = apiExpPercentages[p.id] ?? getApiEntryDefaultPercentage(p, evals);
-			return sum + getApiEntryXP(p, pct);
-		}, 0);
+	const rncpLabel = selectedRNCP ? splitRncpName(selectedRNCP.name) : { level: '', name: '' };
+	const categories = (selectedRNCP?.categories ?? []).map(category => ({
+		category,
+		cv: selectedValidation?.categoriesValidation.find(cv => cv.categoryId === category.id),
+		rows: category.projects.map(project =>
+			buildDashRow(project, isGlobal ? [category.name] : [category.name, `${rncpLabel.level} ${rncpLabel.name}`], rowContext)),
+	}));
+	const selected = (() => {
+		if (!selectedKey) return null;
+		const [categoryId, projectId] = [selectedKey.slice(0, selectedKey.indexOf(':')), selectedKey.slice(selectedKey.indexOf(':') + 1)];
+		const entry = categories.find(c => c.category.id === categoryId);
+		const row = entry?.rows.find(r => r.id === projectId);
+		return entry && row ? { ...entry, row } : null;
+	})();
+	// Le guide montre la première ligne qu'on peut cocher.
+	const tourRowKey = (() => {
+		for (const { category, rows } of categories) {
+			const row = rows.find(r => !r.blocker && !r.isPool && r.status !== 'validated');
+			if (row) return `${category.id}:${row.id}`;
+		}
+		return null;
+	})();
+
+	const progressFor = (index: number) =>
+		validationProgress(rncpValidations[index], rncpData[index].id !== 'rncp-global');
+	const rncpChoices: RncpChoice[] = rncpData.map((rncp, index) => {
+		const v = rncpValidations[index];
+		const pr = progressFor(index);
+		const label = splitRncpName(rncp.name);
+		return {
+			id: rncp.id,
+			level: label.level,
+			name: label.name,
+			realPct: pr.realPct,
+			projectedPct: pr.projectedPct,
+			pill: v.overallRealValid ? 'Validé' : v.overallValid ? 'Atteint en simulation' : `Manque ${pr.missing}`,
+			pillState: v.overallRealValid ? 'ok' : v.overallValid ? 'sim' : 'missing',
+		};
+	});
+	const selectedProgress = selectedValidation ? progressFor(selectedRNCPIndex) : null;
+	const progressNumbers = {
+		currentLevel: userProgress.currentLevel,
+		projectedLevel,
+		events: userProgress.events,
+		professionalExperience: projectedProfExp,
+		realProfessionalExperience: realProfExp,
+	};
+	const conditions = selectedRNCP && selectedValidation && !isGlobal
+		? generalConditions(selectedRNCP, selectedValidation, progressNumbers)
+		: [];
+
+	// Seuils de niveau des titres, un repère par niveau distinct.
+	const levelMarks: LevelMark[] = [];
+	for (const rncp of rncpData) {
+		if (rncp.id === 'rncp-global' || rncp.level <= 0) continue;
+		if (levelMarks.some(m => m.level === rncp.level)) continue;
+		levelMarks.push({ level: rncp.level, label: `${splitRncpName(rncp.name).level} · ${rncp.level}` });
+	}
+	const scale = levelScale(userProgress.currentLevel, projectedLevel, levelMarks.map(m => m.level));
+	const simCount = simulatedProjects.length + Object.keys(simulatedSubProjects).length;
+
+	// ── Gestes ───────────────────────────────────────────────────────────
+	const toggleRow = (row: DashRow) => {
+		if (isViewingOther || row.blocker) return;
+		if (row.isPool) {
+			const subs = simulatedSubProjects[row.id] ?? [];
+			const done = completedSubProjects[row.id] ?? [];
+			const active = (row.project.subProjects ?? []).filter(sub => !sub.retired && !done.includes(sub.id));
+			// Tout cocher, ou tout décocher si tout l'est déjà.
+			const allOn = active.every(sub => subs.includes(sub.id));
+			for (const sub of active) {
+				if (allOn ? subs.includes(sub.id) : !subs.includes(sub.id)) handleToggleSubProject(row.id, sub.id);
+			}
+			return;
+		}
+		// Décocher remet la note visée à 100 % (comme l'ancienne carte).
+		if (row.isSimulated) handlePercentageChange(row.id, 100);
+		handleToggleSimulation(row.id);
+	};
+	const selectRow = (categoryId: string, row: DashRow) => {
+		setSelectedKey(`${categoryId}:${row.id}`);
+		if (!isWide) setSheetOpen(true);
+	};
+	const toggleApiExperience = (id: number) => {
+		if (isViewingOther) return;
+		const next = disabledApiExps.includes(id) ? disabledApiExps.filter(v => v !== id) : [...disabledApiExps, id];
+		setDisabledApiExps(next);
+		localStorage.setItem('disabled_api_experiences', JSON.stringify(next));
+	};
+	const openTeammates = (project: SimulatorProject) => {
+		const active = document.activeElement;
+		teamReturnRef.current = isWide && active instanceof HTMLElement && active !== document.body ? active : null;
+		setSheetOpen(false);
+		setTeammateProject(project);
+	};
+	const closeTeammates = () => {
+		const back = teamReturnRef.current?.isConnected
+			? teamReturnRef.current
+			: selectedKey
+				? document.getElementById(rowDomId(selectedKey.slice(0, selectedKey.indexOf(':')), selectedKey.slice(selectedKey.indexOf(':') + 1)))
+				: null;
+		teamReturnRef.current = null;
+		setTeammateProject(null);
+		requestAnimationFrame(() => back?.focus());
+	};
+
+	const fiche = selected && (() => {
+		const { row, category, cv } = selected;
+		const team = getTeamInfo(row.project);
+		const effect = cv ? categoryEffect(row, { count: cv.currentCount, xp: cv.currentXP }) : null;
+		return (
+			<ProjectPanel
+				row={row}
+				readOnly={isViewingOther}
+				slot={slots.get(row.id) ?? null}
+				hasTeam={!!team && !team.solo}
+				teamLabel={teammatesLabel(team)}
+				teamText={teamText(team)}
+				blockerOverride={row.isPool && row.status !== 'validated' ? 'Piscine : coche ses modules ci-dessous.' : row.blocker}
+				onToggle={() => toggleRow(row)}
+				onPercentage={v => handlePercentageChange(row.id, v)}
+				onBoost={v => { if (v !== !!coalitionBoosts[row.id]) handleToggleCoalitionBoost(row.id); }}
+				onNote={v => handleSaveNote(row.id, v)}
+				onOpenCalendar={() => { saverRef.current?.flush(); navigate('/calendar'); }}
+				onTeammates={() => openTeammates(row.project)}
+				onDetails={() => setDetailsProject(row.project)}
+			>
+				{effect && cv && (
+					<CategoryEffect
+						categoryName={category.name}
+						simulated={row.isSimulated}
+						effect={effect}
+						required={{ count: category.requiredCount, xp: category.requiredXP }}
+					/>
+				)}
+				{row.isPool && (
+					<PoolModules
+						row={row}
+						completedSubs={completedSubProjects[row.id] ?? []}
+						simulatedSubs={simulatedSubProjects[row.id] ?? []}
+						readOnly={isViewingOther}
+						onToggleModule={subId => handleToggleSubProject(row.id, subId)}
+						onToggleAll={() => toggleRow(row)}
+					/>
+				)}
+			</ProjectPanel>
+		);
+	})();
+
+	const experiences = (
+		<section className="db-card db-exp" data-tour="prof-exp-section" aria-labelledby="db-exp-title">
+			<div className="db-exp-head">
+				<h2 id="db-exp-title">Expériences pro</h2>
+				{/* On ne peut ajouter une expérience que sur SON profil : ailleurs,
+				    elle partirait dans mon localStorage tout en s'affichant comme
+				    celle de l'autre. */}
+				{!isViewingOther && (
+					<span className="db-exp-add">
+						<button type="button" className="prof-exp-btn" onClick={() => setShowProfExpForm('stage')}>+ Stage</button>
+						<button type="button" className="prof-exp-btn" onClick={() => setShowProfExpForm('alternance')}>+ Alternance</button>
+					</span>
+				)}
+			</div>
+			{erreurExperiences && (
+				<div className="prof-exp-erreur" role="alert">{erreurExperiences}</div>
+			)}
+			<ProfExpList
+				entries={profExpDisplayEntries}
+				evalsByParent={evalsByParent}
+				manualExperiences={manualExperiences}
+				getParentKey={getParentKey}
+				apiExpPercentages={apiExpPercentages}
+				disabledIds={disabledApiExps}
+				onToggleDisabled={toggleApiExperience}
+				onApiExpPercentageChange={(id, pct) => {
+					if (isViewingOther) return;
+					const updated = { ...apiExpPercentages, [id]: pct };
+					setApiExpPercentages(updated);
+					localStorage.setItem('api_exp_percentages', JSON.stringify(updated));
+				}}
+				onDeleteManual={(id) => {
+					if (isViewingOther) return;
+					const restantes = professionalExperienceStorage.remove(id);
+					setManualExperiences(restantes);
+					setManualExpVersion(v => v + 1);
+					void persisterExperiences(restantes);
+				}}
+				onEditManual={(exp) => {
+					setEditingExperience(exp);
+					setShowProfExpForm(exp.type);
+				}}
+				readOnly={isViewingOther}
+			/>
+			<p className="db-exp-note mp-muted">Elles comptent pour la condition « Expérience pro » de chaque titre.</p>
+		</section>
+	);
 
 	return (
-		<div className="dashboard-page">
+		<div className="dashboard-page mp-scope">
 			<Header />
-			<div className="dashboard-container">
-				<motion.div
-					className="welcome-section"
-					data-tour="welcome-section"
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.5 }}
-				>
-					<div className="welcome-header">
-						<div className="welcome-content">
-							<h1>Simulateur RNCP</h1>
-							<div className="level-info">
-								<div className="level-current">
-									<span className="label">Niveau actuel</span>
-									<span className="value">{formatLevel(userProgress.currentLevel)}</span>
-								</div>
-								{(simulatedProjects.length > 0 || Object.keys(simulatedSubProjects).length > 0 || professionalExperienceMath.totalXP(manualExperiences) > 0 || apiExpXP > 0) && (
-									<>
-										<span className="arrow">→</span>
-										<div className="level-projected">
-											<span className="label">Niveau projeté</span>
-											<span className="value projected">{formatLevel(projectedLevel)}</span>
-										</div>
-									</>
-								)}
-							</div>
-							<div className="simulation-info">
-								{(simulatedProjects.length >= 0 || Object.keys(simulatedSubProjects).length > 0) && (
-									<p>
-										{simulatedProjects.length + Object.keys(simulatedSubProjects).length} projet{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''} simulé{(simulatedProjects.length + Object.keys(simulatedSubProjects).length) > 1 ? 's' : ''}
-									</p>
-								)}
-	{manualExperiences.length > 0 && (
-									<p>
-										{professionalExperienceMath.count(manualExperiences)} expérience{professionalExperienceMath.count(manualExperiences) > 1 ? 's' : ''} professionnelle{professionalExperienceMath.count(manualExperiences) > 1 ? 's' : ''}
-									</p>
-								)}
-							</div>
-						</div>
-						<button
-							className="reset-button"
-							data-tour="reset-button"
-							onClick={handleResetModifications}
-							title="Réinitialiser les modifications"
-							disabled={simulatedProjects.length === 0 && Object.keys(simulatedSubProjects).length === 0 && Object.keys(projectPercentages).length === 0}
-						>
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-								<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-								<line x1="10" y1="11" x2="10" y2="17" />
-								<line x1="14" y1="11" x2="14" y2="17" />
-							</svg>
-						</button>
-						{!isViewingOther && (
-							<div className="header-actions">
-								<button
-									className="fetch-btn"
-									data-tour="refresh-button"
-									onClick={requestRefresh}
-									disabled={refreshing || cooldownSeconds > 0}
-								>
-									<span className="fetch-btn__label">Récupérer mes infos</span>
-									<span className="fetch-btn__status">
-										{refreshing && job?.state === 'queued'
-											? `File · ${job.position}ᵉ · ~${job.etaSeconds}s`
-											: refreshing && job?.state === 'running'
-												? `Mise à jour… ~${job.etaSeconds}s`
-												: refreshing
-													? 'Mise à jour…'
-													: cooldownSeconds > 0
-														? `Disponible dans ${cooldownSeconds}s`
-														: ''}
-									</span>
-								</button>
-							</div>
-						)}
+			<main className="mp-container db-container">
+				<header className="db-head">
+					<div>
+						<h1>Simulateur RNCP</h1>
+						<p className="mp-muted">Coche ce que tu prévois de faire : chaque titre te dit ce qu'il lui manque.</p>
 					</div>
-				</motion.div>
-
-				{/* Onglets RNCP */}
-				<motion.div
-					className="rncp-tabs"
-					data-tour="rncp-tabs"
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.5, delay: 0.1 }}
-				>
-					{rncpData.map((rncp, index) => {
-						const validation = rncpValidations[index];
-						const isActive = selectedRNCPIndex === index;
-
-						return (
+					{!isViewingOther && (
+						<div className="db-head-actions">
 							<button
-								key={rncp.id}
-								// La coche verte marque un diplôme RÉELLEMENT obtenu. Elle
-								// suivait la projection : simuler quelques projets suffisait à
-								// afficher « ✓ » sur un RNCP qu'on n'a pas.
-								className={`rncp-tab ${isActive ? 'active' : ''} ${validation.overallRealValid ? 'validated' : ''}`}
-								onClick={() => setSelectedRNCPIndex(index)}
-								title={
-									validation.overallRealValid
-										? 'Certification validée'
-										: validation.overallValid
-											? 'Certification atteignable avec ta simulation'
-											: undefined
-								}
-								{...(rncp.id === 'rncp-global' ? { 'data-tour': 'rncp-global-tab' } : {})}
+								type="button"
+								className="mp-btn"
+								data-tour="reset-button"
+								onClick={handleResetModifications}
+								disabled={simulatedProjects.length === 0 && Object.keys(simulatedSubProjects).length === 0 && Object.keys(projectPercentages).length === 0}
 							>
-								<div className="rncp-tab__content">
-									{validation.overallRealValid ? (
-										<span className="rncp-tab__check">✓</span>
-									) : validation.overallValid ? (
-										<span className="rncp-tab__check rncp-tab__check--projected">◆</span>
-									) : null}
-									<div className="rncp-tab__info">
-										<h3 className="rncp-tab__title">{rncp.name}</h3>
-									</div>
-								</div>
+								<Trash2 size={16} aria-hidden="true" />
+								Réinitialiser la simulation
 							</button>
-						);
-					})}
-				</motion.div>
-
-				{/* Expériences professionnelles */}
-				<motion.div
-					className="prof-exp-section"
-					data-tour="prof-exp-section"
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.5, delay: 0.15 }}
-				>
-					<div className="prof-exp-header">
-						<h2 className="prof-exp-title">Expériences professionnelles</h2>
-						{/* On ne peut ajouter une expérience que sur SON profil : ailleurs,
-						    elle partirait dans mon localStorage tout en s'affichant comme
-						    celle de l'autre. */}
-						{!isViewingOther && (
-							<div className="prof-exp-add-buttons">
-								<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('stage')} title="Ajouter un stage">
-									+ Stage
-								</button>
-								<button className="prof-exp-add-btn" onClick={() => setShowProfExpForm('alternance')} title="Ajouter une alternance">
-									+ Alternance
-								</button>
-							</div>
-						)}
-					</div>
-
-					{erreurExperiences && (
-						<div className="prof-exp-erreur" role="alert">
-							⚠️ {erreurExperiences}
+							<button
+								type="button"
+								className="fetch-btn"
+								data-tour="refresh-button"
+								onClick={requestRefresh}
+								disabled={refreshing || cooldownSeconds > 0}
+							>
+								<span className="fetch-btn__label">Récupérer mes infos</span>
+								<span className="fetch-btn__status">
+									{refreshing && job?.state === 'queued'
+										? `File · ${job.position}ᵉ · ~${job.etaSeconds}s`
+										: refreshing && job?.state === 'running'
+											? `Mise à jour… ~${job.etaSeconds}s`
+											: refreshing
+												? 'Mise à jour…'
+												: cooldownSeconds > 0
+													? `Disponible dans ${cooldownSeconds}s`
+													: ''}
+								</span>
+							</button>
 						</div>
 					)}
+				</header>
 
-					<ProfExpList
-						entries={profExpDisplayEntries}
-						evalsByParent={evalsByParent}
-						manualExperiences={manualExperiences}
-						getParentKey={getParentKey}
-						apiExpPercentages={apiExpPercentages}
-						onApiExpPercentageChange={(id, pct) => {
-							if (isViewingOther) return;
-							const updated = { ...apiExpPercentages, [id]: pct };
-							setApiExpPercentages(updated);
-							localStorage.setItem('api_exp_percentages', JSON.stringify(updated));
-						}}
-						onDeleteManual={(id) => {
-							if (isViewingOther) return;
-							const restantes = professionalExperienceStorage.remove(id);
-							setManualExperiences(restantes);
-							setManualExpVersion(v => v + 1);
-							void persisterExperiences(restantes);
-						}}
-						onEditManual={(exp) => {
-							setEditingExperience(exp);
-							setShowProfExpForm(exp.type);
-						}}
-						readOnly={isViewingOther}
-					/>
-				</motion.div>
-
-				{/* Contenu du RNCP sélectionné */}
-				<motion.div
-					className="dashboard-content"
-					key={selectedRNCPIndex}
-					initial={{ opacity: 0, x: 20 }}
-					animate={{ opacity: 1, x: 0 }}
-					exit={{ opacity: 0, x: -20 }}
-					transition={{ duration: 0.3 }}
-				>
-					<RNCPCard
-						rncp={selectedRNCP}
-						validation={selectedValidation}
-						userProgress={{
-							currentLevel: userProgress.currentLevel,
-							projectedLevel,
-							events: userProgress.events,
-							professionalExperience: projectedProfExp,
-							realProfessionalExperience: realProfExp,
-						}}
-						completedProjects={completedProjects}
-						simulatedProjects={simulatedProjectsDetails}
-						onToggleSimulation={handleToggleSimulation}
-						completedSubProjects={completedSubProjects}
-						simulatedSubProjects={simulatedSubProjects}
-						onToggleSubProject={handleToggleSubProject}
-						projectPercentages={projectPercentages}
-						completedProjectsPercentages={completedProjectsPercentages}
-						onPercentageChange={handlePercentageChange}
-						projectNotes={projectNotes}
-						onSaveNote={handleSaveNote}
-						coalitionBoosts={coalitionBoosts}
-						onToggleCoalitionBoost={handleToggleCoalitionBoost}
-					/>
-				</motion.div>
-
-				{/* Modal ajout expérience professionnelle */}
-				<AddExperienceModal
-					isOpen={showProfExpForm !== null}
-					initialType={showProfExpForm ?? undefined}
-					editingExperience={editingExperience}
-					onClose={() => { setShowProfExpForm(null); setEditingExperience(null); }}
-					onAdd={(exp) => {
-						if (isViewingOther) return;
-						if (editingExperience) {
-							professionalExperienceStorage.update({ ...exp, id: editingExperience.id });
-						} else {
-							professionalExperienceStorage.add({ ...exp, id: `manual-${Date.now()}` });
-						}
-						const aJour = professionalExperienceStorage.getAll();
-						setManualExperiences(aJour);
-						setShowProfExpForm(null);
-						setEditingExperience(null);
-						setManualExpVersion(v => v + 1);
-						void persisterExperiences(aJour);
-					}}
+				<LevelCard
+					currentLevel={userProgress.currentLevel}
+					projectedLevel={projectedLevel}
+					marks={levelMarks}
+					scale={scale}
+					simCount={simCount}
+					expCount={projectedProfExp}
+					expSimCount={Math.max(0, projectedProfExp - realProfExp)}
 				/>
-			</div>
+
+				<RncpPicker items={rncpChoices} selected={selectedRNCPIndex} onSelect={setSelectedRNCPIndex} />
+
+				<div className="mp-body db-body" ref={bodyRef}>
+					<div className="db-main">
+						{selectedProgress && !isGlobal && (
+							<RncpConditions
+								title={`${rncpLabel.level} · ${rncpLabel.name}`}
+								conditions={conditions}
+								met={selectedProgress.met}
+								total={selectedProgress.total}
+								realMet={selectedProgress.realMet}
+							/>
+						)}
+
+						{!isWide && experiences}
+
+						<div className="db-cats-head">
+							<h2>Catégories · coche pour simuler</h2>
+							<div className="db-segmented" role="group" aria-label="Projets affichés">
+								<button type="button" aria-pressed={!showDone} onClick={() => setShowDone(false)}>À faire</button>
+								<button type="button" aria-pressed={showDone} onClick={() => setShowDone(true)}>Tous</button>
+							</div>
+						</div>
+
+						{categories.map(({ category, cv, rows }) => cv && (
+							<CategoryBlock
+								key={`${selectedRNCPIndex}-${category.id}`}
+								category={category}
+								cv={cv}
+								rows={rows}
+								showDone={showDone}
+								selectedKey={selectedKey}
+								readOnly={isViewingOther}
+								teamOf={row => getTeamInfo(row.project)}
+								tourRowId={tourRowKey}
+								onToggle={toggleRow}
+								onSelect={row => selectRow(category.id, row)}
+								onShowDone={() => setShowDone(true)}
+							/>
+						))}
+					</div>
+
+					{isWide && (
+						<aside className="mp-side db-side" aria-label="Fiche du projet" ref={sideRef}>
+							{fiche ?? <p className="mp-empty">Sélectionne un projet pour voir sa fiche, le simuler et voir ce qu’il apporte au titre.</p>}
+							{experiences}
+						</aside>
+					)}
+				</div>
+			</main>
+
+			{!isWide && (
+				<ProjectSheet open={sheetOpen && !!selected} label={selected?.row.name ?? 'Projet'} onClose={() => setSheetOpen(false)}>
+					{fiche}
+				</ProjectSheet>
+			)}
+
+			{teammateProject && (
+				<TeammateModal
+					isOpen
+					onClose={closeTeammates}
+					projectId={teammateProject.id}
+					projectName={teammateProject.name}
+					teamInfo={getTeamInfo(teammateProject)}
+					isSimulated={simulatedProjects.includes(teammateProject.id)}
+				/>
+			)}
+
+			{detailsProject && (
+				<ProjectDetailsModal
+					project={detailsProject}
+					teamInfo={getTeamInfo(detailsProject)}
+					isCompleted={completedIds.has(detailsProject.id)}
+					isSimulated={simulatedProjects.includes(detailsProject.id)}
+					percentage={projectPercentages[detailsProject.id] ?? 100}
+					hasCoalitionBoost={coalitionBoosts[detailsProject.id] || false}
+					readOnly={isViewingOther}
+					onToggleSimulation={handleToggleSimulation}
+					onPercentageChange={handlePercentageChange}
+					onToggleCoalitionBoost={handleToggleCoalitionBoost}
+					onClose={() => setDetailsProject(null)}
+				/>
+			)}
+
+			{/* Modal ajout expérience professionnelle */}
+			<AddExperienceModal
+				isOpen={showProfExpForm !== null}
+				initialType={showProfExpForm ?? undefined}
+				editingExperience={editingExperience}
+				onClose={() => { setShowProfExpForm(null); setEditingExperience(null); }}
+				onAdd={(exp) => {
+					if (isViewingOther) return;
+					if (editingExperience) {
+						professionalExperienceStorage.update({ ...exp, id: editingExperience.id });
+					} else {
+						professionalExperienceStorage.add({ ...exp, id: `manual-${Date.now()}` });
+					}
+					const aJour = professionalExperienceStorage.getAll();
+					setManualExperiences(aJour);
+					setShowProfExpForm(null);
+					setEditingExperience(null);
+					setManualExpVersion(v => v + 1);
+					void persisterExperiences(aJour);
+				}}
+			/>
 		</div>
 	);
 };

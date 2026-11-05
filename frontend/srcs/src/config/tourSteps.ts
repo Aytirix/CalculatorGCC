@@ -105,7 +105,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		id: 'step-level',
 		target: 'welcome-section',
 		title: 'Niveau actuel et niveau projeté',
-		text: "À gauche ton niveau réel, à droite celui que tu atteindrais en réalisant tout ce que tu simules. C'est ce chiffre que le reste de la page fait bouger.",
+		text: "Ton niveau réel, puis celui que tu atteindrais en réalisant tout ce que tu simules. Les repères de la barre marquent le niveau exigé par chaque titre RNCP.",
 		position: 'bottom',
 		validation: 'button',
 	},
@@ -114,7 +114,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		id: 'step-rncp-tabs',
 		target: 'rncp-tabs',
 		title: 'Les certifications',
-		text: "Chaque onglet est un diplôme avec ses propres exigences. L'onglet <strong>Global</strong> réunit tous les projets, quel que soit le RNCP.",
+		text: "Chaque carte est un titre avec ses propres exigences et son avancement. Choisis-en un : la page te dit ce qu'il lui manque. <strong>Global</strong> réunit tous les projets, quel que soit le RNCP.",
 		position: 'bottom',
 		validation: 'button',
 	},
@@ -123,7 +123,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		id: 'step-select-project',
 		target: 'calendar-test-project',
 		title: 'Cocher un projet',
-		text: "Un clic sur un projet que tu comptes faire envoie aussitôt son XP dans ton niveau projeté. Un second clic le retire.",
+		text: "Coche la case d'un projet que tu comptes faire : son XP part aussitôt dans ton niveau projeté et dans sa catégorie. Un second clic le retire.",
 		position: 'right',
 		// Le guide MONTRE, il n'impose pas. Exiger un clic sur un projet précis
 		// bloquait l'utilisateur qui voulait simplement lire, et enfermait
@@ -134,14 +134,11 @@ export const TOUR_STEPS: TourStepDef[] = [
 	{
 		id: 'step-project-line',
 		target: 'project-details',
-		title: 'Tout est sur la ligne',
+		title: 'Tout est dans la fiche',
 		text:
-			'<strong>👥</strong> trouver des teammates &nbsp;·&nbsp; ' +
-			"<strong>☆</strong> simuler au maximum &nbsp;·&nbsp; " +
-			'<strong>⚡</strong> boost de coalition (+4,2 %) &nbsp;·&nbsp; ' +
-			'<strong>%</strong> ton pourcentage de validation<br><br>' +
-			"Et l'<strong>engrenage</strong> ouvre le détail complet du projet : durée, taille d'équipe, prérequis, description.",
-		position: 'left',
+			"Touche la ligne d'un projet pour ouvrir sa fiche : note visée, bonus de coalition (+4,2 %), ce qu'il apporte à sa catégorie, teammates et détail complet. " +
+			"Le badge <strong>Solo</strong> / <strong>Groupe</strong> dit d'un coup d'œil s'il se fait seul.",
+		position: 'bottom',
 		validation: 'button',
 	},
 
@@ -149,7 +146,7 @@ export const TOUR_STEPS: TourStepDef[] = [
 		id: 'step-prof-exp',
 		target: 'prof-exp-section',
 		title: 'Stages et alternances',
-		text: "Ils comptent lourd dans le RNCP : ajoute-les ici pour que la projection soit juste.",
+		text: "Ils comptent lourd dans le RNCP : ajoute-les ici pour que la projection soit juste. Une expérience détectée sur l'intra est mal enregistrée ? <strong>Désactive-la</strong> et ajoute la tienne.",
 		position: 'top',
 		validation: 'button',
 	},
