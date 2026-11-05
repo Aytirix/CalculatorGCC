@@ -6,7 +6,7 @@ import {
 	classifyAlternanceColor, getAlternanceRuns, countSchoolDays, readableTextColor,
 	ALTERNANCE_COLORS, normalizeAlternanceDays, unknownAlternanceColors, alternanceKindsPresent,
 	moveProject, resizeProject, setProjectDuration, defaultPlacementDate, newPlacedProject,
-	normalizeView, deserializeProjects, serializeProjects, parseDateRange,
+	normalizeView, deserializeProjects, serializeProjects, parseDateRange, clampToRange,
 	sanitizeAlternanceDays, validateDateRange, MAX_ALTERNANCE_DAYS,
 	type PlacedProject,
 } from './calendarModel';
@@ -292,5 +292,14 @@ describe('couleurs de l\u2019app pour le rythme (plus celles du .xlsx)', () => {
 		expect(unknownAlternanceColors({
 			a: '#111111', b: '#222222', c: '#222222', e: ALTERNANCE_COLORS.ecole,
 		})).toEqual([{ color: '#222222', days: 2 }, { color: '#111111', days: 1 }]);
+	});
+});
+
+describe('clampToRange (placement au centre de la frise visible)', () => {
+	const range = { start: d('2026-10-01'), end: d('2026-12-31') };
+	it('garde une date dans la période, ramène une date hors période à la borne', () => {
+		expect(formatDateKey(clampToRange(new Date(2026, 10, 15, 14), range))).toBe('2026-11-15');
+		expect(formatDateKey(clampToRange(d('2026-09-01'), range))).toBe('2026-10-01');
+		expect(formatDateKey(clampToRange(d('2027-03-01'), range))).toBe('2026-12-31');
 	});
 });

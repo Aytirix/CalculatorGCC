@@ -16,7 +16,7 @@ import ProjectDetail from './ProjectDetail';
 import Tray from './Tray';
 import SettingsDialog, { type ImportResult } from './SettingsDialog';
 import {
-	addDays, countSchoolDays, defaultPlacementDate, diffDays, formatDateKey,
+	addDays, clampToRange, countSchoolDays, defaultPlacementDate, diffDays, formatDateKey,
 	formatShort, formatShortYear, formatXp, getProjectStatus, getTimelineGrid,
 	newPlacedProject, normalizeView, plural, startOfDay,
 	ALTERNANCE_COLORS, ALTERNANCE_LABELS, alternanceKindsPresent,
@@ -248,6 +248,17 @@ const Calendar: React.FC = () => {
 		const x = vp.scrollLeft + (vp.clientWidth - labelWidth()) / 2;
 		return addDays(grid.gridStart, Math.round(x / (weekWidth / 7)));
 	}, [grid.gridStart, weekWidth]);
+
+	// Le bouton + place le projet LÀ OÙ L'ON REGARDE : au centre de la frise
+	// visible, au jour sélectionné en vue Mois — et non plus toujours aujourd'hui.
+	const placementDateForView = (): Date => {
+		if (view === 'chronologie') {
+			const center = centerDate();
+			if (center) return clampToRange(center, dateRange);
+		}
+		if (view === 'mois') return selectedDay;
+		return defaultPlacementDate(today, dateRange);
+	};
 
 	const gridKey = `${formatDateKey(grid.gridStart)}|${grid.weekCount}`;
 	useLayoutEffect(() => {
@@ -511,7 +522,7 @@ const Calendar: React.FC = () => {
 					{showTray && (
 						<Tray
 							projects={trayProjects}
-							onPlace={p => placeProject(p)}
+							onPlace={p => placeProject(p, placementDateForView())}
 							// Toujours en bande au-dessus de la vue : sur grand écran, la frise
 							// récupère la largeur de l'ancienne colonne de gauche.
 							layout="strip"

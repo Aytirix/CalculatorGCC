@@ -448,6 +448,16 @@ export function setProjectDuration(p: PlacedProject, days: number): PlacedProjec
 	return { ...p, endDate: addDays(p.startDate, Math.max(1, Math.round(days))) };
 }
 
+/** Ramène une date dans la période affichée (bornes incluses). */
+export function clampToRange(date: Date, range: DateRange): Date {
+	const d = startOfDay(date);
+	const start = startOfDay(range.start);
+	const end = startOfDay(range.end);
+	if (d < start) return start;
+	if (d > end) return end;
+	return d;
+}
+
 /** Date de départ quand on place un projet sans le glisser : aujourd'hui si visible, sinon le début de la période. */
 export function defaultPlacementDate(today: Date, range: DateRange): Date {
 	const t = startOfDay(today);

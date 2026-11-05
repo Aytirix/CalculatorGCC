@@ -7,7 +7,8 @@ import { formatXp } from './calendarModel';
 /**
  * Projets simulés pas encore datés. Deux façons de placer, au choix :
  * glisser sur la frise / un jour (souris), ou le bouton + (partout, y compris
- * au doigt et au clavier) qui place à partir d'aujourd'hui.
+ * au doigt et au clavier) qui place le projet là où l'on regarde : au centre
+ * de la frise visible, ou au jour sélectionné en vue Mois.
  */
 
 interface TrayProps {
@@ -31,7 +32,7 @@ const Tray: React.FC<TrayProps> = ({ projects, onPlace, layout, canDrop }) => {
 				<span className="cal-count"><span aria-hidden="true">{projects.length}</span><span className="cal-sr-only">{projects.length > 1 ? `${projects.length} projets` : `${projects.length} projet`}</span></span>
 				{layout === 'strip' && projects.length > 0 && (
 					<span className="cal-muted cal-tray-hint-inline">
-						{canDrop ? 'Glisse un projet sur la frise ou sur un jour, ou appuie sur +' : 'Touche + pour placer à partir d\'aujourd\'hui'}
+						{canDrop ? 'Glisse un projet sur la frise ou sur un jour, ou appuie sur +' : 'Touche + pour placer à l\'endroit affiché'}
 					</span>
 				)}
 			</div>
@@ -72,7 +73,7 @@ const Tray: React.FC<TrayProps> = ({ projects, onPlace, layout, canDrop }) => {
 									<span className="cal-row-title">{p.name}</span>
 									<span className="cal-row-sub">{formatXp(p.xp)} XP</span>
 								</span>
-								<button type="button" className="cal-icon-btn cal-icon-btn--primary" onClick={e => { if (e.detail <= 1) onPlace(p); }} aria-label={`Placer ${p.name} à partir d'aujourd'hui`}>
+								<button type="button" className="cal-icon-btn cal-icon-btn--primary" onClick={e => { if (e.detail <= 1) onPlace(p); }} aria-label={`Placer ${p.name} à l'endroit affiché`}>
 									<Plus size={18} aria-hidden="true" />
 								</button>
 							</li>
