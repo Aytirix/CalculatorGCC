@@ -8,6 +8,7 @@ import {
   type HolyGraphProjectDetailsResponse,
 } from '@/services/backend-api42.service';
 import { isReadOnlyMode, simulationService, type SimulationData } from '@/services/simulation.service';
+import { createSimulationSaver } from '@/services/simulationStore';
 import { clampPercentage, getProjectMaxPercentage } from '@/utils/projectPercentage';
 import { findRncpProject, graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
 import type { SimulatorProject } from '@/types/rncp.types';
@@ -245,7 +246,7 @@ const HolyGraph: React.FC = () => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saverRef = useRef(createSimulationSaver());
   // Position du bouton enfoncé : sert à distinguer un clic d'un déplacement.
   const pressRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   // scale/offset transforment les coordonnées OFFICIELLES de 42 en pixels écran.
@@ -306,10 +307,9 @@ const HolyGraph: React.FC = () => {
     };
   }, [readOnly]);
 
-  // Le timer de sauvegarde ne doit pas survivre à la page (save perdu / fuite).
-  useEffect(() => () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-  }, []);
+  // Quitter la page envoie tout de suite ce qui attendait (le timer annulé
+  // perdait la dernière modification faite moins de 800 ms avant).
+  useEffect(() => () => saverRef.current.flush(), []);
 
   /**
    * Applique une modification de la simulation puis la sauvegarde (différée).
@@ -318,12 +318,8 @@ const HolyGraph: React.FC = () => {
    */
   const persistSimulation = useCallback((next: SimulationData) => {
     setSimData(next);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      simulationService
-        .save(next)
-        .catch((err) => console.warn('[HolyGraph] Sauvegarde de la simulation échouée :', err));
-    }, 800);
+    // Copie locale tout de suite (le Calendrier la lit), base 800 ms après.
+    saverRef.current.schedule(next);
   }, []);
 
   const activeCursusRaw = useMemo(
