@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMyProjects } from './myProjects.types';
+import { buildMyProjects, simulationBlocker } from './myProjects.types';
 import type { RNCP } from '@/types/rncp.types';
 import type { Project42 } from '@/services/backend-api42.service';
 
@@ -155,5 +155,75 @@ describe('invariant de cohérence', () => {
     });
     const ids = rows.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('identifiant de simulation, pourcentage, bonus et note sur toutes les lignes', () => {
+  it('projet fait hors référentiel : simId 42-<id>, pourcentage simulé enfin affiché', () => {
+    const [row] = build({
+      apiProjects: [apiEntry(77, 'Exam Rank 06')],
+      simulatedIds: ['42-77'],
+      percentages: { '42-77': 110 },
+      boosts: { '42-77': true },
+      notes: { '42-77': 'à repasser' },
+    });
+    expect(row.id).toBe('api-77');
+    expect(row.simId).toBe('42-77');
+    expect(row.simulatedPercentage).toBe(110);
+    expect(row.coalitionBoost).toBe(true);
+    expect(row.note).toBe('à repasser');
+  });
+
+  it('projet du catalogue jamais touché : simulable sous 42-<id>', () => {
+    const [row] = build({ catalog: [{ id: 2551, name: 'Python DS', slug: 'python-ds', xp: 3800 }] });
+    expect(row.id).toBe('catalog-2551');
+    expect(row.simId).toBe('42-2551');
+    expect(row.isSimulated).toBe(false);
+    expect(row.coalitionBoost).toBe(false);
+  });
+
+  it('projet du référentiel : simId = son id ; bonus ignoré s’il n’est pas simulé', () => {
+    const [row] = build({ rncpData: rncpData('42-1383', 'webserv'), boosts: { '42-1383': true } });
+    expect(row.simId).toBe('42-1383');
+    expect(row.coalitionBoost).toBe(false);
+    expect(row.isPool).toBe(false);
+  });
+
+  it('piscine : simulée quand ses modules la couvrent', () => {
+    const data = rncpData('pool', 'Piscine');
+    (data[0].categories[0].projects[0] as { subProjects?: unknown }).subProjects = [
+      { id: 'm1', name: 'M1', xp: 100 }, { id: 'm2', name: 'M2', xp: 100 },
+    ];
+    const partial = build({ rncpData: data, simulatedSubProjects: { pool: ['m1'] } })[0];
+    const full = build({ rncpData: data, simulatedSubProjects: { pool: ['m1', 'm2'] } })[0];
+    expect(partial.isPool).toBe(true);
+    expect(partial.isSimulated).toBe(false);
+    expect(full.isSimulated).toBe(true);
+  });
+});
+
+describe('simulationBlocker — quand la case « simuler » est inactive', () => {
+  const row = { isPool: false, status: 'not_started' as const, isSimulated: false };
+  it('projet simulable : aucune raison', () => {
+    expect(simulationBlocker(row, false)).toBeNull();
+  });
+  it('consultation, piscine, déjà validé : bloqué avec une raison lisible', () => {
+    expect(simulationBlocker(row, true)).toMatch(/Consultation/);
+    expect(simulationBlocker({ ...row, isPool: true }, false)).toMatch(/Piscine/);
+    expect(simulationBlocker({ ...row, status: 'validated' }, false)).toMatch(/validé/);
+  });
+  it('validé mais encore coché : on peut le décocher', () => {
+    expect(simulationBlocker({ ...row, status: 'validated', isSimulated: true }, false)).toBeNull();
+  });
+});
+
+describe('catalogue du campus', () => {
+  it('les projets administratifs (alternance, stage) n’y apparaissent pas', () => {
+    const rows = build({ catalog: [
+      { id: 1, name: 'Apprentissage 1 an', slug: 'apprentissage-1-an', xp: 15000 },
+      { id: 2, name: 'Work Experience I', slug: 'work-experience-i', xp: 0 },
+      { id: 3, name: '42run', slug: '42run', xp: 9450 },
+    ] });
+    expect(rows.map(r => r.name)).toEqual(['42run']);
   });
 });

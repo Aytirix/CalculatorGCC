@@ -2,6 +2,7 @@ import type { Project42 } from '@/services/backend-api42.service';
 import type { RNCP, SimulatorProject } from '@/types/rncp.types';
 import { normalizeProjectSlug } from '@/utils/projectMatcher';
 import { graphSimulationId, isGraphSimulationId } from '@/utils/holyGraphSimulation';
+import { isPoolCovered } from '@/services/xp.service';
 
 /**
  * Assemblage de TOUT ce que l'utilisateur a comme relation avec un projet :
@@ -51,6 +52,20 @@ export interface MyProjectRow {
 	rncpNames: string[];
 	/** true si le projet peut être retiré (projet personnalisé hérité). */
 	isCustom: boolean;
+	/**
+	 * Identifiant sous lequel le projet est (ou serait) simulé : celui du
+	 * référentiel, `42-<id 42>` hors référentiel, `custom-…` pour un projet perso.
+	 * Différent de `id` pour les lignes `api-…` / `catalog-…`.
+	 */
+	simId: string;
+	/** Bonus coalition coché dans la simulation. */
+	coalitionBoost: boolean;
+	/** Note perso de la simulation. */
+	note: string;
+	/** Piscine : elle se simule module par module, depuis le Dashboard. */
+	isPool: boolean;
+	/** Note maximale du projet (125 % par défaut). */
+	maxPercentage: number | null;
 }
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -66,6 +81,15 @@ export const SOURCE_LABELS: Record<ProjectSource, string> = {
 	extra42: 'Hors référentiel',
 	custom: 'Projet personnalisé',
 };
+
+/** Pourquoi la case « simuler » d'une ligne est inactive, ou null si elle est utilisable. */
+export function simulationBlocker(row: Pick<MyProjectRow, 'isPool' | 'status' | 'isSimulated'>, readOnly: boolean): string | null {
+	if (readOnly) return 'Consultation : la simulation n’est pas modifiable.';
+	if (row.isPool) return 'Piscine : coche ses modules depuis le Dashboard.';
+	// Un projet validé encore coché (réconciliation pas encore passée) peut être décoché.
+	if (row.status === 'validated' && !row.isSimulated) return 'Déjà validé : rien à simuler.';
+	return null;
+}
 
 /** Statut d'un projet d'après son entrée `projects_users` côté 42. */
 function statusFromApi(entry: Project42): ProjectStatus {
@@ -84,6 +108,11 @@ interface BuildInput {
 	xpBySlug: Map<string, number>;
 	/** Catalogue du campus : complète la liste avec les projets jamais touchés. */
 	catalog: { id: number; name: string; slug: string; xp: number }[];
+	/** Bonus coalition et notes perso de la simulation, par identifiant de simulation. */
+	boosts?: Record<string, boolean>;
+	notes?: Record<string, string>;
+	/** Modules de piscine simulés (une piscine est simulée quand ils la couvrent). */
+	simulatedSubProjects?: Record<string, string[]>;
 }
 
 /**
@@ -102,8 +131,16 @@ export function buildMyProjects({
 	customProjects,
 	xpBySlug,
 	catalog,
+	boosts = {},
+	notes = {},
+	simulatedSubProjects = {},
 }: BuildInput): MyProjectRow[] {
 	const simulated = new Set(simulatedIds);
+	const simExtras = (simId: string) => ({
+		simId,
+		coalitionBoost: simulated.has(simId) && !!boosts[simId],
+		note: simulated.has(simId) ? (notes[simId] ?? '') : '',
+	});
 
 	// Index des entrées 42 par nom et slug normalisés, pour rapprocher un projet
 	// du référentiel de ce que l'utilisateur en a réellement fait.
@@ -138,8 +175,14 @@ export function buildMyProjects({
 					.find(Boolean);
 				if (entry) usedApiEntries.add(entry.id);
 
-				const isSimulated = simulated.has(project.id);
+				const isPool = !!project.subProjects?.length;
+				const subs = simulatedSubProjects[project.id];
+				const isSimulated = simulated.has(project.id)
+					|| (isPool && !!subs && isPoolCovered(project, subId => subs.includes(subId)));
 				rows.push({
+					...simExtras(project.id),
+					isPool,
+					maxPercentage: project.maxPercentage ?? null,
 					id: project.id,
 					name: project.name,
 					slug: project.slug ?? project.id,
@@ -169,7 +212,11 @@ export function buildMyProjects({
 		seenIds.add(id);
 
 		const slug = (entry.project.slug ?? '').replace(/^42cursus-/, '');
+		const simId = graphSimulationId(entry.project.id);
 		rows.push({
+			...simExtras(simId),
+			isPool: false,
+			maxPercentage: null,
 			id,
 			name,
 			slug,
@@ -184,9 +231,10 @@ export function buildMyProjects({
 			// Hors référentiel, la simulation vit sous l'identifiant du Holy Graph
 			// (« 42-<id 42> »). L'ignorer produisait DEUX lignes pour le même
 			// projet : celle-ci, et une ligne « simulé » créée plus bas.
-			isSimulated: simulated.has(graphSimulationId(entry.project.id)),
+			isSimulated: simulated.has(simId),
 			finalMark: entry.final_mark ?? null,
-			simulatedPercentage: null,
+			// Le pourcentage simulé vit sous `42-<id>` : il n'était jamais affiché.
+			simulatedPercentage: simulated.has(simId) ? (percentages[simId] ?? 100) : null,
 			date: entry.marked_at ?? entry.created_at ?? null,
 			rncpNames: [],
 			isCustom: false,
@@ -200,17 +248,23 @@ export function buildMyProjects({
 	for (const project of catalog) {
 		const key = normalizeProjectSlug(project.name);
 		if (!key || knownNames.has(key)) continue;
+		// Contrats d'alternance, stages… : pas des projets (section Expériences).
+		if (ADMIN_PROJECT_RE.test(project.name.trim())) continue;
 		knownNames.add(key);
+		const simId = graphSimulationId(project.id);
 		rows.push({
+			...simExtras(simId),
+			isPool: false,
+			maxPercentage: null,
 			id: `catalog-${project.id}`,
 			name: project.name,
 			slug: project.slug.replace(/^42cursus-/, ''),
 			xp: project.xp,
-			status: simulated.has(graphSimulationId(project.id)) ? 'simulated' : 'not_started',
+			status: simulated.has(simId) ? 'simulated' : 'not_started',
 			source: 'extra42',
-			isSimulated: simulated.has(graphSimulationId(project.id)),
+			isSimulated: simulated.has(simId),
 			finalMark: null,
-			simulatedPercentage: null,
+			simulatedPercentage: simulated.has(simId) ? (percentages[simId] ?? 100) : null,
 			date: null,
 			rncpNames: [],
 			isCustom: false,
@@ -233,6 +287,9 @@ export function buildMyProjects({
 		seenIds.add(custom.id);
 		const isSimulated = simulated.has(custom.id);
 		rows.push({
+			...simExtras(custom.id),
+			isPool: false,
+			maxPercentage: null,
 			id: custom.id,
 			name: custom.name,
 			slug: custom.slug ?? custom.id,

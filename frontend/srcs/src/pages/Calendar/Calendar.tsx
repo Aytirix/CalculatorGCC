@@ -54,7 +54,19 @@ function useMediaQuery(query: string): boolean {
 	return matches;
 }
 
-interface SimulationChecks { ids: string[]; subs: Record<string, string[]> }
+interface SimulationChecks { ids: string[]; subs: Record<string, string[]>; customs: unknown[] }
+
+/** Fiches des projets simulés hors référentiel (`42-<id>`, `custom-…`), assainies. */
+function parseCustomProjects(raw: unknown): SimulatorProject[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.flatMap(item => {
+		if (!item || typeof item !== 'object') return [];
+		const p = item as Record<string, unknown>;
+		if (typeof p.id !== 'string' || typeof p.name !== 'string' || !p.name.trim()) return [];
+		const xp = typeof p.xp === 'number' && Number.isFinite(p.xp) ? Math.max(0, p.xp) : 0;
+		return [{ id: p.id, name: p.name, xp, ...(typeof p.slug === 'string' ? { slug: p.slug } : {}) }];
+	});
+}
 
 /** Ce navigateur a-t-il la copie locale du simulateur (tenue par le Dashboard) ? */
 function hasLocalSimulation(): boolean {
@@ -74,10 +86,12 @@ function hasLocalSimulation(): boolean {
 function getSimulatedProjects(rncpData: RNCP[], fromDb: SimulationChecks | null): SimulatorProject[] {
 	let simulatedIds: string[] = fromDb?.ids ?? [];
 	let simulatedSubProjects: Record<string, string[]> = fromDb?.subs ?? {};
+	let customs = parseCustomProjects(fromDb?.customs);
 	if (hasLocalSimulation()) {
 		try {
 			simulatedIds = JSON.parse(localStorage.getItem('simulated_projects') || '[]');
 			simulatedSubProjects = JSON.parse(localStorage.getItem('simulated_sub_projects') || '{}');
+			customs = parseCustomProjects(JSON.parse(localStorage.getItem('custom_projects') || '[]'));
 		} catch { /* données illisibles : liste vide */ }
 	}
 	const out: SimulatorProject[] = [];
@@ -89,9 +103,19 @@ function getSimulatedProjects(rncpData: RNCP[], fromDb: SimulationChecks | null)
 			&& isPoolCovered(p, subId => simulatedSubProjects[p.id].includes(subId));
 		if (direct || viaPool) {
 			seen.add(p.id);
+			if (p.slug) seen.add(p.slug);
 			out.push(p);
 		}
 	})));
+	// Simulés HORS référentiel (depuis Mes projets ou le Holy Graph) : eux aussi
+	// se placent au calendrier. Leur nom et leur XP vivent dans customProjects.
+	for (const id of simulatedIds) {
+		if (seen.has(id)) continue;
+		const custom = customs.find(c => c.id === id);
+		if (!custom) continue;
+		seen.add(id);
+		out.push(custom);
+	}
 	return out;
 }
 
@@ -151,7 +175,11 @@ const Calendar: React.FC = () => {
 		simulationService.load()
 			.then(d => {
 				if (cancelled) return;
-				setDbSimulation({ ids: d.simulatedProjects.map(p => p.projectId), subs: d.simulatedSubProjects ?? {} });
+				setDbSimulation({
+					ids: d.simulatedProjects.map(p => p.projectId),
+					subs: d.simulatedSubProjects ?? {},
+					customs: d.customProjects ?? [],
+				});
 			})
 			.catch(() => { /* serveur injoignable : bande vide, comme avant */ });
 		return () => { cancelled = true; };
