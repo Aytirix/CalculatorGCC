@@ -13,12 +13,17 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  // Un geste commencé sur la zone du graphe n'agit jamais sur la page (zoom,
+  // défilement) : le canvas gère lui-même ses doigts. Ce qui défile à l'intérieur
+  // (fiche, résultats) rouvre le défilement vertical plus bas.
+  touch-action: none;
 
   canvas {
     display: block;
     width: 100%;
     height: 100%;
     cursor: grab;
+    touch-action: none;
   }
 
   canvas.over-node {
@@ -76,6 +81,7 @@
   padding: 0.25rem;
   max-height: 260px;
   overflow-y: auto;
+  touch-action: pan-y;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
@@ -240,6 +246,7 @@
 .panel-body {
   padding: 0.75rem 0.95rem 0.95rem;
   overflow-y: auto;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

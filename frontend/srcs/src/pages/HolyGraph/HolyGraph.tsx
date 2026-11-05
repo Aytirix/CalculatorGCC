@@ -14,6 +14,7 @@ import { findRncpProject, graphSimulationId, isGraphSimulationId } from '@/utils
 import type { SimulatorProject } from '@/types/rncp.types';
 import ProjectPanel from './ProjectPanel';
 import { STATUS_LABELS, STATUS_STYLES, statusOf } from './projectStatus';
+import { applyPinch, MAX_SCALE, MIN_SCALE, pinchOf, TAP_MOVE_LIMIT, TAP_SLOP, type Pinch } from './graphGestures';
 import './HolyGraph.scss';
 
 /**
@@ -770,7 +771,7 @@ const HolyGraph: React.FC = () => {
     // Garde-fou : certains navigateurs envoient des deltas énormes sur un
     // défilement rapide. On borne le saut d'un seul événement.
     const facteurBorne = Math.min(2, Math.max(0.5, facteur));
-    const newScale = Math.min(4, Math.max(0.05, view.scale * facteurBorne));
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * facteurBorne));
 
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -798,19 +799,133 @@ const HolyGraph: React.FC = () => {
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [handleWheel, graphePret]);
 
-  /** Projet sous le curseur, ou `null`. Les nœuds dessinés au-dessus priment. */
-  const projectAt = (clientX: number, clientY: number): HolyGraphProject | null => {
+  /**
+   * Projet sous le curseur, ou `null`. Les nœuds dessinés au-dessus priment.
+   * `slop` : marge en pixels d'écran, pour le doigt, bien moins précis qu'une souris.
+   */
+  const projectAt = (clientX: number, clientY: number, slop = 0): HolyGraphProject | null => {
     if (!activeCursus) return null;
     const world = toWorld(clientX, clientY);
+    const margin = slop / viewRef.current.scale;
     return (
       [...activeCursus.projects]
         .sort((a, b) => drawPriority(b) - drawPriority(a))
         .find((p) => {
           const { hw, hh } = halfSize(p);
-          return Math.abs(p.x - world.x) <= hw && Math.abs(p.y - world.y) <= hh;
+          return Math.abs(p.x - world.x) <= hw + margin && Math.abs(p.y - world.y) <= hh + margin;
         }) ?? null
     );
   };
+
+  // Le toucher relit ceci à chaque fois : les listeners tactiles ne sont posés
+  // qu'une fois, et `projectAt` change avec le cursus affiché.
+  const tapAtRef = useRef<(x: number, y: number) => void>(() => {});
+  tapAtRef.current = (x, y) => {
+    setSelectedId(projectAt(x, y, TAP_SLOP)?.id ?? null);
+  };
+
+  /**
+   * Gestes tactiles, en listeners NATIFS `passive: false` (comme la molette) :
+   * il faut pouvoir refuser le comportement du navigateur, qui zoomait la PAGE
+   * entière au pincement au lieu du graphe. Refuser `touchstart` supprime aussi
+   * les faux événements souris qui suivent un toucher (double sélection).
+   */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    /** Un seul doigt : point de départ du glissement. Deux : dernier état du pincement. */
+    let pan: { x: number; y: number; startX: number; startY: number; moved: boolean } | null = null;
+    let pinch: Pinch | null = null;
+
+    const inCanvas = (t: Touch) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    };
+    const startPan = (t: Touch, moved: boolean) => {
+      pan = { x: t.clientX, y: t.clientY, startX: t.clientX, startY: t.clientY, moved };
+    };
+
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault();
+      setPinnedId(null);
+      // Refuser le toucher empêche aussi le champ de recherche de perdre le focus.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (e.touches.length >= 2) {
+        pan = null;
+        pinch = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
+      } else if (e.touches.length === 1) {
+        startPan(e.touches[0], false);
+      }
+    };
+
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length >= 2 && pinch) {
+        const next = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
+        viewRef.current = applyPinch(viewRef.current, pinch, next);
+        pinch = next;
+        draw();
+      } else if (e.touches.length === 1 && pan) {
+        const t = e.touches[0];
+        viewRef.current.offsetX += t.clientX - pan.x;
+        viewRef.current.offsetY += t.clientY - pan.y;
+        pan.x = t.clientX;
+        pan.y = t.clientY;
+        if (Math.hypot(t.clientX - pan.startX, t.clientY - pan.startY) > TAP_MOVE_LIMIT) pan.moved = true;
+        draw();
+      }
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length >= 2) {
+        pinch = pinchOf(inCanvas(e.touches[0]), inCanvas(e.touches[1]));
+        return;
+      }
+      // Un doigt levé d'un pincement : l'autre continue de déplacer, sans toucher.
+      if (e.touches.length === 1) {
+        pinch = null;
+        startPan(e.touches[0], true);
+        return;
+      }
+      if (pan && !pan.moved) tapAtRef.current(pan.startX, pan.startY);
+      pan = null;
+      pinch = null;
+    };
+
+    const onCancel = () => {
+      pan = null;
+      pinch = null;
+    };
+
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove', onMove, { passive: false });
+    canvas.addEventListener('touchend', onEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onCancel);
+    return () => {
+      canvas.removeEventListener('touchstart', onStart);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onEnd);
+      canvas.removeEventListener('touchcancel', onCancel);
+    };
+  }, [draw, graphePret]);
+
+  /**
+   * Safari iOS ne respecte pas toujours `touch-action` pour le pincement : il a
+   * ses propres événements `gesture*`, à refuser sur toute la zone du graphe.
+   */
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const refuse = (e: Event) => e.preventDefault();
+    wrapper.addEventListener('gesturestart', refuse, { passive: false });
+    wrapper.addEventListener('gesturechange', refuse, { passive: false });
+    return () => {
+      wrapper.removeEventListener('gesturestart', refuse);
+      wrapper.removeEventListener('gesturechange', refuse);
+    };
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setPinnedId(null);
