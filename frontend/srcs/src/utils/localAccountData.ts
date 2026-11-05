@@ -39,6 +39,7 @@ export const ACCOUNT_DATA_KEYS = [
 	'gcc_tour_seen_v1',
 	'gcc_tour_steps_seen',
 	'my_projects_filters',
+	'my_projects_filters_v2',
 	// Session d'administration
 	'gcc_admin_session',
 ] as const;

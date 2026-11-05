@@ -35,7 +35,9 @@ import './MyProjects.scss';
  * du bas. Les filtres sont mémorisés (préférence d'affichage de l'appareil).
  */
 
-const FILTERS_KEY = 'my_projects_filters';
+// v2 : nouveau défaut (« En cours » seul). L'ancienne clé gardait d'anciens
+// réglages qui auraient masqué ce défaut pour tous les utilisateurs existants.
+const FILTERS_KEY = 'my_projects_filters_v2';
 const WIDE_QUERY = '(min-width: 1100px)';
 
 type SortKey = 'name' | 'xp' | 'date' | 'mark' | 'status';
@@ -53,9 +55,9 @@ const ALL_SOURCES: ProjectSource[] = ['rncp', 'extra42', 'custom'];
 
 const DEFAULT_FILTERS: Filters = {
 	search: '',
-	// Le parcours réel et les projets prévus ; les projets jamais touchés sont
-	// là mais masqués, ils noieraient le reste.
-	statuses: ['validated', 'failed', 'in_progress', 'simulated'],
+	// Ce sur quoi on travaille en ce moment ; les autres statuts sont à une
+	// puce de distance (leur nombre reste affiché).
+	statuses: ['in_progress'],
 	sources: ALL_SOURCES,
 	rncp: '',
 	sort: 'status',
