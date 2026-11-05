@@ -119,7 +119,12 @@ export function mergeAfterLoad(
 	return {
 		projects: replayOps(deserializeProjects(db.placedProjects), ops),
 		dateRange: touched.range || !dbRange ? local.dateRange : dbRange,
-		alternanceDays: touched.alternance || Object.keys(dbAlternance).length === 0 ? local.alternanceDays : dbAlternance,
+		// La base fait foi, MÊME VIDE : un planning effacé (ici ou sur un autre
+		// appareil) revenait sinon depuis la copie locale du navigateur, puis
+		// repartait en base à la première modification. La copie locale ne
+		// l'emporte que si l'utilisateur a importé / effacé pendant le chargement,
+		// ou si la base n'a jamais eu de planning (données d'avant ce champ).
+		alternanceDays: touched.alternance || db.alternanceDays == null ? local.alternanceDays : dbAlternance,
 	};
 }
 

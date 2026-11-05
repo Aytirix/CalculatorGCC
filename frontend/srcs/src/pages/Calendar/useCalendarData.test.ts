@@ -113,7 +113,18 @@ describe('mergeAfterLoad (ce qui est affiché ET enregistré après la réponse 
 		expect(m.projects.map(p => p.id)).toEqual(['db1']);
 	});
 
-	it('base vide : la copie locale (première création)', () => {
+	it('planning effacé en base : il reste effacé (la copie locale ne le ressuscite pas)', () => {
+		const m = mergeAfterLoad({ ...db, alternanceDays: {} }, local, [], untouched);
+		expect(m.alternanceDays).toEqual({});
+	});
+
+	it('base sans champ planning (données anciennes) : on garde la copie locale', () => {
+		const { alternanceDays: _omit, ...withoutAlt } = db;
+		void _omit;
+		expect(mergeAfterLoad(withoutAlt, local, [], untouched).alternanceDays).toBe(local.alternanceDays);
+	});
+
+		it('base vide : la copie locale (première création)', () => {
 		expect(mergeAfterLoad(null, local, [], untouched)).toBe(local);
 	});
 
